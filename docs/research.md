@@ -76,7 +76,7 @@
 
 ## הארכיטקטורה המומלצת
 
-הטכנולוגיות: **Node.js/TypeScript עם grammY, ae_sdk ו-sharp**, בתהליך long polling אחד. הסיבה העיקרית היא ש-ae_sdk תומך גם ב-Affiliate API וגם ב-DS API, ומתוחזק (עדכון אחרון ב-20.10.2026). לעומתו, ספריית ה-Python הפופולרית python-aliexpress-api לא תומכת ב-DS בכלל ([ae_sdk repo](https://github.com/moh3a/ae_sdk); [issue #44](https://github.com/sergioteula/python-aliexpress-api/issues/44)). אם תעדיף Python כדי להעתיק מ-omerxxben, תצטרך לכתוב את החתימה של קריאות ה-DS בעצמך, כמו שהוא עשה.
+הטכנולוגיות: **Node.js/TypeScript עם grammY, ae_sdk ו-sharp**, בתהליך long polling אחד. הסיבה העיקרית היא ש-ae_sdk תומך גם ב-Affiliate API וגם ב-DS API. **אבל הוא לא מתוחזק באופן פעיל:** הגרסה האחרונה היא v0.6.0 מ-2025-03-30, וגם ה-commit האחרון הוא מאותו יום ([npm](https://www.npmjs.com/package/ae_sdk); [GitHub](https://github.com/moh3a/ae_sdk)). התאריך 20.10.2026 שהופיע כאן קודם בטעות הוא שדה `updated_at` של GitHub, שמתעדכן גם מכוכבים או משינוי תיאור ולא רק משינויי קוד (מועד הקוד האחרון הוא `pushed_at`). לכן ב-Phase 1 נשארנו עם מימוש חתימה עצמאי ובדוק. לעומתו, ספריית ה-Python הפופולרית python-aliexpress-api לא תומכת ב-DS בכלל ([ae_sdk repo](https://github.com/moh3a/ae_sdk); [issue #44](https://github.com/sergioteula/python-aliexpress-api/issues/44)). אם תעדיף Python כדי להעתיק מ-omerxxben, תצטרך לכתוב את החתימה של קריאות ה-DS בעצמך, כמו שהוא עשה.
 
 | שלב | מה קורה | פרטים חשובים |
 |---|---|---|
@@ -134,6 +134,13 @@
 | **שפה ותשתית** | Node.js + ae_sdk או Python בעקבות omerxxben | Node.js, בגלל תמיכת ae_sdk ב-DS |
 | **אחסון** | Railway ($5) / Fly.io ($2–4) / VPS | Railway למתחיל |
 | **איפה הקישורים** | 4 כפתורים מתחת לקולאז', או הודעת טקסט נפרדת | כפתורים: הודעה אחת לחיפוש |
+
+## מפת דרכים בשלבים
+
+- **Phase 1 (נבנה):** חיפוש דרך ה-Affiliate API, סינון לפי משוב חיובי של 90% ומעלה, הודעה אחת עם RLM וגילוי נאות, המרת קישורים, מצב דמו, polling או webhook.
+- **Phase 2, איכות תוצאות:** AI להבנת הבקשה ולסינון רלוונטיות (אם ה-AI נכשל, החיפוש ממשיך בלעדיו); ציון אמון (Wilson / Bayesian); בדיקת מחיר חריג (IQR); וריאציות לטריגר בעברית: תחפש / חפשו / מצא לי. ההחלטה עליהן תתקבל אחרי שימוש אמיתי בקבוצה.
+- **Phase 3, תצוגה ויציבות:** קולאז' עם sharp וכפתורים; grammY runner / ratelimiter / auto-retry; מטמון lru-cache.
+- **Phase 4, נתונים מתקדמים:** Advanced API; DS API לכוכבים ומספר ביקורות; חיפוש לפי תמונה.
 
 ## סיכום
 
