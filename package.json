@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node --env-file-if-exists=.env index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "eval:query": "node --env-file-if-exists=.env scripts/eval-query.js"
   },
   "engines": {
     "node": ">=22"

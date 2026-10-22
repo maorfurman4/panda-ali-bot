@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setup, textUpdate } from "./helpers.js";
+import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -146,8 +146,8 @@ test("mock mode labels the header only and hides the <90% demo product", async (
   await ctx.bot.handleUpdate(textUpdate("/search earbuds", { chat: "private" }));
   const caption = ctx.sent()[0].caption;
   const lines = caption.split("\n");
-  assert.match(lines[0], /\[דמו\]/);
-  assert.equal(caption.match(/\[דמו\]/g).length, 1);
+  assert.match(lines[0], /\[דמו – תוצאות קבועות\]/);
+  assert.equal(caption.match(/\[דמו/g).length, 1);
   assert.doesNotMatch(caption, /85%/);
 });
 
@@ -240,4 +240,124 @@ test("logs never contain message text", async (t) => {
   await run("/search סוד_פרטי_123", { failMethods: ["sendPhoto"] });
   assert.ok(logged.length > 0, "errors are logged");
   for (const line of logged) assert.doesNotMatch(line, /סוד_פרטי_123/);
+});
+
+// ---- AI query understanding (Phase 2a) ----
+
+const intent = (over = {}) => ({ status: "ok", corrected_he: "אוזניות", keywords_en: "wireless earbuds", max_price_ils: null, ...over });
+
+test("typo: AI-corrected Hebrew in the header, English keywords sent to the search", async () => {
+  const seen = [];
+  const { sent, queries } = await run("חפש לי אושניות", { understand: async (q) => (seen.push(q), intent()) });
+  assert.deepEqual(seen, ["אושניות"], "only the query text goes to the AI");
+  assert.deepEqual(queries, ["wireless earbuds"]);
+  const header = sent()[0].caption.split("\n")[0];
+  assert.match(header, /אוזניות/);
+  assert.doesNotMatch(header, /אושניות|wireless/);
+});
+
+test("fail-open: when the AI returns null the raw query is searched as before", async () => {
+  const { queries, sent } = await run("חפש לי אושניות", { understand: async () => null });
+  assert.deepEqual(queries, ["אושניות"]);
+  assert.match(sent()[0].caption.split("\n")[0], /אושניות/);
+});
+
+test("fail-open: an AI function that throws is treated as unavailable", async () => {
+  const { queries } = await run("חפש לי אושניות", { understand: async () => { throw new Error("boom"); } });
+  assert.deepEqual(queries, ["אושניות"]);
+});
+
+test("not_product: one short reply, no search", async () => {
+  const { sent, queries } = await run("@panda_test_bot תודה", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  assert.deepEqual(queries, []);
+  assert.equal(sent().length, 1);
+  assert.equal(sent()[0].body, NOT_PRODUCT);
+});
+
+test("max price: ILS products above the cap are dropped; non-ILS results ignore the cap", async () => {
+  const ils = await run("חפש לי אוזניות עד 13 שקל", { understand: async () => intent({ max_price_ils: 13 }) });
+  assert.deepEqual(ils.sent()[0].reply_markup.inline_keyboard[0].map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00"]);
+  const tooLow = await run("חפש לי אוזניות עד 5 שקל", { understand: async () => intent({ max_price_ils: 5 }) });
+  assert.equal(tooLow.sent()[0].body, NO_RESULTS);
+  const usd = SIX.map((p) => ({ ...p, target_sale_price_currency: "USD" }));
+  const other = await run("חפש לי אוזניות עד 5 שקל", { understand: async () => intent({ max_price_ils: 5 }), result: usd });
+  assert.equal(other.sent()[0].method, "sendPhoto");
+});
+
+const CLARIFY = intent({
+  status: "clarify",
+  corrected_he: "מתנה לאמא",
+  keywords_en: "",
+  clarify_question_he: "איזו מתנה?",
+  options: [
+    { label_he: "תכשיט", keywords_en: "women necklace" },
+    { label_he: "משהו לבית", keywords_en: "home decor" },
+  ],
+});
+
+async function clarifySetup(opts = {}) {
+  let t = 0;
+  const spy = searchSpy();
+  const ctx = setup({ search: spy.search, understand: async () => CLARIFY, now: () => t, ...opts });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מתנה לאמא", { userId: 7 }));
+  const question = ctx.sent()[0];
+  const buttons = question.reply_markup.inline_keyboard.flat();
+  return { ...ctx, spy, question, buttons, tick: (ms) => (t += ms) };
+}
+
+test("clarify: question as a reply with one button per option + 'search as written'", async () => {
+  const { question, buttons, spy } = await clarifySetup();
+  assert.match(question.body, /איזו מתנה\?/);
+  assert.ok(question.reply_parameters.message_id > 0);
+  assert.deepEqual(buttons.map((b) => b.text), ["תכשיט", "משהו לבית", "🔎 לחפש כמו שכתבתי"]);
+  for (const b of buttons) {
+    assert.match(b.callback_data, /^q:[0-9a-z]+:(\d|raw)$/);
+    assert.ok(Buffer.byteLength(b.callback_data) <= 64);
+  }
+  assert.deepEqual(spy.queries, [], "no search before a choice");
+});
+
+test("clarify: only the requester can choose; others get a notice", async () => {
+  const { bot, calls, buttons, spy } = await clarifySetup();
+  await bot.handleUpdate(callbackUpdate(buttons[0].callback_data, { userId: 99 }));
+  const answer = calls.find((c) => c.method === "answerCallbackQuery");
+  assert.equal(answer.payload.text, "רק מי שביקש יכול לבחור");
+  assert.deepEqual(spy.queries, []);
+});
+
+test("clarify: requester's choice edits the question, removes buttons and searches, without a second cooldown", async () => {
+  const { bot, calls, buttons, spy, sent, question, tick } = await clarifySetup();
+  tick(1000); // well inside the 10 s search cooldown
+  await bot.handleUpdate(callbackUpdate(buttons[1].callback_data, { userId: 7 }));
+  assert.ok(calls.some((c) => c.method === "answerCallbackQuery"));
+  const edit = calls.find((c) => c.method === "editMessageText");
+  assert.equal(edit.payload.text, `${RLM}🔎 משהו לבית`);
+  assert.equal(edit.payload.reply_markup, undefined);
+  assert.deepEqual(spy.queries, ["home decor"]);
+  const card = sent().at(-1);
+  assert.equal(card.method, "sendPhoto");
+  assert.equal(card.reply_parameters.message_id, question.reply_parameters.message_id, "card replies to the original request");
+  assert.match(card.caption.split("\n")[0], /משהו לבית/);
+});
+
+test("clarify: 'search as written' searches the raw query; a second press is expired", async () => {
+  const { bot, calls, buttons, spy } = await clarifySetup();
+  await bot.handleUpdate(callbackUpdate(buttons[2].callback_data, { userId: 7 }));
+  assert.deepEqual(spy.queries, ["מתנה לאמא"]);
+  await bot.handleUpdate(callbackUpdate(buttons[0].callback_data, { userId: 7 }));
+  assert.equal(calls.filter((c) => c.method === "answerCallbackQuery").at(-1).payload.text, "הבקשה פגה, חפשו שוב");
+});
+
+test("clarify: buttons expire after 10 minutes", async () => {
+  const { bot, calls, buttons, spy, tick } = await clarifySetup();
+  tick(10 * 60_000 + 1);
+  await bot.handleUpdate(callbackUpdate(buttons[0].callback_data, { userId: 7 }));
+  assert.equal(calls.find((c) => c.method === "answerCallbackQuery").payload.text, "הבקשה פגה, חפשו שוב");
+  assert.deepEqual(spy.queries, []);
+});
+
+test("any other callback is still answered", async () => {
+  const { bot, calls } = setup();
+  await bot.handleUpdate(callbackUpdate("something-else"));
+  assert.equal(calls.filter((c) => c.method === "answerCallbackQuery").length, 1);
 });

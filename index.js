@@ -20,6 +20,10 @@ if (isMockMode()) {
   console.warn("⚠️ Mock mode: ALI_APP_KEY / ALI_APP_SECRET / ALI_TRACKING_ID are not all set. Replies use [דמו] products and fake links.");
 }
 
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.warn("⚠️ ANTHROPIC_API_KEY is empty: AI query understanding is off, raw queries are searched.");
+}
+
 const mode = WEBHOOK_URL ? "webhook" : "polling";
 const bot = createBot({ token: BOT_TOKEN });
 const app = createApp({ bot, mode, webhookSecret: mode === "webhook" ? WEBHOOK_SECRET : undefined });

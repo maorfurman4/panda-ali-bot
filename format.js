@@ -3,7 +3,7 @@
 export const RLM = "‏";
 export const DISCLOSURE = "ℹ️ קישורי שותפים – ייתכן שנקבל עמלה על רכישה. המחירים משוערים."; // private /start only, by owner decision
 const MIN_FEEDBACK = 90;
-const TITLE_MAX = 40;
+const TITLE_MAX = 30; // photo captions are only as wide as the photo
 const QUERY_MAX = 30;
 const CAPTION_MAX = 1024; // Telegram photo caption limit, counted after HTML parsing
 const MEDALS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
@@ -57,16 +57,16 @@ export function shortTitle(title) {
 export function soldText(volume) {
   const n = Math.floor(Number(volume));
   if (!Number.isFinite(n) || n <= 0) return null;
-  if (n < 100) return `${n} נמכרו לאחרונה`;
+  if (n < 100) return `${n} נמכרו`;
   const step = 10 ** (String(n).length - 2);
-  return `${(Math.floor(n / step) * step).toLocaleString("en-US")}+ נמכרו לאחרונה`;
+  return `${(Math.floor(n / step) * step).toLocaleString("en-US")}+ נמכרו`;
 }
 
 // Stars + review count (future DS API data) first, else the positive-feedback %, else nothing. Never shows 0.
 export function ratingText(p) {
   const stars = Number(p.avgStars);
   const reviews = Math.round(Number(p.reviewCount));
-  if (stars > 0 && reviews > 0) return `⭐ ${stars.toFixed(1)} (${reviews.toLocaleString("en-US")} ביקורות)`;
+  if (stars > 0 && reviews > 0) return `⭐ ${stars.toFixed(1)} (${reviews.toLocaleString("en-US")})`;
   const rate = parseEvaluateRate(p.evaluate_rate);
   return rate > 0 ? `👍 ${Math.round(rate)}% משוב חיובי` : null;
 }
@@ -89,7 +89,7 @@ export function priceLine(p) {
 }
 
 function buildCard(products, query, demo) {
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו]" : ""}`];
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`];
   const buttons = [];
   products.forEach((p, i) => {
     lines.push("", `${MEDALS[i]} <b>${esc(shortTitle(p.product_title) || "מוצר")}</b>`);
@@ -117,6 +117,15 @@ export function formatCard(products, { query, demo = false }) {
   return card;
 }
 
+// Max-price filter from the AI: applies only to ILS prices; other currencies ignore the cap.
+export function withinPrice(products, maxIls) {
+  if (!maxIls) return products;
+  return products.filter((p) => (p.target_sale_price_currency ?? p.sale_price_currency) !== "ILS" || Number(p.target_sale_price ?? p.sale_price) <= maxIls);
+}
+
+export const clarifyText = (question) => rtl([`🤔 ${esc(question)}`]);
+export const chosenText = (label) => rtl([`🔎 ${esc(label)}`]);
+
 export function formatLinkReply(link, { demo = false } = {}) {
   return rtl([`🔗 הנה הקישור${demo ? " [דמו]" : ""}:`, esc(link)]);
 }
@@ -134,11 +143,16 @@ export const HELP = rtl([
   "",
   "🔗 קישור למוצר מעלי אקספרס: שלחו אותו כאן, או בקבוצה אחרי תיוג שלי, ואחזיר קישור לרכישה.",
   "💡 חיפוש באנגלית מחזיר לרוב תוצאות טובות יותר.",
+  "📊 מספר המכירות הוא לפי עלי אקספרס, בתקופה האחרונה.",
   "",
   `<i>${DISCLOSURE}</i>`,
 ]);
 
 export const GROUP_HELP = rtl(['🐼 כתבו "חפש לי ..." ואמצא לכם מוצרים. הסבר מלא בפרטי 👈']);
+export const NOT_PRODUCT = rtl(["לא הבנתי איזה מוצר לחפש 🙂 נסו למשל: חפש לי אוזניות"]);
+export const SEARCH_AS_TYPED = "🔎 לחפש כמו שכתבתי";
+export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
+export const CLARIFY_EXPIRED = "הבקשה פגה, חפשו שוב";
 export const EMPTY_QUERY = rtl(["מה לחפש? לדוגמה: חפש לי אוזניות אלחוטיות"]);
 export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים מתאימים. נסו מילים אחרות (באנגלית זה עובד הכי טוב)."]);
 export const SEARCH_ERROR = rtl(["😕 הייתה תקלה בחיבור לעלי אקספרס. נסו שוב בעוד דקה."]);

@@ -11,6 +11,7 @@ import {
   formatCard,
   formatLinkReply,
   parsedLength,
+  withinPrice,
   esc,
   RLM,
   DISCLOSURE,
@@ -45,35 +46,47 @@ test("price: ₪ only for ILS, otherwise the currency code; always 2 decimals", 
   assert.equal(formatPrice("abc", "ILS"), null);
 });
 
-test("title: one line, max ~40 chars, cut at a word boundary, brand words intact", () => {
+test("title: one line, max ~30 chars, cut at a word boundary, brand words intact", () => {
   assert.equal(
     shortTitle("אוזניות אלחוטיות Baseus Bowie E19 Bluetooth 5.3 עם ביטול רעשים"),
-    "אוזניות אלחוטיות Baseus Bowie E19…",
+    "אוזניות אלחוטיות Baseus Bowie…",
   );
   assert.equal(shortTitle("כבל USB-C"), "כבל USB-C");
   assert.equal(shortTitle("line one\nline   two"), "line one line two");
   const oneWord = shortTitle("x".repeat(60));
-  assert.equal([...oneWord].length, 40);
+  assert.equal([...oneWord].length, 30);
   assert.ok(oneWord.endsWith("…"));
 });
 
-test("sold: exact under 100, 2 significant digits + '+' from 100, label 'נמכרו לאחרונה'", () => {
-  assert.equal(soldText("87"), "87 נמכרו לאחרונה");
-  assert.equal(soldText("100"), "100+ נמכרו לאחרונה");
-  assert.equal(soldText("155"), "150+ נמכרו לאחרונה");
-  assert.equal(soldText("1874"), "1,800+ נמכרו לאחרונה");
-  assert.equal(soldText("5230"), "5,200+ נמכרו לאחרונה");
-  assert.equal(soldText("987654"), "980,000+ נמכרו לאחרונה");
+test("sold: exact under 100, 2 significant digits + '+' from 100, short label 'נמכרו'", () => {
+  assert.equal(soldText("87"), "87 נמכרו");
+  assert.equal(soldText("100"), "100+ נמכרו");
+  assert.equal(soldText("155"), "150+ נמכרו");
+  assert.equal(soldText("1874"), "1,800+ נמכרו");
+  assert.equal(soldText("5230"), "5,200+ נמכרו");
+  assert.equal(soldText("987654"), "980,000+ נמכרו");
   for (const bad of ["0", undefined, "x", ""]) assert.equal(soldText(bad), null, String(bad));
 });
 
 test("rating: stars+reviews first, then rounded feedback %, never 0, never % as stars", () => {
-  assert.equal(ratingText({ avgStars: 4.83, reviewCount: 1234, evaluate_rate: "97%" }), "⭐ 4.8 (1,234 ביקורות)");
-  assert.equal(ratingText({ avgStars: 5, reviewCount: 12 }), "⭐ 5.0 (12 ביקורות)");
+  assert.equal(ratingText({ avgStars: 4.83, reviewCount: 1234, evaluate_rate: "97%" }), "⭐ 4.8 (1,234)");
+  assert.equal(ratingText({ avgStars: 5, reviewCount: 12 }), "⭐ 5.0 (12)");
   assert.equal(ratingText({ evaluate_rate: "96.5%" }), "👍 97% משוב חיובי");
   assert.equal(ratingText({ avgStars: 0, reviewCount: 0, evaluate_rate: "92%" }), "👍 92% משוב חיובי");
   assert.equal(ratingText({ evaluate_rate: "0%" }), null);
   assert.equal(ratingText({}), null);
+});
+
+test("original price is wrapped in <s> (strikethrough) inside the HTML caption", () => {
+  const { caption } = formatCard([full(1)], { query: "x" });
+  assert.ok(caption.includes("<s>₪69.90</s>"));
+});
+
+test("withinPrice drops ILS products above the cap and ignores the cap for other currencies", () => {
+  const p = (price, currency = "ILS") => ({ target_sale_price: price, target_sale_price_currency: currency });
+  assert.deepEqual(withinPrice([p("40"), p("50"), p("60")], 50).map((x) => x.target_sale_price), ["40", "50"]);
+  assert.equal(withinPrice([p("99", "USD")], 50).length, 1);
+  assert.equal(withinPrice([p("99")], null).length, 1);
 });
 
 test("price line: exact strings, badge only for 5% ≤ discount < 80%", () => {
@@ -109,9 +122,9 @@ test("card layout: header, medal title lines, price and rating lines, RLM everyw
   assert.deepEqual(body.slice(0, 5), [
     "🔎 <b>אוזניות</b>",
     "",
-    "🥇 <b>אוזניות אלחוטיות Baseus Bowie E1…</b>",
+    "🥇 <b>אוזניות אלחוטיות Baseus Bowie…</b>",
     "💰 <b>₪39.90</b>  <s>₪69.90</s>  🔥 43%-",
-    "⭐ 4.8 (1,234 ביקורות) · 🛒 5,200+ נמכרו לאחרונה",
+    "⭐ 4.8 (1,234) · 🛒 5,200+ נמכרו",
   ]);
   assert.match(body[6], /^🥈 /);
   assert.doesNotMatch(caption, /לקנייה|קישורי שותפים/);
@@ -121,8 +134,8 @@ test("card: demo label in header only; query escaped and max 30 chars", () => {
   const { caption } = formatCard([full(1)], { query: "<b>" + "א".repeat(40), demo: true });
   const header = caption.split("\n")[0];
   assert.ok(header.includes("&lt;b&gt;"));
-  assert.match(header, /\[דמו\]/);
-  assert.equal(caption.match(/\[דמו\]/g).length, 1);
+  assert.ok(header.endsWith(" [דמו – תוצאות קבועות]"));
+  assert.equal(caption.match(/\[דמו/g).length, 1);
   const shownQuery = header.match(/<b>(.*)<\/b>/)[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   assert.ok([...shownQuery].length <= 30);
 });
@@ -183,5 +196,6 @@ test("help texts: private keeps the full disclosure sentence; group help is one 
   assert.ok(HELP.includes(DISCLOSURE));
   assert.match(HELP, /חפש לי/);
   assert.match(HELP, /מצא לי/);
+  assert.ok(HELP.includes("מספר המכירות הוא לפי עלי אקספרס, בתקופה האחרונה"));
   assert.equal(GROUP_HELP, `${RLM}🐼 כתבו "חפש לי ..." ואמצא לכם מוצרים. הסבר מלא בפרטי 👈`);
 });

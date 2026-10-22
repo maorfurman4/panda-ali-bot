@@ -4,8 +4,9 @@ Bot: `@panda_ali_deals_bot` · Last updated: 2026-10-22 · Research and roadmap:
 
 ## 1. Current state
 
-- **Code:** Phase 1.1. Commits: `233a220` (MVP), `8518425` (research fix + roadmap), `2fe940d` (this file), then the Phase 1.1 commit (group trigger fixes + photo result card). Local git only, no remote.
-- **Tests:** 59/59 pass (`npm test`, no token, no network).
+- **Code:** Phase 2a. Commits: `233a220` (MVP), `8518425` (research fix), `2fe940d` (this file), `675041a` (Phase 1.1), then the Phase 2a commit (AI query understanding + card fixes). Local git only, no remote.
+- **Tests:** 78/78 pass (`npm test`, no token, no network; the Anthropic API is mocked).
+- **AI:** `ANTHROPIC_API_KEY` empty → AI off (fail-open: raw queries are searched). `npm run eval:query` checks the AI alone once the key is set.
 - **`.env`:** `BOT_TOKEN` and `ALI_TRACKING_ID` filled. `ALI_APP_KEY` and `ALI_APP_SECRET` empty, so the bot runs in **mock mode** (`[דמו]` products, fake links).
 - **Telegram:** privacy mode OFF in BotFather. The bot was removed and re-added to the test group after the change.
 - **Runtime:** local only (`npm start`, long polling). No hosting yet.
@@ -13,7 +14,7 @@ Bot: `@panda_ali_deals_bot` · Last updated: 2026-10-22 · Research and roadmap:
 
 ## 2. Live test results
 
-Phase 1 (text format, old triggers). **Phase 1.1 is not live-tested yet.**
+Phase 1 (text format, old triggers) below. Phase 1.1 live test (2026-10-22 20:41): the card, 3 products, 3 price buttons and RTL all PASS; findings fed into Phase 2a. **Phase 2a is not live-tested yet.**
 
 2026-10-22, 20:13–20:15 IDT, test group, Telegram Desktop, real Telegram + mock AliExpress.
 
@@ -43,10 +44,10 @@ Phase 1 (text format, old triggers). **Phase 1.1 is not live-tested yet.**
 **Current (Phase 1.1):** one photo card per search, sent as a reply to the requester.
 - `sendPhoto` with product #1's image, an HTML caption (≤ 1024 parsed chars; trailing products are dropped if needed), and one URL button per product (`🥇 ₪39.90`, 3 per row). If `sendPhoto` fails or there is no image, the same caption and buttons go out via `sendMessage`.
 - Group: top 3. Private: top 5 (ranks `4️⃣ 5️⃣`).
-- Caption: header `🔎 <b>query</b>` (+ ` [דמו]` in mock mode only). Each product has:
-  - a medal + title line (one line, ≤ 40 chars, cut at a word boundary)
+- Caption: header `🔎 <b>{corrected Hebrew query}</b>` (+ ` [דמו – תוצאות קבועות]` in mock mode only). Each product has:
+  - a medal + title line (one line, ≤ 30 chars, cut at a word boundary; photo captions are only as wide as the photo)
   - `💰 <b>₪39.90</b>  <s>₪69.90</s>  🔥 43%-`; the original price and badge appear only for 5% ≤ discount < 80%
-  - `⭐ 4.8 (1,234 ביקורות)` or `👍 97% משוב חיובי`, then `· 🛒 5,200+ נמכרו לאחרונה`; the line is dropped if both are missing
+  - `⭐ 4.8 (1,234)` or `👍 97% משוב חיובי`, then `· 🛒 5,200+ נמכרו`; the line is dropped if both are missing. The private /help explains the sold count is AliExpress's recent-period figure.
 - `avgStars` / `reviewCount` are optional model fields for the future DS API. They are undefined for real Affiliate data and appear only in mock data.
 - Every line is prefixed with RLM (U+200F). No "לקנייה" text links.
 - **Disclosure:** by owner decision (2026-10-22), there is no disclosure line on result cards or link replies. The full disclosure sentence stays only in the private `/start` help (and the BotFather description). Owner is aware of the Israeli-disclosure risk noted in research.md.
@@ -60,11 +61,14 @@ Phase 1 (text format, old triggers). **Phase 1.1 is not live-tested yet.**
 | Phase | Scope |
 |---|---|
 | next round | Hosting (Railway), so the bot runs without the owner's computer |
-| 2 | AI query parsing + relevance filter (fail-open), AI short Hebrew titles, trust score (Wilson/Bayesian), IQR price sanity, Hebrew trigger variants (תחפש / חפשו; מצא לי is done) |
+| 2a ✅ | AI query understanding (Claude Haiku 5.5): typo fix, Hebrew → English keywords, shekel price cap, clarify buttons, not_product; fail-open; English queries skip the AI |
+| 2b | AI relevance filter + AI short Hebrew titles (need real AliExpress data), trust score (Wilson/Bayesian), IQR price sanity, Hebrew trigger variants (תחפש / חפשו) |
 | 3 | sharp 2×2 collage (replaces the single photo), "עוד" pagination / reply-to-bot actions, grammY runner / ratelimiter / auto-retry, lru-cache |
 | 4 | Advanced API, DS API (real source for `avgStars` / `reviewCount`), image search |
 
 Kept as is on purpose: edited messages are ignored (this avoids double replies).
+
+Open (not decided): the photo takes most of a phone screen. Options are a smaller image or the Phase 3 collage.
 
 **Why deferred:** we first verify the real Affiliate API data on the simple text format, which already meets "one message per search".
 
@@ -76,6 +80,7 @@ Kept as is on purpose: edited messages are ignored (this avoids double replies).
 - **Triggers (Phase 1.1):** `/search`, `/search@bot`, `חפש לי`, `מצא לי`, `@bot`, all only at the start of the message. Bare `חפש` was removed. Private chat: any text is a search. Group chatter, a mid-message mention and plain links: silence.
 - **Stars / review counts:** never scraped, and the undocumented feedback endpoint is not used. Their source will be the DS API (the owner's call).
 - **Disclosure:** none on cards or link replies (owner decision); the full sentence only in private `/start`.
+- **AI provider:** Anthropic `claude-haiku-5-5` via raw `fetch` (no SDK), `thinking: disabled`, `effort: low`, JSON schema output validated in code, 5 s timeout, max 300 tokens, 24 h per-process cache (500 entries). Only the query text is sent: no user IDs, names or other messages. Max price is filtered in code on ILS results only (not passed to the API until its currency behaviour is verified).
 - **Group access:** privacy mode OFF (not admin).
 - **Logs:** no message text, no user names.
 - **Location:** `~/Desktop/panda-ali-bot`, local git only.
