@@ -80,11 +80,17 @@ test("mock mode is on when any credential is empty", () => {
   assert.equal(isMockMode(LIVE_ENV), false);
 });
 
-test("searchProducts in mock mode returns labeled demo products without network", async () => {
+test("searchProducts in mock mode returns demo products with images and fake links, without network", async () => {
   const fetch = () => assert.fail("mock mode must not call the API");
   const products = await searchProducts("אוזניות", { fetch, env: {} });
-  assert.ok(products.length >= 5);
-  for (const p of products) assert.match(p.product_title, /^\[דמו\]/);
+  assert.ok(products.length >= 6);
+  for (const p of products) {
+    assert.match(p.product_main_image_url, /^https:\/\/placehold\.co\//);
+    assert.match(p.promotion_link, /^https:\/\/example\.com\/demo-link\//);
+  }
+  assert.ok(products.some((p) => p.avgStars && p.reviewCount), "some have stars + reviews");
+  assert.ok(products.some((p) => !p.avgStars && p.evaluate_rate), "some have only evaluate_rate");
+  assert.ok(products.some((p) => !p.avgStars && !p.evaluate_rate), "one has neither");
 });
 
 test("searchProducts live: requests IL/ILS/HE sorted by orders and reads both product shapes", async () => {

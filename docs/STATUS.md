@@ -4,14 +4,16 @@ Bot: `@panda_ali_deals_bot` · Last updated: 2026-10-22 · Research and roadmap:
 
 ## 1. Current state
 
-- **Code:** Phase 1 MVP. Commits `233a220` (MVP) and `8518425` (research fix + roadmap). Local git only, no remote.
-- **Tests:** 49/49 pass (`npm test`, no token, no network).
+- **Code:** Phase 1.1. Commits: `233a220` (MVP), `8518425` (research fix + roadmap), `2fe940d` (this file), then the Phase 1.1 commit (group trigger fixes + photo result card). Local git only, no remote.
+- **Tests:** 59/59 pass (`npm test`, no token, no network).
 - **`.env`:** `BOT_TOKEN` and `ALI_TRACKING_ID` filled. `ALI_APP_KEY` and `ALI_APP_SECRET` empty, so the bot runs in **mock mode** (`[דמו]` products, fake links).
 - **Telegram:** privacy mode OFF in BotFather. The bot was removed and re-added to the test group after the change.
 - **Runtime:** local only (`npm start`, long polling). No hosting yet.
 - **AliExpress:** the Open Platform app is pending approval. No API keys yet.
 
 ## 2. Live test results
+
+Phase 1 (text format, old triggers). **Phase 1.1 is not live-tested yet.**
 
 2026-10-22, 20:13–20:15 IDT, test group, Telegram Desktop, real Telegram + mock AliExpress.
 
@@ -38,20 +40,31 @@ Bot: `@panda_ali_deals_bot` · Last updated: 2026-10-22 · Research and roadmap:
 
 ## 3. Message format: current vs planned
 
-**Current (Phase 1, by decision):** one HTML text message per search, sent as a reply to the requester.
-- Header `🐼 מצאתי לך N מוצרים [דמו]:`
-- Per product: bold `N. title` / `💰 price ₪ · 👍 97% משוב חיובי · 📦 5,230 הזמנות` / `👉 לקנייה` link
-- Footer: the disclosure line, including "המחירים משוערים"
-- Up to 5 products. `evaluate_rate` < 90 filtered out. Missing rating → omitted. Currency shown as the API returns it.
-- Every line is prefixed with RLM (U+200F).
+**Current (Phase 1.1):** one photo card per search, sent as a reply to the requester.
+- `sendPhoto` with product #1's image, an HTML caption (≤ 1024 parsed chars; trailing products are dropped if needed), and one URL button per product (`🥇 ₪39.90`, 3 per row). If `sendPhoto` fails or there is no image, the same caption and buttons go out via `sendMessage`.
+- Group: top 3. Private: top 5 (ranks `4️⃣ 5️⃣`).
+- Caption: header `🔎 <b>query</b>` (+ ` [דמו]` in mock mode only). Each product has:
+  - a medal + title line (one line, ≤ 40 chars, cut at a word boundary)
+  - `💰 <b>₪39.90</b>  <s>₪69.90</s>  🔥 43%-`; the original price and badge appear only for 5% ≤ discount < 80%
+  - `⭐ 4.8 (1,234 ביקורות)` or `👍 97% משוב חיובי`, then `· 🛒 5,200+ נמכרו לאחרונה`; the line is dropped if both are missing
+- `avgStars` / `reviewCount` are optional model fields for the future DS API. They are undefined for real Affiliate data and appear only in mock data.
+- Every line is prefixed with RLM (U+200F). No "לקנייה" text links.
+- **Disclosure:** by owner decision (2026-10-22), there is no disclosure line on result cards or link replies. The full disclosure sentence stays only in the private `/start` help (and the BotFather description). Owner is aware of the Israeli-disclosure risk noted in research.md.
+- Group behavior:
+  - triggers only at the start of the message: `/search`, `/search@bot`, `חפש לי`, `מצא לי`, `@bot`
+  - links are converted only after a leading mention (private: always)
+  - group `/start` and `/help` give one line + a deep-link button, at most once per 10 minutes per chat
 
 **Planned (deferred, not rejected).** Details in [research.md](research.md#הארכיטקטורה-המומלצת).
 
 | Phase | Scope |
 |---|---|
-| 2 | AI query parsing + relevance filter (fail-open), AI short Hebrew titles, trust score (Wilson/Bayesian), IQR price sanity, Hebrew trigger variants (תחפש / חפשו / מצא לי) |
-| 3 | sharp 2×2 collage via `sendPhoto` (caption ≤ 1024), 4 URL buttons, grammY runner / ratelimiter / auto-retry, lru-cache |
-| 4 | Advanced API, DS API (stars + review counts), image search |
+| next round | Hosting (Railway), so the bot runs without the owner's computer |
+| 2 | AI query parsing + relevance filter (fail-open), AI short Hebrew titles, trust score (Wilson/Bayesian), IQR price sanity, Hebrew trigger variants (תחפש / חפשו; מצא לי is done) |
+| 3 | sharp 2×2 collage (replaces the single photo), "עוד" pagination / reply-to-bot actions, grammY runner / ratelimiter / auto-retry, lru-cache |
+| 4 | Advanced API, DS API (real source for `avgStars` / `reviewCount`), image search |
+
+Kept as is on purpose: edited messages are ignored (this avoids double replies).
 
 **Why deferred:** we first verify the real Affiliate API data on the simple text format, which already meets "one message per search".
 
@@ -60,7 +73,9 @@ Bot: `@panda_ali_deals_bot` · Last updated: 2026-10-22 · Research and roadmap:
 ## 4. Decisions log (closed)
 
 - **Stack:** Node.js ESM + Express + grammY. `ae_sdk` not used (v0.6.0, last published 2025-03-30); own signing with tests.
-- **Triggers:** `/search`, `/search@bot`, `חפש`, `חפש לי`, mention. Private chat: any text is a search. Group chatter: silence.
+- **Triggers (Phase 1.1):** `/search`, `/search@bot`, `חפש לי`, `מצא לי`, `@bot`, all only at the start of the message. Bare `חפש` was removed. Private chat: any text is a search. Group chatter, a mid-message mention and plain links: silence.
+- **Stars / review counts:** never scraped, and the undocumented feedback endpoint is not used. Their source will be the DS API (the owner's call).
+- **Disclosure:** none on cards or link replies (owner decision); the full sentence only in private `/start`.
 - **Group access:** privacy mode OFF (not admin).
 - **Logs:** no message text, no user names.
 - **Location:** `~/Desktop/panda-ali-bot`, local git only.

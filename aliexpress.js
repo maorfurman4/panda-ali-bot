@@ -53,7 +53,7 @@ export async function apiCall(method, params, { fetch = globalThis.fetch, env = 
 
 export async function searchProducts(query, deps = {}) {
   const env = deps.env ?? process.env;
-  if (isMockMode(env)) return mockProducts(query);
+  if (isMockMode(env)) return mockProducts();
   const result = await apiCall(
     "aliexpress.affiliate.product.query",
     {
@@ -91,22 +91,30 @@ export async function convertToAffiliate(url, deps = {}) {
   return clean ? generateAffiliateLink(clean, deps) : null;
 }
 
-function mockProducts(query) {
+// Demo data covering every display branch. avgStars/reviewCount are optional and absent from the Affiliate API;
+// their future source is the DS API, so real products leave them undefined.
+function mockProducts() {
   const rows = [
-    ["39.90", "97.8%", "5230"],
-    ["24.50", "95.1%", "1874"],
-    ["12.90", "85.0%", "990"], // below 90% on purpose: the filter should hide it
-    ["59.00", "93.4%", "642"],
-    ["18.30", "", "310"],
-    ["31.70", "91.0%", "155"],
+    // title, sale, original, evaluate_rate, lastest_volume, avgStars, reviewCount
+    ["אוזניות אלחוטיות Baseus Bowie E19 Bluetooth 5.3 עם ביטול רעשים ENC", "39.90", "69.90", "97.8%", "5230", 4.8, 1234], // 43% badge
+    ["מטען מהיר לרכב UGREEN 65W עם שתי יציאות USB-C ויציאת USB-A", "24.50", undefined, "95.1%", "1874"], // no original, % only
+    ["כבל טעינה Lightning באורך 2 מטר", "12.90", "15.90", "85.0%", "990"], // <90%: filtered out
+    ["שעון חכם Xiaomi Redmi Watch 5 Active עם מסך 2 אינץ' ו-GPS", "59.00", "399.00", "93.4%", "642", 4.6, 87], // ≥80% "discount": no badge
+    ["מנורת לילה לילדים עם חיישן תנועה ותאורה חמה", "18.30", "21.00", undefined, "87"], // no rating at all, exact sold
+    ["מעמד לטלפון לשולחן עבודה מאלומיניום מתכוונן", "31.70", "33.00", "98.0%", "155", 4.9, 12034], // <5%: no badge
+    ["מחזיק מפתחות קטן עם פנס LED", "12.00", undefined, undefined, undefined], // neither rating nor sold
   ];
-  return rows.map(([price, rate, volume], i) => ({
+  return rows.map(([title, sale, original, rate, volume, avgStars, reviewCount], i) => ({
     product_id: `demo${i + 1}`,
-    product_title: `[דמו] ${query} – דגם ${i + 1}`,
-    target_sale_price: price,
+    product_title: title,
+    product_main_image_url: `https://placehold.co/600x600.png?text=Demo+${i + 1}`,
+    target_sale_price: sale,
+    target_original_price: original,
     target_sale_price_currency: "ILS",
     evaluate_rate: rate,
     lastest_volume: volume,
+    avgStars,
+    reviewCount,
     promotion_link: `https://example.com/demo-link/${i + 1}`,
   }));
 }

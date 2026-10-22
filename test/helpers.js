@@ -13,22 +13,26 @@ export const BOT_INFO = {
   has_main_web_app: false,
 };
 
-export function setup(opts = {}) {
+// failMethods: Telegram methods that should answer with a 400 error (e.g. ["sendPhoto"]).
+export function setup({ failMethods = [], ...opts } = {}) {
   const calls = [];
   const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, ...opts });
   bot.api.config.use(async (_prev, method, payload) => {
     calls.push({ method, payload });
-    const result = method === "sendMessage" ? { message_id: 999, date: 0, chat: { id: payload.chat_id, type: "supergroup" }, text: payload.text } : true;
+    if (failMethods.includes(method)) return { ok: false, error_code: 400, description: "Bad Request: wrong file identifier/HTTP URL specified" };
+    const isSend = method === "sendMessage" || method === "sendPhoto";
+    const result = isSend ? { message_id: 999, date: 0, chat: { id: payload.chat_id, type: "supergroup" } } : true;
     return { ok: true, result };
   });
-  const sent = () => calls.filter((c) => c.method === "sendMessage").map((c) => c.payload);
+  const sends = () => calls.filter((c) => c.method === "sendMessage" || c.method === "sendPhoto");
+  const sent = () => sends().map((c) => ({ ...c.payload, method: c.method, body: c.payload.text ?? c.payload.caption }));
   return { bot, calls, sent };
 }
 
 let nextId = 1;
-export function textUpdate(text, { chat = "group", userId = 7 } = {}) {
+export function textUpdate(text, { chat = "group", userId = 7, chatId = -100123 } = {}) {
   const id = nextId++;
-  const chatObj = chat === "private" ? { id: userId, type: "private", first_name: "U" } : { id: -100123, type: "supergroup", title: "G" };
+  const chatObj = chat === "private" ? { id: userId, type: "private", first_name: "U" } : { id: chatId, type: "supergroup", title: "G" };
   const command = text.match(/^\/\S+/);
   return {
     update_id: id,
