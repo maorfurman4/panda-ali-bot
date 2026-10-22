@@ -6,7 +6,7 @@ Bot: `@panda_ali_deals_bot` · Last updated: 2026-10-22 · Research and roadmap:
 
 - **Code:** Phase 2a. Commits: `233a220` (MVP), `8518425` (research fix), `2fe940d` (this file), `675041a` (Phase 1.1), then the Phase 2a commit (AI query understanding + card fixes). Local git only, no remote.
 - **Tests:** 78/78 pass (`npm test`, no token, no network; the Anthropic API is mocked).
-- **AI:** `ANTHROPIC_API_KEY` empty → AI off (fail-open: raw queries are searched). `npm run eval:query` checks the AI alone once the key is set.
+- **AI:** OpenAI `gpt-4.1-nano` (override with `OPENAI_MODEL`). `OPENAI_API_KEY` is filled. When it's empty, the AI is off (fail-open: raw queries are searched). `npm run eval:query [-- --model <id>]` checks the AI alone.
 - **`.env`:** `BOT_TOKEN` and `ALI_TRACKING_ID` filled. `ALI_APP_KEY` and `ALI_APP_SECRET` empty, so the bot runs in **mock mode** (`[דמו]` products, fake links).
 - **Telegram:** privacy mode OFF in BotFather. The bot was removed and re-added to the test group after the change.
 - **Runtime:** local only (`npm start`, long polling). No hosting yet.
@@ -61,7 +61,7 @@ Phase 1 (text format, old triggers) below. Phase 1.1 live test (2026-10-22 20:41
 | Phase | Scope |
 |---|---|
 | next round | Hosting (Railway), so the bot runs without the owner's computer |
-| 2a ✅ | AI query understanding (Claude Haiku 5.5): typo fix, Hebrew → English keywords, shekel price cap, clarify buttons, not_product; fail-open; English queries skip the AI |
+| 2a ✅ | AI query understanding (OpenAI gpt-4.1-nano; built on Claude Haiku 5.5, then switched): typo fix, Hebrew → English keywords, shekel price cap, clarify buttons, not_product; fail-open; English queries skip the AI |
 | 2b | AI relevance filter + AI short Hebrew titles (need real AliExpress data), trust score (Wilson/Bayesian), IQR price sanity, Hebrew trigger variants (תחפש / חפשו) |
 | 3 | sharp 2×2 collage (replaces the single photo), "עוד" pagination / reply-to-bot actions, grammY runner / ratelimiter / auto-retry, lru-cache |
 | 4 | Advanced API, DS API (real source for `avgStars` / `reviewCount`), image search |
@@ -80,7 +80,16 @@ Open (not decided): the photo takes most of a phone screen. Options are a smalle
 - **Triggers (Phase 1.1):** `/search`, `/search@bot`, `חפש לי`, `מצא לי`, `@bot`, all only at the start of the message. Bare `חפש` was removed. Private chat: any text is a search. Group chatter, a mid-message mention and plain links: silence.
 - **Stars / review counts:** never scraped, and the undocumented feedback endpoint is not used. Their source will be the DS API (the owner's call).
 - **Disclosure:** none on cards or link replies (owner decision); the full sentence only in private `/start`.
-- **AI provider:** Anthropic `claude-haiku-5-5` via raw `fetch` (no SDK), `thinking: disabled`, `effort: low`, JSON schema output validated in code, 5 s timeout, max 300 tokens, 24 h per-process cache (500 entries). Only the query text is sent: no user IDs, names or other messages. Max price is filtered in code on ILS results only (not passed to the API until its currency behaviour is verified).
+- **AI provider (2026-10-22):** OpenAI Responses API via raw `fetch`. Strict JSON schema validated in code, `store: false`, `reasoning.effort: none` on reasoning models, 5 s timeout, max 300 output tokens, 24 h per-process cache (500 entries). Only the query text is sent. API data is not used for training by default (OpenAI docs) and is kept up to 30 days for abuse monitoring. Max price is filtered in code on ILS results only.
+- **Model choice (eval, 12 Hebrew queries, 1 run each):**
+
+  | Model | Accuracy | p50 latency | Max | Cost (12 queries) |
+  |---|---|---|---|---|
+  | gpt-4.1-nano ✅ | 12/12 | 1181 ms | 2225 ms | $0.00072 |
+  | gpt-5.4-nano | 12/12 | 1143 ms | 2322 ms | $0.00185 |
+  | gpt-6-luna | 12/12 | 2082 ms | 3706 ms | $0.00083 |
+
+  All three were accurate. gpt-6-luna missed the p50 < 2 s target; gpt-4.1-nano is the cheaper of the two fast ones. Risk: gpt-4.1-nano is an older generation (no deprecation notice found); switching only needs `OPENAI_MODEL`.
 - **Group access:** privacy mode OFF (not admin).
 - **Logs:** no message text, no user names.
 - **Location:** `~/Desktop/panda-ali-bot`, local git only.

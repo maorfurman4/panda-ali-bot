@@ -2,37 +2,60 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnderstander, validateIntent } from "../query.js";
 
-const ENV = { ANTHROPIC_API_KEY: "sk-test" };
+const ENV = { OPENAI_API_KEY: "sk-test" };
 const OK = { status: "ok", corrected_he: "אוזניות", keywords_en: "wireless earbuds", max_price_ils: null };
+const STRICT_OK = { ...OK, clarify_question_he: null, options: null }; // strict mode: every field present, unused ones null
 
-// Fake Anthropic Messages API: returns `intent` as the JSON text block and records every request.
-function anthropic(intent, { status = 200, stop_reason = "end_turn", text } = {}) {
+// Fake OpenAI Responses API: returns `intent` as the output_text part and records every request.
+function openai(intent, { status = 200, responseStatus = "completed", text, part, usage = { input_tokens: 600, output_tokens: 40 } } = {}) {
   const requests = [];
   const fetch = async (url, init) => {
     requests.push({ url, init, body: JSON.parse(init.body) });
-    return { ok: status < 400, status, json: async () => ({ stop_reason, content: [{ type: "text", text: text ?? JSON.stringify(intent) }] }) };
+    const content = [part ?? { type: "output_text", text: text ?? JSON.stringify(intent) }];
+    return {
+      ok: status < 400,
+      status,
+      json: async () => ({ status: responseStatus, output: [{ type: "reasoning", summary: [] }, { type: "message", content }], usage }),
+    };
   };
   return { fetch, requests };
 }
 
-test("sends only the query text to Claude Haiku 5.5 with a JSON schema, no thinking, low effort", async () => {
-  const api = anthropic(OK);
+test("sends only the query text to OpenAI Responses with a strict schema, storage off, small output", async () => {
+  const api = openai(STRICT_OK);
   const result = await createUnderstander({ fetch: api.fetch, env: ENV })("אושניות");
   assert.deepEqual(result, OK);
   const [req] = api.requests;
-  assert.equal(req.url, "https://api.anthropic.com/v1/messages");
-  assert.equal(req.init.headers["x-api-key"], "sk-test");
-  assert.equal(req.init.headers["anthropic-version"], "2023-06-01");
-  assert.deepEqual(Object.keys(req.body).sort(), ["max_tokens", "messages", "model", "output_config", "system", "thinking"]);
-  assert.equal(req.body.model, "claude-haiku-5-5");
-  assert.ok(req.body.max_tokens <= 300);
-  assert.deepEqual(req.body.thinking, { type: "disabled" });
-  assert.equal(req.body.output_config.effort, "low");
-  assert.equal(req.body.output_config.format.type, "json_schema");
-  assert.deepEqual(req.body.messages, [{ role: "user", content: "אושניות" }]);
+  assert.equal(req.url, "https://api.openai.com/v1/responses");
+  assert.equal(req.init.headers.authorization, "Bearer sk-test");
+  assert.deepEqual(Object.keys(req.body).sort(), ["input", "instructions", "max_output_tokens", "model", "store", "text"]);
+  assert.equal(req.body.model, "gpt-4.1-nano", "default chosen by the head-to-head eval");
+  assert.equal(req.body.store, false);
+  assert.ok(req.body.max_output_tokens <= 300);
+  assert.equal(req.body.text.format.type, "json_schema");
+  assert.equal(req.body.text.format.strict, true);
+  assert.deepEqual(req.body.input, [{ role: "user", content: "אושניות" }]);
 });
 
-test("fail-open: returns null on missing key, HTTP error, timeout, bad JSON, schema violations, refusal/truncation", async (t) => {
+test("strict schema: every property is required and objects forbid extra keys", async () => {
+  const api = openai(STRICT_OK);
+  await createUnderstander({ fetch: api.fetch, env: ENV })("אושניות");
+  const { schema } = api.requests[0].body.text.format;
+  assert.deepEqual(schema.required.sort(), Object.keys(schema.properties).sort());
+  assert.equal(schema.additionalProperties, false);
+  const item = schema.properties.options.items;
+  assert.deepEqual(item.required.sort(), Object.keys(item.properties).sort());
+  assert.equal(item.additionalProperties, false);
+});
+
+test("OPENAI_MODEL overrides the default; reasoning models get reasoning effort none", async () => {
+  const api = openai(STRICT_OK);
+  await createUnderstander({ fetch: api.fetch, env: { ...ENV, OPENAI_MODEL: "gpt-6-luna" } })("אושניות");
+  assert.equal(api.requests[0].body.model, "gpt-6-luna");
+  assert.deepEqual(api.requests[0].body.reasoning, { effort: "none" });
+});
+
+test("fail-open: returns null on missing key, HTTP error, timeout, bad JSON, schema violations, incomplete, refusal", async (t) => {
   const warnings = [];
   t.mock.method(console, "warn", (...a) => warnings.push(a.join(" ")));
 
@@ -41,18 +64,18 @@ test("fail-open: returns null on missing key, HTTP error, timeout, bad JSON, sch
   assert.equal(called, false, "no key -> no request");
 
   const cases = [
-    anthropic(OK, { status: 500 }).fetch,
+    openai(STRICT_OK, { status: 500 }).fetch,
     async () => { throw Object.assign(new Error("timed out"), { name: "TimeoutError" }); },
-    anthropic(null, { text: "not json {" }).fetch,
-    anthropic({ ...OK, keywords_en: "" }).fetch,
-    anthropic({ status: "clarify", corrected_he: "מתנה", keywords_en: "", max_price_ils: null, clarify_question_he: "למי?", options: [{ label_he: "א", keywords_en: "a" }] }).fetch,
-    anthropic({ ...OK, status: "maybe" }).fetch,
-    anthropic(OK, { stop_reason: "max_tokens" }).fetch,
-    anthropic(OK, { stop_reason: "refusal" }).fetch,
+    openai(null, { text: "not json {" }).fetch,
+    openai({ ...STRICT_OK, keywords_en: "" }).fetch,
+    openai({ ...STRICT_OK, status: "clarify", clarify_question_he: "למי?", options: [{ label_he: "א", keywords_en: "a" }] }).fetch,
+    openai({ ...STRICT_OK, status: "maybe" }).fetch,
+    openai(STRICT_OK, { responseStatus: "incomplete" }).fetch,
+    openai(null, { part: { type: "refusal", refusal: "no" } }).fetch,
   ];
   for (const fetch of cases) assert.equal(await createUnderstander({ fetch, env: ENV })("אושניות סוד_123"), null);
   assert.equal(warnings.length, cases.length, "one warning per failure");
-  for (const w of warnings) assert.doesNotMatch(w, /סוד_123|אושניות/);
+  for (const w of warnings) assert.doesNotMatch(w, /סוד_123|אושניות|sk-test/);
 });
 
 test("plain English queries skip the AI", async () => {
@@ -67,7 +90,7 @@ test("plain English queries skip the AI", async () => {
 
 test("cache: two identical (normalized) queries make one AI call; it expires after 24 h", async () => {
   let t = 0;
-  const api = anthropic(OK);
+  const api = openai(STRICT_OK);
   const understand = createUnderstander({ fetch: api.fetch, env: ENV, now: () => t });
   await understand("אושניות");
   await understand("  אושניות ");
@@ -80,16 +103,24 @@ test("cache: two identical (normalized) queries make one AI call; it expires aft
 test("failures are not cached", async (t) => {
   t.mock.method(console, "warn", () => {});
   let n = 0;
-  const fetch = async () => ({ ok: ++n > 1, status: n > 1 ? 200 : 500, json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(OK) }] }) });
+  const good = openai(STRICT_OK).fetch;
+  const fetch = async (...args) => (++n === 1 ? { ok: false, status: 500, json: async () => ({}) } : good(...args));
   const understand = createUnderstander({ fetch, env: ENV });
   assert.equal(await understand("אושניות"), null);
   assert.deepEqual(await understand("אושניות"), OK);
 });
 
-test("validateIntent normalizes and checks each status", () => {
-  assert.deepEqual(validateIntent({ ...OK, status: "OK", max_price_ils: 50 }), { ...OK, max_price_ils: 50 });
-  assert.equal(validateIntent({ ...OK, max_price_ils: -5 }), null);
-  assert.deepEqual(validateIntent({ status: "not_product", corrected_he: "תודה", keywords_en: "", max_price_ils: null }), {
+test("onUsage receives token counts for each AI call (used by the eval for cost)", async () => {
+  const seen = [];
+  const api = openai(STRICT_OK, { usage: { input_tokens: 612, output_tokens: 37 } });
+  await createUnderstander({ fetch: api.fetch, env: ENV, onUsage: (u) => seen.push(u) })("אושניות");
+  assert.deepEqual(seen, [{ input_tokens: 612, output_tokens: 37 }]);
+});
+
+test("validateIntent normalizes and checks each status (nulls from strict mode are fine)", () => {
+  assert.deepEqual(validateIntent({ ...STRICT_OK, status: "OK", max_price_ils: 50 }), { ...OK, max_price_ils: 50 });
+  assert.equal(validateIntent({ ...STRICT_OK, max_price_ils: -5 }), null);
+  assert.deepEqual(validateIntent({ ...STRICT_OK, status: "not_product", corrected_he: "תודה", keywords_en: "" }), {
     status: "not_product",
     corrected_he: "תודה",
     keywords_en: "",
