@@ -1,0 +1,16 @@
+{
+  "name": "panda-deals-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env index.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "grammy": "^1.46.0"
+  }
+}
