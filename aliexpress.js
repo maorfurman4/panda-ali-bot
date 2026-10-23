@@ -47,28 +47,57 @@ export async function apiCall(method, params, { fetch = globalThis.fetch, env = 
     await sleep(RETRY_DELAY_MS);
     out = await callOnce(method, params, { fetch, env, now }); // fresh timestamp + signature
   }
-  if (out.err) throw new Error(`AliExpress ${method} failed: ${out.err.code}: ${out.err.msg ?? out.err.message ?? ""}`);
+  if (out.err) throw Object.assign(new Error(`AliExpress ${method} failed: ${out.err.code}: ${out.err.msg ?? out.err.message ?? ""}`), { code: out.err.code });
   return out.result;
 }
 
 export async function searchProducts(query, deps = {}) {
   const env = deps.env ?? process.env;
   if (isMockMode(env)) return mockProducts(query);
-  const result = await apiCall(
-    "aliexpress.affiliate.product.query",
-    {
-      keywords: query,
-      tracking_id: env.ALI_TRACKING_ID,
-      ship_to_country: "IL",
-      target_currency: "ILS",
-      target_language: "HE",
-      sort: "LAST_VOLUME_DESC",
-      page_size: String(PAGE_SIZE),
-    },
-    { ...deps, env },
-  );
-  const products = result.products;
-  return Array.isArray(products) ? products : (products?.product ?? []);
+  let result;
+  try {
+    result = await apiCall(
+      "aliexpress.affiliate.product.query",
+      {
+        keywords: query,
+        tracking_id: env.ALI_TRACKING_ID,
+        ship_to_country: "IL",
+        target_currency: "ILS",
+        target_language: "HE",
+        sort: "LAST_VOLUME_DESC",
+        page_size: String(PAGE_SIZE),
+      },
+      { ...deps, env },
+    );
+  } catch (e) {
+    if (e.code === "resp_code 405") return []; // AliExpress answers "The result is empty" with 405 (verified live 2026-10-23)
+    throw e;
+  }
+  const products = Array.isArray(result.products) ? result.products : (result.products?.product ?? []);
+  return shortenLinks(products, { ...deps, env });
+}
+
+const itemUrl = (p) => `https://www.aliexpress.com/item/${p.product_id}.html`;
+
+// product.query promotion links are ~1 KB long (risky for Telegram URL buttons): swap them for short
+// s.click links in ONE link.generate call (max 50 per call). On failure the original links are kept.
+async function shortenLinks(products, deps) {
+  const targets = products.filter((p) => p.product_id && p.promotion_link);
+  if (!targets.length) return products;
+  try {
+    const result = await apiCall(
+      "aliexpress.affiliate.link.generate",
+      { promotion_link_type: "0", source_values: targets.map(itemUrl).join(","), tracking_id: deps.env.ALI_TRACKING_ID },
+      deps,
+    );
+    const links = result.promotion_links;
+    const list = Array.isArray(links) ? links : (links?.promotion_link ?? []);
+    const bySource = new Map(list.map((l) => [l.source_value, l.promotion_link]));
+    return products.map((p) => (bySource.get(itemUrl(p)) ? { ...p, promotion_link: bySource.get(itemUrl(p)) } : p));
+  } catch (e) {
+    console.warn(`link shortening failed (${e.message}); keeping original links`);
+    return products;
+  }
 }
 
 export async function generateAffiliateLink(url, deps = {}) {

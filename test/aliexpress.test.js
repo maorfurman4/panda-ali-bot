@@ -131,3 +131,51 @@ test("generateAffiliateLink: mock returns a demo link; live reads both link shap
   const nested = async () => json({ resp_result: { resp_code: 200, result: { promotion_links: { promotion_link: [{ promotion_link: "https://s.click.aliexpress.com/e/_b" }] } } } });
   assert.equal(await generateAffiliateLink("u", { fetch: nested, env: LIVE_ENV }), "https://s.click.aliexpress.com/e/_b");
 });
+
+// Fake gateway that answers per API method (method name is in the signed form body).
+function gateway(handlers) {
+  const calls = [];
+  const fetch = async (url, init) => {
+    const body = Object.fromEntries(new URLSearchParams(init.body));
+    calls.push(body);
+    return json(handlers[body.method](body));
+  };
+  return { fetch, calls };
+}
+
+test("zero results (resp_code 405 'The result is empty') returns [] instead of an error", async () => {
+  const { fetch } = gateway({
+    "aliexpress.affiliate.product.query": () => ({ resp_result: { resp_code: "405", resp_msg: "The result is empty" } }),
+  });
+  assert.deepEqual(await searchProducts("xqzv", { fetch, env: LIVE_ENV }), []);
+});
+
+test("live search swaps the very long promotion links for short ones in ONE link.generate call", async () => {
+  const { fetch, calls } = gateway({
+    "aliexpress.affiliate.product.query": () => ({
+      resp_result: { resp_code: "200", result: { products: [
+        { product_id: "111", promotion_link: "https://s.click.aliexpress.com/s/" + "x".repeat(1000) },
+        { product_id: "222", promotion_link: "https://s.click.aliexpress.com/s/" + "y".repeat(1000) },
+      ] } },
+    }),
+    "aliexpress.affiliate.link.generate": (body) => ({
+      resp_result: { resp_code: "200", result: { promotion_links: body.source_values.split(",").map((u, i) => ({ source_value: u, promotion_link: `https://s.click.aliexpress.com/e/_s${i}` })) } },
+    }),
+  });
+  const products = await searchProducts("earbuds", { fetch, env: LIVE_ENV });
+  assert.deepEqual(products.map((p) => p.promotion_link), ["https://s.click.aliexpress.com/e/_s0", "https://s.click.aliexpress.com/e/_s1"]);
+  const gen = calls.filter((c) => c.method === "aliexpress.affiliate.link.generate");
+  assert.equal(gen.length, 1);
+  assert.equal(gen[0].source_values, "https://www.aliexpress.com/item/111.html,https://www.aliexpress.com/item/222.html");
+  assert.equal(gen[0].tracking_id, "panda_bot");
+});
+
+test("if shortening fails, the original promotion links are kept (search still works)", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const { fetch } = gateway({
+    "aliexpress.affiliate.product.query": () => ({ resp_result: { resp_code: "200", result: { products: [{ product_id: "111", promotion_link: "https://s.click.aliexpress.com/s/long" }] } } }),
+    "aliexpress.affiliate.link.generate": () => ({ error_response: { code: "isv.error", msg: "boom" } }),
+  });
+  const products = await searchProducts("earbuds", { fetch, env: LIVE_ENV, sleep: async () => {} });
+  assert.equal(products[0].promotion_link, "https://s.click.aliexpress.com/s/long");
+});

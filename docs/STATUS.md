@@ -104,7 +104,28 @@ Open (not decided): the photo takes most of a phone screen. Options are a smalle
 - **API applications:** none made on the owner's behalf. Advanced API and DS API are the owner's call, later.
 - **Hosting:** Railway is the candidate, after real keys work.
 
-## 5. Keys-day checklist
+## 5. Keys-day results (2026-10-23, live, local script — not via Telegram)
+
+App `Panda Deals Bot` (Affiliates API, status **Test**, 1000 calls/min, Standard API for Publishers active).
+
+| Check | Result |
+|---|---|
+| Signature (sha256, /sync, POST form) | ✅ accepted |
+| English query "wireless earbuds" | ✅ 19 relevant products, ~2 s |
+| Hebrew raw query "אוזניות" (no AI) | ❌ irrelevant (squishy toys) → AI translation is required |
+| AI + search "אושניות" → "headphones, earbuds" | ✅ relevant |
+| Currency | ✅ ILS (`target_sale_price_currency`) |
+| Titles | Hebrew (machine-translated, long, e.g. "Lenovo gm2 pro tws אלחוטי hifi…") → cut to 30 chars; AI titles still Phase 2b |
+| `lastest_volume` | arrives as a number (handled) |
+| Zero results | `resp_code 405 "The result is empty"` → now returns [] → "לא מצאתי" (fixed) |
+| product.query promotion links | ~1065 chars → now shortened in one link.generate call to `s.click…/e/_x` (~42 chars) |
+| link.generate, full item URL | ✅ short link |
+| Pasted he.aliexpress item link → affiliate | ✅ |
+| Real a.aliexpress.com short link | not tested yet |
+| ApiCallLimit retry | not observed |
+| Relevance | "iPhone charger" top 3 included a USB-C cable and a cable organizer → Phase 2b relevance filter |
+
+## 5b. Keys-day checklist (original plan)
 
 Run these once `ALI_APP_KEY` / `ALI_APP_SECRET` are in `.env` (via `./set-key.sh`). Then restart `npm start`. The startup line must **not** show the mock-mode warning.
 
