@@ -7,6 +7,8 @@
 //   strict structured outputs: https://developers.openai.com/api/docs/guides/structured-outputs
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
+import { stats } from "./stats.js";
+
 const API_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.4-nano"; // gpt-4.1-nano was deprecated by OpenAI on 2026-10-23; gpt-5.4-nano scored 16/16, p50 1.3 s
 const MAX_OUTPUT_TOKENS = 300; // on reasoning models this includes reasoning tokens, so effort is set to "none"
@@ -109,7 +111,7 @@ async function requestJson({ fetch, env, model, instructions, content, name, sch
 
 export function createUnderstander({ fetch = globalThis.fetch, env = process.env, now = Date.now, onUsage = () => {} } = {}) {
   const cache = new Map(); // shortcut: per-process cache, lost on restart; move to Redis if we ever run several instances
-  const warn = (reason) => console.warn(`AI query understanding failed (${reason}); searching the raw query`);
+  const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI query understanding failed (${reason}); searching the raw query`);
 
   return async function understand(query) {
     const text = query.normalize("NFC").replace(/\s+/g, " ").trim();
@@ -161,7 +163,7 @@ const RELEVANCE_SCHEMA = {
 // Keeps only the products the AI judges to be the requested item, in API order. Fail-open: any problem keeps all.
 // Only the request text and product titles are sent.
 export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.env, onUsage = () => {} } = {}) {
-  const warn = (reason) => console.warn(`AI relevance filter failed (${reason}); showing unfiltered results`);
+  const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI relevance filter failed (${reason}); showing unfiltered results`);
   return async function filterRelevant(request, products) {
     if (!products.length || !env.OPENAI_API_KEY) return products;
     const content = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})\n${products.map((p, i) => `${i}. ${clean(p.product_title, 120)}`).join("\n")}`;
@@ -230,7 +232,7 @@ export function validateAdvice(o) {
 // Next advisor step for { request, history: [{ q, a }] }: { status: "ask", question_he, options } or
 // { status: "done", keywords_en, max_price_ils }. Null on any failure (the caller then searches what it has).
 export function createAdvisor({ fetch = globalThis.fetch, env = process.env, onUsage = () => {} } = {}) {
-  const warn = (reason) => console.warn(`AI advisor failed (${reason}); searching with what we have`);
+  const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI advisor failed (${reason}); searching with what we have`);
   return async function nextAdvice(session) {
     if (!env.OPENAI_API_KEY) return null;
     try {
@@ -257,7 +259,7 @@ const EXPLAIN_SCHEMA = {
 
 // "Why it fits" lines for advisor results, aligned with products; null on any failure (the card just omits them).
 export function createExplainer({ fetch = globalThis.fetch, env = process.env, onUsage = () => {} } = {}) {
-  const warn = (reason) => console.warn(`AI explainer failed (${reason}); showing results without reasons`);
+  const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI explainer failed (${reason}); showing results without reasons`);
   return async function explainFit(session, products) {
     if (!products.length || !env.OPENAI_API_KEY) return null;
     const content = `${adviceText(session)}\nProducts:\n${products.map((p, i) => `${i}. ${clean(p.product_title, 120)}`).join("\n")}`;

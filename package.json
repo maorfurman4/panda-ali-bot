@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env index.js",
     "test": "node --test",
-    "eval:query": "node --env-file-if-exists=.env scripts/eval-query.js"
+    "eval:query": "node --env-file-if-exists=.env scripts/eval-query.js",
+    "check:live": "node --env-file-if-exists=.env scripts/check-live.js",
+    "eval:search": "node --env-file-if-exists=.env scripts/eval-search.js"
   },
   "engines": {
     "node": ">=22"

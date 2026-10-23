@@ -1,0 +1,60 @@
+// End-to-end search quality: for each query the real AI + AliExpress pipeline picks 4 products, then a second
+// AI (the judge, gpt-6-luna by default) checks which of them really ARE what was asked. Reports precision@4.
+// Usage: npm run eval:search [-- --judge gpt-6-luna]
+import { createUnderstander, createRelevanceFilter, filterRelevant } from "../query.js";
+import { searchProducts, isMockMode } from "../aliexpress.js";
+import { pickProducts } from "../bot.js";
+
+if (!process.env.OPENAI_API_KEY || isMockMode()) {
+  console.log("Needs OPENAI_API_KEY and the ALI_* keys in .env.");
+  process.exit(0);
+}
+const i = process.argv.indexOf("--judge");
+const judge = createRelevanceFilter({ env: { ...process.env, OPENAI_RELEVANCE_MODEL: i > 0 ? process.argv[i + 1] : "gpt-6-luna" } });
+const understand = createUnderstander();
+
+const QUERIES = [
+  "תיק לעבודה", "מגפיים לנשים", "כיסוי לאייפד פרחוני", "בגדים של זארה", "שרוול מרינו מחמם",
+  "בקבוק עם מסנן", "מטען לאייפון", "אוזניות אלחוטיות עד 100 שקל", "משענת לאוטו", "מברשת שיניים חשמלית",
+  "רחפן עם מצלמה", "מנורת לילה לילדים", "שעון חכם לריצה", "כיסוי לגלקסי S24 אולטרה", "מעמד לטלפון לרכב",
+];
+
+// The filter fails open (keeps everything) on errors; catch its warning so a failed judgement isn't counted as a pass.
+let judgeFailed = false;
+const warn = console.warn;
+console.warn = (...a) => (String(a[0]).includes("relevance") ? (judgeFailed = true) : warn(...a));
+
+const rows = [];
+for (const q of QUERIES) {
+  const t = Date.now();
+  const intent = await understand(q);
+  if (intent?.status !== "ok") {
+    rows.push({ query: q, keywords: "", shown: 0, relevant: "", wrong: `AI: ${intent?.status ?? "failed"}`, s: ((Date.now() - t) / 1000).toFixed(1) });
+    continue;
+  }
+  const shown = await pickProducts(
+    { search: searchProducts, relevant: filterRelevant, live: true },
+    { keywords: intent.keywords_en, fallback: intent.fallback_en, context: intent.corrected_he, maxPriceIls: intent.max_price_ils, limit: 4 },
+  ).catch(() => []);
+  const s = ((Date.now() - t) / 1000).toFixed(1);
+  judgeFailed = false;
+  const ok = await judge({ he: intent.corrected_he, en: intent.keywords_en }, shown);
+  rows.push({
+    query: q,
+    keywords: intent.keywords_en,
+    shown: shown.length,
+    relevant: judgeFailed ? "judge failed" : ok.length,
+    wrong: judgeFailed ? "" : shown.filter((p) => !ok.includes(p)).map((p) => String(p.product_title).slice(0, 25)).join(" ; "),
+    s,
+  });
+}
+console.warn = warn;
+
+console.table(rows);
+const judged = rows.filter((r) => typeof r.relevant === "number" && r.shown);
+const precision = judged.reduce((a, r) => a + r.relevant / r.shown, 0) / (judged.length || 1);
+const latencies = rows.map((r) => Number(r.s)).sort((a, b) => a - b);
+console.log(
+  `precision@4: ${(precision * 100).toFixed(0)}% (${judged.length} judged) · fewer than 4 results: ${rows.filter((r) => r.shown < 4).length}/${rows.length} · ` +
+    `p50 time: ${latencies[Math.floor((latencies.length - 1) / 2)]} s · max: ${latencies.at(-1)} s`,
+);

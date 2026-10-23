@@ -25,6 +25,7 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 const mode = WEBHOOK_URL ? "webhook" : "polling";
+const { stats } = await import("./stats.js");
 const bot = createBot({ token: BOT_TOKEN });
 const app = createApp({ bot, mode, webhookSecret: mode === "webhook" ? WEBHOOK_SECRET : undefined });
 
@@ -34,6 +35,8 @@ function fail(what, e) {
 }
 
 await bot.init().catch((e) => fail("Could not connect to Telegram (check BOT_TOKEN)", e));
+if (process.env.ADMIN_USER_ID) stats.setNotifier((text) => bot.api.sendMessage(process.env.ADMIN_USER_ID, text));
+else console.warn("⚠️ ADMIN_USER_ID is empty: no owner alerts and no /status. Send /myid to the bot in private to get it.");
 // Express 5 passes bind errors (e.g. port in use) to this callback, so wait for success before going live.
 const server = await new Promise((resolve) => {
   const s = app.listen(PORT, (err) => (err ? fail(`HTTP server could not start on port ${PORT}`, err) : resolve(s)));

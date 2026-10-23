@@ -6,9 +6,14 @@ import { findAliExpressUrl } from "./links.js";
 import { understandQuery, filterRelevant, nextAdvice, explainFit } from "./query.js";
 import { makeCollage } from "./collage.js";
 import { createModeration } from "./moderation.js";
+import { stats as defaultStats } from "./stats.js";
+import { searchProducts as liveSearch } from "./aliexpress.js";
+import { createUnderstander } from "./query.js";
 import {
   filterProducts,
   rankProducts,
+  esc,
+  RLM,
   withinPrice,
   formatCard,
   formatLinkReply,
@@ -63,6 +68,45 @@ export function parseTrigger(text, username) {
   return m ? m[1].trim() : mentionRest(text, username);
 }
 
+// The result pipeline, shared by the bot and the search-quality eval:
+// search -> quality filter (≥90% feedback, price cap) -> AI relevance on the top 24 (real results only) -> ranking.
+// When fewer than `limit` remain, a broader fallback search fills up (no duplicates). Throws if the first search fails.
+export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, limit = 4 }) {
+  const keyOf = (p) => p.product_id ?? p.promotion_link;
+  const gather = async (q, seen) => {
+    const fresh = withinPrice(filterProducts(await search(q)), maxPriceIls).filter((p) => !seen.has(keyOf(p)));
+    if (!live) return fresh;
+    const top = rankProducts(fresh).slice(0, RELEVANCE_POOL); // fewer titles = a faster, steadier AI check
+    return relevant({ he: context, en: q }, top).catch(() => top);
+  };
+  let candidates = await gather(keywords, new Set());
+  if (candidates.length < limit && fallback && fallback !== keywords) {
+    try {
+      candidates = candidates.concat(await gather(fallback, new Set(candidates.map(keyOf))));
+    } catch (e) {
+      console.error(`fallback search failed: ${e.message}`); // the first results still show
+    }
+  }
+  return rankProducts(candidates).slice(0, limit);
+}
+
+// Live checks for /status: one fresh AI call and one AliExpress search.
+async function liveHealthChecks() {
+  const lines = [];
+  let t = Date.now();
+  const intent = await createUnderstander()("אושניות");
+  lines.push(intent ? `AI: ✅ (${Date.now() - t} ms, "${intent.corrected_he}")` : "AI: ❌ (בדקו OPENAI_API_KEY או את המודל)");
+  if (isMockMode()) return [...lines, "עלי אקספרס: מצב דמו (אין מפתחות)"];
+  t = Date.now();
+  try {
+    const products = await liveSearch("usb cable");
+    lines.push(`עלי אקספרס: ✅ ${products.length} מוצרים (${Date.now() - t} ms)`);
+  } catch (e) {
+    lines.push(`עלי אקספרס: ❌ ${e.message}`);
+  }
+  return lines;
+}
+
 export function createBot({
   token,
   botInfo,
@@ -73,6 +117,10 @@ export function createBot({
   advise = nextAdvice,
   explain = explainFit,
   collage = makeCollage,
+  stats = defaultStats,
+  adminId = process.env.ADMIN_USER_ID, // owner's numeric Telegram id: /status and alerts
+  version = process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
+  healthChecks = liveHealthChecks,
   live, // tests only: force the live (non-mock) path
   typingEveryMs = 4000,
   now = Date.now,
@@ -161,29 +209,19 @@ export function createBot({
   // When fewer than the limit remain, a broader fallback search fills up (no duplicates).
   async function showResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
-    const keyOf = (p) => p.product_id ?? p.promotion_link;
-    const gather = async (q, seen) => {
-      const fresh = withinPrice(filterProducts(await search(q)), maxPriceIls).filter((p) => !seen.has(keyOf(p)));
-      if (!(live ?? !isMockMode())) return fresh;
-      const top = rankProducts(fresh).slice(0, RELEVANCE_POOL); // fewer titles = a faster, steadier AI check
-      return relevant({ he: context, en: q }, top).catch(() => top);
-    };
-    let candidates;
+    stats.count("search");
+    let shown;
     try {
-      candidates = await gather(keywords, new Set());
+      shown = await pickProducts({ search, relevant, live: live ?? !isMockMode() }, { keywords, fallback, context, maxPriceIls, limit });
     } catch (e) {
+      stats.failure("aliexpress", e.message);
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
       return ctx.reply(SEARCH_ERROR, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
-    if (candidates.length < limit && fallback && fallback !== keywords) {
-      try {
-        candidates = candidates.concat(await gather(fallback, new Set(candidates.map(keyOf))));
-      } catch (e) {
-        console.error(`update ${ctx.update.update_id}: fallback search failed: ${e.message}`); // the first results still show
-      }
+    if (!shown.length) {
+      stats.count("noResults");
+      return ctx.reply(NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
-    const shown = rankProducts(candidates).slice(0, limit);
-    if (!shown.length) return ctx.reply(NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
 
     const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice
     const { caption, buttons } = formatCard(shown, { query: header, demo: isMockMode(), reasons });
@@ -194,6 +232,7 @@ export function createBot({
       try {
         return await ctx.replyWithPhoto(image, { caption, ...extra });
       } catch (e) {
+        stats.failure("telegram", e.message);
         console.error(`update ${ctx.update.update_id}: sendPhoto failed, sending text instead: ${e.message}`);
       }
     }
@@ -289,6 +328,26 @@ export function createBot({
     return reply(ctx, GROUP_HELP, { reply_markup: { inline_keyboard: [[button]] } });
   });
   bot.command("search", (ctx) => runSearch(ctx, ctx.match));
+  bot.command("myid", (ctx) => ctx.chat.type === "private" && reply(ctx, `🆔 ${ctx.from.id}`));
+  // Owner-only health report: version, counters, last errors and live checks of the AI and AliExpress.
+  bot.command("status", async (ctx) => {
+    if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId)) return;
+    const { startedAt, counters, lastError } = stats.snapshot();
+    const n = (k) => counters[k] ?? 0;
+    const errors = Object.entries(lastError).map(([kind, e]) => `• ${kind}: ${e.detail} (לפני ${Math.round((now() - e.at) / 60_000)} דק')`);
+    const checks = await withTyping(ctx, () => healthChecks().catch((e) => [`בדיקה חיה נכשלה: ${e.message}`]));
+    const lines = [
+      "📊 <b>מצב הבוט</b>",
+      `🏷️ גרסה: ${esc(version)} · ${isMockMode() ? "דמו" : "אמיתי"} · פעיל ${Math.round((now() - startedAt) / 60_000)} דק'`,
+      `🔎 חיפושים: ${n("search")} · ללא תוצאות: ${n("noResults")} · שגיאות עלי אקספרס: ${n("fail:aliexpress")}`,
+      `🤖 כשלי AI: ${n("fail:ai")} · כשלי טלגרם: ${n("fail:telegram")}`,
+      "",
+      "<b>בדיקה חיה</b>",
+      ...checks.map(esc),
+      ...(errors.length ? ["", "<b>שגיאות אחרונות</b>", ...errors.map(esc)] : []),
+    ];
+    return reply(ctx, lines.map((l) => RLM + l).join("\n"));
+  });
   bot.command("advice", async (ctx) => {
     const request = ctx.match.trim();
     if (!request) return reply(ctx, ADVICE_EMPTY);
