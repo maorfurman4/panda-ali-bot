@@ -30,7 +30,20 @@ const PRIVATE_RESULTS = 5;
 const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile text often starts with one
-const TRIGGER = /^\s*(?:חפש|מצא)\s+לי(?=[\s:]|$)[\s:]*([\s\S]*)$/;
+const TRIGGER = /^\s*(?:ת?חפש|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+לי(?=[\s:]|$)[\s:]*([\s\S]*)$/;
+// Natural shopping phrases that may appear anywhere in a group message. Only these messages are sent to the AI,
+// and the bot answers only if the AI confirms a product request (otherwise it stays silent).
+const SOFT_PHRASES = [
+  "מחפש", "מחפשת", "מחפשים", "מחפשות",
+  "מישהו מכיר", "מישהי מכירה", "מישהו יודע איפה", "מכירים",
+  "יש המלצה", "יש למישהו המלצה", "יש לכם המלצה", "המלצה על", "ממליצים על", "תמליצו", "מה מומלץ",
+  "איפה קונים", "איפה אפשר לקנות", "איפה מוצאים", "איפה משיגים",
+  "רוצה לקנות", "בא לי לקנות", "צריך לקנות", "צריכה לקנות", "שווה לקנות",
+];
+const SOFT = new RegExp(`(?:^|[\\s,.!?"'(])(?:${SOFT_PHRASES.join("|")})(?=$|[\\s,.!?])`);
+const SOFT_MAX_LENGTH = 200;
+
+export const isSoftRequest = (text) => text.length <= SOFT_MAX_LENGTH && SOFT.test(text.replace(BIDI_MARKS, ""));
 
 // Text after a leading "@username", or null when the message doesn't start with the mention.
 function mentionRest(text, username) {
@@ -67,6 +80,11 @@ export function createBot({
   const reply = (ctx, html, extra = {}) =>
     ctx.reply(html, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...replyTo(ctx), ...extra });
 
+  const coolingDown = (ctx) => {
+    const entry = cooldowns.get(ctx.from?.id ?? ctx.chat.id);
+    return Boolean(entry && entry.at + cooldownMs > now());
+  };
+
   // Per-user cooldown shared by searches and link conversions; warns once per window, then stays silent.
   async function allow(ctx) {
     const userId = ctx.from?.id ?? ctx.chat.id;
@@ -99,6 +117,17 @@ export function createBot({
       maxPriceIls: intent?.max_price_ils ?? null,
       replyToId: ctx.msg.message_id,
     });
+  }
+
+  // A natural group request ("מישהו מכיר מטען טוב?"): silent unless the AI confirms a product request.
+  async function runSoftSearch(ctx, text) {
+    if (coolingDown(ctx)) return;
+    const intent = await understand(text).catch(() => null);
+    if (intent?.status !== "ok" && intent?.status !== "clarify") return;
+    await allow(ctx); // starts the cooldown only for requests the bot actually answers
+    ctx.replyWithChatAction("upload_photo").catch(() => {});
+    if (intent.status === "clarify") return askClarify(ctx, text, intent);
+    return showResults(ctx, { keywords: intent.keywords_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, replyToId: ctx.msg.message_id });
   }
 
   async function showResults(ctx, { keywords, header, maxPriceIls, replyToId }) {
@@ -195,6 +224,7 @@ export function createBot({
     const query = parseTrigger(text, username);
     if (query !== null) return runSearch(ctx, query);
     if (isPrivate) return runSearch(ctx, text);
+    if (isSoftRequest(text)) return runSoftSearch(ctx, text);
   });
 
   bot.catch((err) => console.error(`update ${err.ctx.update.update_id} failed: ${err.error?.message ?? err.error}`));

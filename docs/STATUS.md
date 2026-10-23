@@ -92,6 +92,14 @@ Latency is now about 6–8 s per search (AI + search + link shortening + relevan
 
 Risk: badge digits use the server's sans-serif font. If Render has no fonts, only the colored circles show.
 
+## 3c. Natural group requests (2026-10-23)
+
+The bot now also answers group messages without "חפש לי". It reacts to natural shopping phrases anywhere in a message of up to 200 characters, for example "מחפש", "מישהו מכיר", "יש המלצה על", "איפה קונים" or "רוצה לקנות".
+- Only those messages are sent to the AI, and the bot answers only if the AI says the message asks for a product. Not a product, AI unavailable, or the user cooling down → complete silence.
+- A cooldown starts only when the bot actually answers.
+- Extra explicit command forms: תחפש / תמצא / חפשו / מצאו / חפשי / מצאי לי.
+- Live eval: 16/16, including "מחפש עבודה" and "מישהו מכיר את דני?" → silence. Results vary slightly between runs (one earlier run gave 15/16).
+
 ## 4. Decisions log (closed)
 
 - **Stack:** Node.js ESM + Express + grammY. `ae_sdk` not used (v0.6.0, last published 2025-03-30); own signing with tests.

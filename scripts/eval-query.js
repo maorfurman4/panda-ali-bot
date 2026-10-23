@@ -39,6 +39,11 @@ const CASES = [
   { q: "מה נשמע", status: "not_product" },
   { q: "בקבוק מים תרמי 500 מל", status: "ok", kw: [/thermos|insulated|vacuum|thermal/i, /500 ?ml/i] },
   { q: "מעמד לטלפון לרכב", status: "ok", kw: [/car/i, /phone/i, /holder|mount|stand/i] },
+  // natural group sentences (no "חפש לי")
+  { q: "מישהו מכיר מטען טוב לרכב?", status: "ok", kw: [/car/i, /charger/i] },
+  { q: "יש המלצה על שואב אבק רובוטי?", status: "ok", kw: [/robot/i, /vacuum/i] },
+  { q: "אני מחפש עבודה בתל אביב", status: "not_product" },
+  { q: "מישהו מכיר את דני?", status: "not_product" },
 ];
 
 function judge(c, r) {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger } from "../bot.js";
+import { parseTrigger, isSoftRequest } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -386,4 +386,70 @@ test("relevance filter leaving nothing -> no-results message", async () => {
   const ctx = setup({ search: async () => SIX, relevant: async () => [], live: true });
   await ctx.bot.handleUpdate(textUpdate("/search x"));
   assert.equal(ctx.sent()[0].text, NO_RESULTS);
+});
+
+
+// ---- natural requests without "חפש לי" (group) ----
+
+test("parseTrigger: more explicit command forms", () => {
+  for (const [text, q] of [["תחפש לי מטען", "מטען"], ["תמצא לי כבל", "כבל"], ["חפשו לי מנורה", "מנורה"], ["מצאי לי תיק", "תיק"]]) {
+    assert.equal(parseTrigger(text, "panda_test_bot"), q, text);
+  }
+});
+
+test("isSoftRequest spots natural shopping phrases anywhere in a short message", () => {
+  for (const text of ["מישהו מכיר מטען טוב לרכב?", "היי, אני מחפש אוזניות", "יש המלצה על שואב אבק?", "איפה קונים כיסוי לאייפון", "רוצה לקנות שעון חכם", "מה מומלץ לקנות לתינוק?"]) {
+    assert.equal(isSoftRequest(text), true, text);
+  }
+  for (const text of ["שלום לכולם", "אוזניות", "מחפשון", "תודה רבה", "x".repeat(10) + " מחפש " + "y".repeat(300)]) {
+    assert.equal(isSoftRequest(text), false, text);
+  }
+});
+
+test("natural request in a group: the AI reads the sentence, keywords are searched", async () => {
+  const seen = [];
+  const understand = async (q) => (seen.push(q), intent({ corrected_he: "מטען לרכב", keywords_en: "car charger" }));
+  const { sent, queries } = await run("מישהו מכיר מטען טוב לרכב?", { understand });
+  assert.deepEqual(seen, ["מישהו מכיר מטען טוב לרכב?"]);
+  assert.deepEqual(queries, ["car charger"]);
+  assert.equal(sent()[0].method, "sendPhoto");
+});
+
+test("natural request the AI rejects (not a product, or AI unavailable) stays silent", async () => {
+  for (const understand of [async () => intent({ status: "not_product", keywords_en: "" }), async () => null, async () => { throw new Error("x"); }]) {
+    const { calls, queries } = await run("אני מחפש עבודה בתל אביב", { understand });
+    assert.deepEqual(queries, []);
+    assert.equal(calls.filter((c) => c.method.startsWith("send")).length, 0);
+  }
+});
+
+test("natural request while cooling down is silent (no warning message)", async () => {
+  let t = 0;
+  const spy = searchSpy();
+  const ctx = setup({ search: spy.search, understand: async () => intent(), now: () => t });
+  await ctx.bot.handleUpdate(textUpdate("מישהו מכיר אוזניות טובות?", { userId: 1 }));
+  t += 2000;
+  await ctx.bot.handleUpdate(textUpdate("מישהו מכיר אוזניות אחרות?", { userId: 1 }));
+  assert.equal(spy.queries.length, 1);
+  assert.equal(ctx.sent().length, 1, "only the first card, no cooldown warning");
+});
+
+test("a rejected natural request does not start a cooldown", async () => {
+  let n = 0;
+  const understand = async () => (++n === 1 ? intent({ status: "not_product", keywords_en: "" }) : intent());
+  const ctx = setup({ search: searchSpy().search, understand });
+  await ctx.bot.handleUpdate(textUpdate("אני מחפש עבודה", { userId: 1 }));
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 1 }));
+  assert.equal(ctx.sent()[0].method, "sendPhoto", "the explicit search right after still runs");
+});
+
+test("natural request that needs clarifying shows the question", async () => {
+  const ctx = setup({ search: searchSpy().search, understand: async () => CLARIFY });
+  await ctx.bot.handleUpdate(textUpdate("מישהו מכיר מתנה טובה לאמא?"));
+  assert.match(ctx.sent()[0].body, /איזו מתנה\?/);
+});
+
+test("private chat and help text are unaffected / mention natural phrases", async () => {
+  assert.deepEqual((await run("מישהו מכיר אוזניות?", {}, { chat: "private" })).queries, ["מישהו מכיר אוזניות?"]);
+  assert.match(HELP, /מישהו מכיר/);
 });
