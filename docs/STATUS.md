@@ -79,6 +79,19 @@ Open (not decided): the photo takes most of a phone screen. Options are a smalle
 
 **Flag:** if the first real results show spammy machine-translated Hebrew titles, AI short titles may move up to early Phase 2. Not decided.
 
+## 3b. Card v2 (2026-10-23, after the first live Telegram test)
+
+Owner feedback fixed:
+- **One collage photo:** all result images in one photo (sharp; 3 → 1×3, 4 → 2×2, 5 → 3+2), with rank badges and rank 1 at the top right.
+- **Layout:** each detail on its own line (מחיר / לפני הנחה / משוב חיובי or דירוג / נמכרו).
+- **Links:** a visible short link under each product, plus the price buttons.
+- **Header:** "🐼 פנדה אקספרס" linking to the group (`GROUP_URL`, default `https://t.me/panda_deals_il`).
+- **Relevance:** an AI filter (`gpt-6-luna`, fail-open) runs on real results only. In the live comparison gpt-4.1-nano dropped real chargers; gpt-6-luna kept 6 headrest pillows and dropped seat hooks, tablet holders and cables.
+
+Latency is now about 6–8 s per search (AI + search + link shortening + relevance + collage), plus ~50 s on a cold start.
+
+Risk: badge digits use the server's sans-serif font. If Render has no fonts, only the colored circles show.
+
 ## 4. Decisions log (closed)
 
 - **Stack:** Node.js ESM + Express + grammY. `ae_sdk` not used (v0.6.0, last published 2025-03-30); own signing with tests.

@@ -15,9 +15,10 @@ export const BOT_INFO = {
 
 // failMethods: Telegram methods that should answer with a 400 error (e.g. ["sendPhoto"]).
 // understand defaults to "AI unavailable" (null), i.e. the raw query is searched.
-export function setup({ failMethods = [], understand = async () => null, ...opts } = {}) {
+// Network-free defaults: no collage (single photo URL) and no relevance filtering.
+export function setup({ failMethods = [], understand = async () => null, collage = async () => null, relevant = async (_r, p) => p, ...opts } = {}) {
   const calls = [];
-  const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, understand, ...opts });
+  const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, understand, collage, relevant, ...opts });
   bot.api.config.use(async (_prev, method, payload) => {
     calls.push({ method, payload });
     if (failMethods.includes(method)) return { ok: false, error_code: 400, description: "Bad Request: wrong file identifier/HTTP URL specified" };

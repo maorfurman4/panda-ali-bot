@@ -141,3 +141,48 @@ test("validateIntent normalizes and checks each status (nulls from strict mode a
   assert.equal(clarify.options.length, 2, "invalid option dropped");
   assert.equal(validateIntent(null), null);
 });
+
+// ---- AI relevance filter (Phase 2b) ----
+import { createRelevanceFilter } from "../query.js";
+
+const items = ["כרית משענת ראש לרכב", "עוגן פחמן למושב", "מחזיק טאבלט לרכב", "כרית צוואר לרכב"].map((t, i) => ({ product_id: String(i), product_title: t }));
+
+function openaiRelevant(relevant, opts = {}) {
+  return openai({ relevant }, opts);
+}
+
+test("relevance: sends only the request and numbered titles; keeps the chosen products in API order", async () => {
+  const api = openaiRelevant([3, 0]);
+  const filter = createRelevanceFilter({ fetch: api.fetch, env: ENV });
+  const kept = await filter({ he: "משענת לאוטו", en: "car headrest pillow" }, items);
+  assert.deepEqual(kept.map((p) => p.product_id), ["0", "3"]);
+  const body = api.requests[0].body;
+  assert.equal(body.model, "gpt-6-luna", "relevance uses the stronger model by default (2026-10-23 comparison)");
+  assert.deepEqual(body.reasoning, { effort: "none" });
+  assert.equal(body.store, false);
+  assert.equal(body.text.format.strict, true);
+  assert.deepEqual(body.input, [{ role: "user", content: 'Request: "משענת לאוטו" (car headrest pillow)\n0. כרית משענת ראש לרכב\n1. עוגן פחמן למושב\n2. מחזיק טאבלט לרכב\n3. כרית צוואר לרכב' }]);
+});
+
+test("relevance: an empty list means nothing matched; out-of-range numbers are ignored", async () => {
+  assert.deepEqual(await createRelevanceFilter({ fetch: openaiRelevant([]).fetch, env: ENV })({ he: "x", en: "x" }, items), []);
+  const kept = await createRelevanceFilter({ fetch: openaiRelevant([1, 99, -1]).fetch, env: ENV })({ he: "x", en: "x" }, items);
+  assert.deepEqual(kept.map((p) => p.product_id), ["1"]);
+});
+
+test("relevance fail-open: no key, HTTP error, timeout or bad output keeps every product", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  assert.equal((await createRelevanceFilter({ fetch: async () => assert.fail("no key, no call"), env: {} })({ he: "x", en: "x" }, items)).length, 4);
+  for (const fetch of [
+    openaiRelevant([0], { status: 500 }).fetch,
+    async () => { throw Object.assign(new Error("t"), { name: "TimeoutError" }); },
+    openai(null, { text: "nope" }).fetch,
+    openai({ relevant: "0,1" }).fetch,
+  ]) {
+    assert.equal((await createRelevanceFilter({ fetch, env: ENV })({ he: "x", en: "x" }, items)).length, 4);
+  }
+});
+
+test("relevance: no products -> no AI call", async () => {
+  assert.deepEqual(await createRelevanceFilter({ fetch: async () => assert.fail("no call"), env: ENV })({ he: "x", en: "x" }, []), []);
+});

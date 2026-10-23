@@ -146,7 +146,7 @@ test("mock mode labels the header only and hides the <90% demo product", async (
   await ctx.bot.handleUpdate(textUpdate("/search earbuds", { chat: "private" }));
   const caption = ctx.sent()[0].caption;
   const lines = caption.split("\n");
-  assert.match(lines[0], /\[דמו – תוצאות קבועות\]/);
+  assert.match(lines[1], /\[דמו – תוצאות קבועות\]/);
   assert.equal(caption.match(/\[דמו/g).length, 1);
   assert.doesNotMatch(caption, /85%/);
 });
@@ -251,7 +251,7 @@ test("typo: AI-corrected Hebrew in the header, English keywords sent to the sear
   const { sent, queries } = await run("חפש לי אושניות", { understand: async (q) => (seen.push(q), intent()) });
   assert.deepEqual(seen, ["אושניות"], "only the query text goes to the AI");
   assert.deepEqual(queries, ["wireless earbuds"]);
-  const header = sent()[0].caption.split("\n")[0];
+  const header = sent()[0].caption.split("\n")[1];
   assert.match(header, /אוזניות/);
   assert.doesNotMatch(header, /אושניות|wireless/);
 });
@@ -259,7 +259,7 @@ test("typo: AI-corrected Hebrew in the header, English keywords sent to the sear
 test("fail-open: when the AI returns null the raw query is searched as before", async () => {
   const { queries, sent } = await run("חפש לי אושניות", { understand: async () => null });
   assert.deepEqual(queries, ["אושניות"]);
-  assert.match(sent()[0].caption.split("\n")[0], /אושניות/);
+  assert.match(sent()[0].caption.split("\n")[1], /אושניות/);
 });
 
 test("fail-open: an AI function that throws is treated as unavailable", async () => {
@@ -337,7 +337,7 @@ test("clarify: requester's choice edits the question, removes buttons and search
   const card = sent().at(-1);
   assert.equal(card.method, "sendPhoto");
   assert.equal(card.reply_parameters.message_id, question.reply_parameters.message_id, "card replies to the original request");
-  assert.match(card.caption.split("\n")[0], /משהו לבית/);
+  assert.match(card.caption.split("\n")[1], /משהו לבית/);
 });
 
 test("clarify: 'search as written' searches the raw query; a second press is expired", async () => {
@@ -360,4 +360,30 @@ test("any other callback is still answered", async () => {
   const { bot, calls } = setup();
   await bot.handleUpdate(callbackUpdate("something-else"));
   assert.equal(calls.filter((c) => c.method === "answerCallbackQuery").length, 1);
+});
+
+// ---- collage + relevance (Phase 2b) ----
+import { InputFile } from "grammy";
+
+test("a collage image is sent as the photo when it can be built", async () => {
+  const seen = [];
+  const collage = async (urls) => (seen.push(urls), Buffer.from([0xff, 0xd8, 0xff]));
+  const { sent } = await run("/search x", { collage });
+  assert.ok(sent()[0].photo instanceof InputFile);
+  assert.deepEqual(seen, [["https://ae01.alicdn.com/kf/img1.jpg", "https://ae01.alicdn.com/kf/img2.jpg", "https://ae01.alicdn.com/kf/img3.jpg"]]);
+});
+
+test("relevance filter decides which products are shown, using the corrected Hebrew and English keywords", async () => {
+  const calls = [];
+  const relevant = async (req, products) => (calls.push(req), products.filter((p) => /model (2|5)/.test(p.product_title)));
+  const ctx = setup({ search: async () => SIX, understand: async () => intent(), relevant, live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אושניות"));
+  assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds" }]);
+  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard[0].map((b) => b.text), ["🥇 ₪12.00", "🥈 ₪15.00"]);
+});
+
+test("relevance filter leaving nothing -> no-results message", async () => {
+  const ctx = setup({ search: async () => SIX, relevant: async () => [], live: true });
+  await ctx.bot.handleUpdate(textUpdate("/search x"));
+  assert.equal(ctx.sent()[0].text, NO_RESULTS);
 });

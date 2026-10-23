@@ -8,6 +8,7 @@ import {
   soldText,
   ratingText,
   priceLine,
+  discountLine,
   formatCard,
   formatLinkReply,
   parsedLength,
@@ -58,21 +59,22 @@ test("title: one line, max ~30 chars, cut at a word boundary, brand words intact
   assert.ok(oneWord.endsWith("…"));
 });
 
-test("sold: exact under 100, 2 significant digits + '+' from 100, short label 'נמכרו'", () => {
-  assert.equal(soldText("87"), "87 נמכרו");
-  assert.equal(soldText("100"), "100+ נמכרו");
-  assert.equal(soldText("155"), "150+ נמכרו");
-  assert.equal(soldText("1874"), "1,800+ נמכרו");
-  assert.equal(soldText("5230"), "5,200+ נמכרו");
-  assert.equal(soldText("987654"), "980,000+ נמכרו");
+test("sold: exact under 100, 2 significant digits + '+' from 100", () => {
+  assert.equal(soldText("87"), "87");
+  assert.equal(soldText(87), "87");
+  assert.equal(soldText("100"), "100+");
+  assert.equal(soldText("155"), "150+");
+  assert.equal(soldText("1874"), "1,800+");
+  assert.equal(soldText(5230), "5,200+");
+  assert.equal(soldText("987654"), "980,000+");
   for (const bad of ["0", undefined, "x", ""]) assert.equal(soldText(bad), null, String(bad));
 });
 
 test("rating: stars+reviews first, then rounded feedback %, never 0, never % as stars", () => {
-  assert.equal(ratingText({ avgStars: 4.83, reviewCount: 1234, evaluate_rate: "97%" }), "⭐ 4.8 (1,234)");
-  assert.equal(ratingText({ avgStars: 5, reviewCount: 12 }), "⭐ 5.0 (12)");
-  assert.equal(ratingText({ evaluate_rate: "96.5%" }), "👍 97% משוב חיובי");
-  assert.equal(ratingText({ avgStars: 0, reviewCount: 0, evaluate_rate: "92%" }), "👍 92% משוב חיובי");
+  assert.equal(ratingText({ avgStars: 4.83, reviewCount: 1234, evaluate_rate: "97%" }), "⭐ דירוג: 4.8 (1,234 ביקורות)");
+  assert.equal(ratingText({ avgStars: 5, reviewCount: 12 }), "⭐ דירוג: 5.0 (12 ביקורות)");
+  assert.equal(ratingText({ evaluate_rate: "96.5%" }), "👍 משוב חיובי: 97%");
+  assert.equal(ratingText({ avgStars: 0, reviewCount: 0, evaluate_rate: "92%" }), "👍 משוב חיובי: 92%");
   assert.equal(ratingText({ evaluate_rate: "0%" }), null);
   assert.equal(ratingText({}), null);
 });
@@ -89,14 +91,15 @@ test("withinPrice drops ILS products above the cap and ignores the cap for other
   assert.equal(withinPrice([p("99")], null).length, 1);
 });
 
-test("price line: exact strings, badge only for 5% ≤ discount < 80%", () => {
+test("price and discount lines: exact strings, discount only for 5% ≤ discount < 80%", () => {
   const p = (sale, original) => ({ target_sale_price: sale, target_original_price: original, target_sale_price_currency: "ILS" });
-  assert.equal(priceLine(p("39.90", "69.90")), "💰 <b>₪39.90</b>  <s>₪69.90</s>  🔥 43%-");
-  assert.equal(priceLine(p("59.00", "399.00")), "💰 <b>₪59.00</b>", "≥80% discount: inflated original is not shown");
-  assert.equal(priceLine(p("31.70", "33.00")), "💰 <b>₪31.70</b>", "<5% discount: no badge");
-  assert.equal(priceLine(p("24.50", undefined)), "💰 <b>₪24.50</b>");
-  assert.equal(priceLine(p("24.50", "20.00")), "💰 <b>₪24.50</b>", "original below sale is ignored");
-  assert.equal(priceLine({ sale_price: "9.5", original_price: "19", sale_price_currency: "USD" }), "💰 <b>USD 9.50</b>  <s>USD 19.00</s>  🔥 50%-");
+  assert.equal(priceLine(p("39.90", "69.90")), "💰 מחיר: <b>₪39.90</b>");
+  assert.equal(discountLine(p("39.90", "69.90")), "🏷️ לפני הנחה: <s>₪69.90</s> 🔥 43%-");
+  assert.equal(discountLine(p("59.00", "399.00")), null, "≥80% discount: inflated original is not shown");
+  assert.equal(discountLine(p("31.70", "33.00")), null, "<5% discount: not shown");
+  assert.equal(discountLine(p("24.50", undefined)), null);
+  assert.equal(discountLine(p("24.50", "20.00")), null, "original below sale is ignored");
+  assert.equal(discountLine({ sale_price: "9.5", original_price: "19", sale_price_currency: "USD" }), "🏷️ לפני הנחה: <s>USD 19.00</s> 🔥 50%-");
   assert.equal(priceLine({}), null);
 });
 
@@ -114,36 +117,40 @@ const full = (n, over = {}) => ({
   ...over,
 });
 
-test("card layout: header, medal title lines, price and rating lines, RLM everywhere", () => {
+test("card layout: group link header, each detail on its own line, visible link per product, RLM everywhere", () => {
   const { caption } = formatCard([full(1), full(2)], { query: "אוזניות" });
   const lines = caption.split("\n");
   for (const line of lines) assert.ok(line.startsWith(RLM), JSON.stringify(line));
   const body = lines.map((l) => l.slice(1));
-  assert.deepEqual(body.slice(0, 5), [
+  assert.deepEqual(body.slice(0, 9), [
+    '🐼 <a href="https://t.me/panda_deals_il">פנדה אקספרס</a>',
     "🔎 <b>אוזניות</b>",
     "",
     "🥇 <b>אוזניות אלחוטיות Baseus Bowie…</b>",
-    "💰 <b>₪39.90</b>  <s>₪69.90</s>  🔥 43%-",
-    "⭐ 4.8 (1,234) · 🛒 5,200+ נמכרו",
+    "💰 מחיר: <b>₪39.90</b>",
+    "🏷️ לפני הנחה: <s>₪69.90</s> 🔥 43%-",
+    "⭐ דירוג: 4.8 (1,234 ביקורות)",
+    "🛒 נמכרו: 5,200+",
+    "🔗 https://s.click.aliexpress.com/e/_1",
   ]);
-  assert.match(body[6], /^🥈 /);
-  assert.doesNotMatch(caption, /לקנייה|קישורי שותפים/);
+  assert.match(body[10], /^🥈 /);
+  assert.doesNotMatch(caption, /קישורי שותפים/);
 });
 
-test("card: demo label in header only; query escaped and max 30 chars", () => {
+test("card: demo label on the query line only; query escaped and max 30 chars", () => {
   const { caption } = formatCard([full(1)], { query: "<b>" + "א".repeat(40), demo: true });
-  const header = caption.split("\n")[0];
-  assert.ok(header.includes("&lt;b&gt;"));
-  assert.ok(header.endsWith(" [דמו – תוצאות קבועות]"));
+  const queryLine = caption.split("\n")[1];
+  assert.ok(queryLine.includes("&lt;b&gt;"));
+  assert.ok(queryLine.endsWith(" [דמו – תוצאות קבועות]"));
   assert.equal(caption.match(/\[דמו/g).length, 1);
-  const shownQuery = header.match(/<b>(.*)<\/b>/)[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  const shownQuery = queryLine.match(/<b>(.*)<\/b>/)[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   assert.ok([...shownQuery].length <= 30);
 });
 
-test("card: rating+sold line dropped when both are missing; ranks 4–5 use keycaps", () => {
-  const bare = full(1, { evaluate_rate: undefined, lastest_volume: undefined, avgStars: undefined, reviewCount: undefined });
+test("card: missing details drop their own line; ranks 4–5 use keycaps", () => {
+  const bare = full(1, { evaluate_rate: undefined, lastest_volume: undefined, avgStars: undefined, reviewCount: undefined, target_original_price: undefined });
   const { caption } = formatCard([bare], { query: "x" });
-  assert.equal(caption.split("\n").length, 4, "header, blank, title, price");
+  assert.equal(caption.split("\n").length, 6, "brand, query, blank, title, price, link");
   const five = formatCard([1, 2, 3, 4, 5].map((n) => full(n)), { query: "x" });
   assert.match(five.caption, /4️⃣ /);
   assert.match(five.caption, /5️⃣ /);

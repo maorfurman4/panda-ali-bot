@@ -1,9 +1,10 @@
 // Telegram handlers: search triggers, link conversion, cooldowns, Hebrew photo result cards.
 // Privacy: logs contain only update IDs and error messages, never message text or user names.
-import { Bot } from "grammy";
+import { Bot, InputFile } from "grammy";
 import { searchProducts, convertToAffiliate, isMockMode } from "./aliexpress.js";
 import { findAliExpressUrl } from "./links.js";
-import { understandQuery } from "./query.js";
+import { understandQuery, filterRelevant } from "./query.js";
+import { makeCollage } from "./collage.js";
 import {
   filterProducts,
   withinPrice,
@@ -49,6 +50,9 @@ export function createBot({
   search = searchProducts,
   convert = convertToAffiliate,
   understand = understandQuery,
+  relevant = filterRelevant,
+  collage = makeCollage,
+  live, // tests only: force the live (non-mock) path
   now = Date.now,
   cooldownMs = 10_000,
 }) {
@@ -106,13 +110,17 @@ export function createBot({
       return ctx.reply(SEARCH_ERROR, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
-    const shown = withinPrice(filterProducts(products), maxPriceIls).slice(0, limit);
+    let candidates = withinPrice(filterProducts(products), maxPriceIls);
+    // Demo products always match, so the AI relevance check runs only on real AliExpress results.
+    if (live ?? !isMockMode()) candidates = await relevant({ he: header, en: keywords }, candidates).catch(() => candidates);
+    const shown = candidates.slice(0, limit);
     if (!shown.length) return ctx.reply(NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
 
     const { caption, buttons } = formatCard(shown, { query: header, demo: isMockMode() });
     const extra = { parse_mode: "HTML", ...replyParams(replyToId), ...(buttons.length ? { reply_markup: { inline_keyboard: buttons } } : {}) };
-    const image = shown[0].product_main_image_url;
-    if (/^https:\/\//i.test(image ?? "")) {
+    const collageImage = await collage(shown.map((p) => p.product_main_image_url)).catch(() => null);
+    const image = collageImage ? new InputFile(collageImage, "panda-results.jpg") : shown[0].product_main_image_url;
+    if (collageImage || /^https:\/\//i.test(image ?? "")) {
       try {
         return await ctx.replyWithPhoto(image, { caption, ...extra });
       } catch (e) {

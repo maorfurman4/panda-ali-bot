@@ -7,6 +7,7 @@ const TITLE_MAX = 30; // photo captions are only as wide as the photo
 const QUERY_MAX = 30;
 const CAPTION_MAX = 1024; // Telegram photo caption limit, counted after HTML parsing
 const MEDALS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
+const GROUP_URL = process.env.GROUP_URL || "https://t.me/panda_deals_il"; // shown as the "פנדה אקספרס" header link
 
 export const esc = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -57,51 +58,59 @@ export function shortTitle(title) {
 export function soldText(volume) {
   const n = Math.floor(Number(volume));
   if (!Number.isFinite(n) || n <= 0) return null;
-  if (n < 100) return `${n} נמכרו`;
+  if (n < 100) return String(n);
   const step = 10 ** (String(n).length - 2);
-  return `${(Math.floor(n / step) * step).toLocaleString("en-US")}+ נמכרו`;
+  return `${(Math.floor(n / step) * step).toLocaleString("en-US")}+`;
 }
 
 // Stars + review count (future DS API data) first, else the positive-feedback %, else nothing. Never shows 0.
 export function ratingText(p) {
   const stars = Number(p.avgStars);
   const reviews = Math.round(Number(p.reviewCount));
-  if (stars > 0 && reviews > 0) return `⭐ ${stars.toFixed(1)} (${reviews.toLocaleString("en-US")})`;
+  if (stars > 0 && reviews > 0) return `⭐ דירוג: ${stars.toFixed(1)} (${reviews.toLocaleString("en-US")} ביקורות)`;
   const rate = parseEvaluateRate(p.evaluate_rate);
-  return rate > 0 ? `👍 ${Math.round(rate)}% משוב חיובי` : null;
+  return rate > 0 ? `👍 משוב חיובי: ${Math.round(rate)}%` : null;
 }
 
-// Sale price, plus the original price and 🔥 badge only for 5% ≤ discount < 80% (higher means an inflated "original").
+const salePrice = (p) => formatPrice(p.target_sale_price ?? p.sale_price, p.target_sale_price_currency ?? p.sale_price_currency);
+
 export function priceLine(p) {
-  const sale = p.target_sale_price ?? p.sale_price;
+  const price = salePrice(p);
+  return price ? `💰 מחיר: <b>${esc(price)}</b>` : null;
+}
+
+// Original price + 🔥 badge only for 5% ≤ discount < 80% (higher means an inflated "original").
+export function discountLine(p) {
+  const s = Number(p.target_sale_price ?? p.sale_price);
   const original = p.target_original_price ?? p.original_price;
-  const currency = p.target_sale_price_currency ?? p.sale_price_currency;
-  const salePrice = formatPrice(sale, currency);
-  if (!salePrice) return null;
-  let line = `💰 <b>${esc(salePrice)}</b>`;
-  const s = Number(sale);
   const o = Number(original);
-  if (s > 0 && o > s) {
-    const discount = Math.round((1 - s / o) * 100);
-    if (discount >= 5 && discount < 80) line += `  <s>${esc(formatPrice(original, currency))}</s>  🔥 ${discount}%-`;
-  }
-  return line;
+  if (!(s > 0 && o > s)) return null;
+  const discount = Math.round((1 - s / o) * 100);
+  if (discount < 5 || discount >= 80) return null;
+  return `🏷️ לפני הנחה: <s>${esc(formatPrice(original, p.target_sale_price_currency ?? p.sale_price_currency))}</s> 🔥 ${discount}%-`;
 }
 
 function buildCard(products, query, demo) {
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`];
+  const lines = [
+    `🐼 <a href="${esc(GROUP_URL)}">פנדה אקספרס</a>`,
+    `🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`,
+  ];
   const buttons = [];
   products.forEach((p, i) => {
-    lines.push("", `${MEDALS[i]} <b>${esc(shortTitle(p.product_title) || "מוצר")}</b>`);
-    const price = priceLine(p);
-    if (price) lines.push(price);
+    const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
-    const stats = [ratingText(p), sold && `🛒 ${sold}`].filter(Boolean).join(" · ");
-    if (stats) lines.push(stats);
-    if (/^https?:\/\//i.test(p.promotion_link ?? "")) {
-      const label = formatPrice(p.target_sale_price ?? p.sale_price, p.target_sale_price_currency ?? p.sale_price_currency);
-      buttons.push({ text: label ? `${MEDALS[i]} ${label}` : MEDALS[i], url: p.promotion_link });
-    }
+    lines.push(
+      "",
+      ...[
+        `${MEDALS[i]} <b>${esc(shortTitle(p.product_title) || "מוצר")}</b>`,
+        priceLine(p),
+        discountLine(p),
+        ratingText(p),
+        sold && `🛒 נמכרו: ${sold}`,
+        link && `🔗 ${esc(link)}`,
+      ].filter(Boolean),
+    );
+    if (link) buttons.push({ text: salePrice(p) ? `${MEDALS[i]} ${salePrice(p)}` : MEDALS[i], url: link });
   });
   const rows = [];
   for (let i = 0; i < buttons.length; i += 3) rows.push(buttons.slice(i, i + 3));
