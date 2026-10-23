@@ -10,7 +10,11 @@ Bot: `@panda_ali_deals_bot` · Last updated: 2026-10-22 · Research and roadmap:
 - **`.env`:** `BOT_TOKEN` and `ALI_TRACKING_ID` filled. `ALI_APP_KEY` and `ALI_APP_SECRET` empty, so the bot runs in **mock mode** (`[דמו]` products, fake links).
 - **Telegram:** privacy mode OFF in BotFather. The bot was removed and re-added to the test group after the change.
 - **Bot profile (set 2026-10-23 via Bot API):** commands `/search`, `/help`; description and About say "not an official AliExpress bot" and include the affiliate disclosure.
-- **Runtime:** local only (`npm start`, long polling). No hosting yet.
+- **Runtime (2026-10-23):** Render free web service `panda-ali-bot` (Oregon), **webhook mode**, `https://panda-ali-bot.onrender.com/webhook` (verified via getWebhookInfo). Deploys from the private GitHub repo `maorfurman4/panda-ali-bot` (branch `main`, auto-deploy on push). Env vars live in Render: BOT_TOKEN, OPENAI_API_KEY, ALI_TRACKING_ID, WEBHOOK_URL, WEBHOOK_SECRET.
+  - The free instance sleeps after 15 min without traffic: the first message after that waits ~50 s, and in-memory state (cooldowns, clarify buttons, AI cache) resets.
+  - The 750 free hours/month are shared with the workspace's other services, so no keep-alive ping for now.
+  - **Do not run `npm start` locally with the same BOT_TOKEN**: local polling calls deleteWebhook and disconnects the server. Use a separate test bot for local work.
+  - Lesson: switching a live service from polling to webhook deleted the webhook (the old polling instance restarted during the overlap); one manual restart fixed it.
 - **AliExpress:** the Open Platform app is pending approval. No API keys yet.
 
 ## 2. Live test results
