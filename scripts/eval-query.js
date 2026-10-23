@@ -15,7 +15,7 @@ const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 ? process.argv[i + 1] : fallback;
 };
-const model = arg("model", process.env.OPENAI_MODEL || "gpt-4.1-nano");
+const model = arg("model", process.env.OPENAI_MODEL || "gpt-5.4-nano");
 const budget = Number(arg("budget", "0.05"));
 
 if (!process.env.OPENAI_API_KEY) {

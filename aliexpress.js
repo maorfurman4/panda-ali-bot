@@ -9,7 +9,7 @@ import { resolveProductUrl } from "./links.js";
 const GATEWAY = "https://api-sg.aliexpress.com/sync";
 const TIMEOUT_MS = 10_000;
 const RETRY_DELAY_MS = 1200;
-const PAGE_SIZE = 20; // more than 5, so the <90% feedback filter still leaves enough results
+const PAGE_SIZE = 50; // the API maximum: a bigger pool for the quality, relevance and ranking steps
 
 export const isMockMode = (env = process.env) => !env.ALI_APP_KEY || !env.ALI_APP_SECRET || !env.ALI_TRACKING_ID;
 

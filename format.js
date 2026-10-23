@@ -28,6 +28,12 @@ export function parseEvaluateRate(value) {
   return n >= 0 && n <= 100 ? n : null;
 }
 
+// Best first: recent sales (log scale) weighted by positive feedback; ties keep the API order.
+export function rankProducts(products) {
+  const score = (p) => Math.log10((Number(p.lastest_volume) || 0) + 1) * ((parseEvaluateRate(p.evaluate_rate) ?? 90) / 100);
+  return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
+}
+
 export function filterProducts(products) {
   return products.filter((p) => {
     const rate = parseEvaluateRate(p.evaluate_rate);
@@ -90,7 +96,7 @@ export function discountLine(p) {
   return `🏷️ לפני הנחה: <s>${esc(formatPrice(original, p.target_sale_price_currency ?? p.sale_price_currency))}</s> 🔥 ${discount}%-`;
 }
 
-function buildCard(products, query, demo) {
+function buildCard(products, query, demo, reasons) {
   const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`];
   const buttons = [];
   products.forEach((p, i) => {
@@ -100,6 +106,7 @@ function buildCard(products, query, demo) {
       "",
       ...[
         `${MEDALS[i]} <b>${esc(shortTitle(p.product_title) || "מוצר")}</b>`,
+        reasons?.[i] && `💡 ${esc(reasons[i])}`,
         priceLine(p),
         discountLine(p),
         ratingText(p),
@@ -111,15 +118,16 @@ function buildCard(products, query, demo) {
   });
   lines.push("", "🐼 פנדה אקספרס", esc(GROUP_URL)); // group link at the end (owner request)
   const rows = [];
-  for (let i = 0; i < buttons.length; i += 3) rows.push(buttons.slice(i, i + 3));
+  const perRow = buttons.length === 4 ? 2 : 3; // 4 results -> 2×2, like the collage
+  for (let i = 0; i < buttons.length; i += perRow) rows.push(buttons.slice(i, i + perRow));
   return { caption: rtl(lines), buttons: rows };
 }
 
 // Result card for up to 5 products; drops trailing products until the caption fits Telegram's limit.
-export function formatCard(products, { query, demo = false }) {
+export function formatCard(products, { query, demo = false, reasons = null }) {
   let n = Math.min(products.length, MEDALS.length);
   let card;
-  do card = buildCard(products.slice(0, n--), query, demo);
+  do card = buildCard(products.slice(0, n--), query, demo, reasons);
   while (n > 0 && parsedLength(card.caption) > CAPTION_MAX);
   return card;
 }
@@ -130,7 +138,8 @@ export function withinPrice(products, maxIls) {
   return products.filter((p) => (p.target_sale_price_currency ?? p.sale_price_currency) !== "ILS" || Number(p.target_sale_price ?? p.sale_price) <= maxIls);
 }
 
-export const clarifyText = (question) => rtl([`🤔 ${esc(question)}`]);
+export const questionText = (question, { inGroup = false } = {}) =>
+  rtl([`🤔 ${esc(question)}`, ...(inGroup ? ["👇 הבחירה תמשיך איתכם בצ'אט פרטי"] : [])]);
 export const chosenText = (label) => rtl([`🔎 ${esc(label)}`]);
 
 export function formatLinkReply(link, { demo = false } = {}) {
@@ -148,6 +157,7 @@ export const HELP = rtl([
   "• או: תייגו אותי בתחילת ההודעה עם מה שאתם מחפשים",
   "• או פשוט כתבו בקבוצה: מישהו מכיר… / מחפש… / יש המלצה על…",
   "• כאן בפרטי: פשוט כתבו מה אתם מחפשים",
+  "🧭 לא בטוחים מה לקנות? /advice מתנה לאמא, ואשאל כמה שאלות קצרות",
   "",
   "🔗 קישור למוצר מעלי אקספרס: שלחו אותו כאן, או בקבוצה אחרי תיוג שלי, ואחזיר קישור לרכישה.",
   "💡 חיפוש באנגלית מחזיר לרוב תוצאות טובות יותר.",
@@ -158,11 +168,13 @@ export const HELP = rtl([
 
 export const GROUP_HELP = rtl(['🐼 כתבו "חפש לי ..." ואמצא לכם מוצרים. הסבר מלא בפרטי 👈']);
 export const NOT_PRODUCT = rtl(["לא הבנתי איזה מוצר לחפש 🙂 נסו למשל: חפש לי אוזניות"]);
-export const SEARCH_AS_TYPED = "🔎 לחפש כמו שכתבתי";
+export const SEARCH_NOW = "🔎 תחפש כבר";
+export const ADVICE_EXPIRED = rtl(["הייעוץ פג. כתבו לי שוב מה אתם מחפשים 🙂"]);
+export const ADVICE_EMPTY = rtl(["על מה להתייעץ? לדוגמה: /advice מתנה לאמא"]);
 export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
 export const CLARIFY_EXPIRED = "הבקשה פגה, חפשו שוב";
 export const EMPTY_QUERY = rtl(["מה לחפש? לדוגמה: חפש לי אוזניות אלחוטיות"]);
-export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים מתאימים. נסו מילים אחרות (באנגלית זה עובד הכי טוב)."]);
+export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים שמתאימים בדיוק. נסו לנסח אחרת או קצת יותר כללי."]);
 export const SEARCH_ERROR = rtl(["😕 הייתה תקלה בחיבור לעלי אקספרס. נסו שוב בעוד דקה."]);
 export const LINK_ERROR = rtl(["😕 לא הצלחתי ליצור קישור כרגע. נסו שוב בעוד דקה."]);
 export const cooldownMessage = (seconds) => rtl([`⏳ רגע… אפשר לחפש שוב בעוד ${seconds} שניות.`]);

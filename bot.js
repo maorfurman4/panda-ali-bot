@@ -3,15 +3,16 @@
 import { Bot, InputFile } from "grammy";
 import { searchProducts, convertToAffiliate, isMockMode } from "./aliexpress.js";
 import { findAliExpressUrl } from "./links.js";
-import { understandQuery, filterRelevant } from "./query.js";
+import { understandQuery, filterRelevant, nextAdvice, explainFit } from "./query.js";
 import { makeCollage } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import {
   filterProducts,
+  rankProducts,
   withinPrice,
   formatCard,
   formatLinkReply,
-  clarifyText,
+  questionText,
   chosenText,
   cooldownMessage,
   HELP,
@@ -21,15 +22,19 @@ import {
   NOT_PRODUCT,
   SEARCH_ERROR,
   LINK_ERROR,
-  SEARCH_AS_TYPED,
+  SEARCH_NOW,
   CLARIFY_NOT_YOURS,
   CLARIFY_EXPIRED,
+  ADVICE_EXPIRED,
+  ADVICE_EMPTY,
 } from "./format.js";
 
-const GROUP_RESULTS = 3;
-const PRIVATE_RESULTS = 5;
+const GROUP_RESULTS = 4;
+const PRIVATE_RESULTS = 4;
 const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
+const MAX_QUESTIONS = 3;
+const RELEVANCE_POOL = 24;
 const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile text often starts with one
 const TRIGGER = /^\s*(?:ת?חפש|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+לי(?=[\s:]|$)[\s:]*([\s\S]*)$/;
 // Natural shopping phrases that may appear anywhere in a group message. Only these messages are sent to the AI,
@@ -65,6 +70,8 @@ export function createBot({
   convert = convertToAffiliate,
   understand = understandQuery,
   relevant = filterRelevant,
+  advise = nextAdvice,
+  explain = explainFit,
   collage = makeCollage,
   live, // tests only: force the live (non-mock) path
   typingEveryMs = 4000,
@@ -77,7 +84,7 @@ export function createBot({
   bot.on("message:new_chat_members", moderation.onJoin);
   const cooldowns = new Map(); // shortcut: in-memory, resets on restart; fine for a single instance
   const groupHelpAt = new Map();
-  const pending = new Map(); // clarify questions waiting for a button press, by short id (same shortcut as above)
+  const pending = new Map(); // advisor sessions waiting for a button press, by short id (same shortcut as above)
   let clarifySeq = 0;
 
   const replyParams = (messageId) => ({ reply_parameters: { message_id: messageId, allow_sending_without_reply: true } });
@@ -130,6 +137,7 @@ export function createBot({
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);
       return showResults(ctx, {
         keywords: intent?.keywords_en || query,
+        fallback: intent?.fallback_en,
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
         replyToId: ctx.msg.message_id,
@@ -145,26 +153,40 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, replyToId: ctx.msg.message_id }),
     );
   }
 
-  async function showResults(ctx, { keywords, header, maxPriceIls, replyToId }) {
-    let products;
+  // Search -> quality filter (≥90% feedback, price cap) -> AI relevance (real results only) -> ranking.
+  // When fewer than the limit remain, a broader fallback search fills up (no duplicates).
+  async function showResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, replyToId, advice = null }) {
+    const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
+    const keyOf = (p) => p.product_id ?? p.promotion_link;
+    const gather = async (q, seen) => {
+      const fresh = withinPrice(filterProducts(await search(q)), maxPriceIls).filter((p) => !seen.has(keyOf(p)));
+      if (!(live ?? !isMockMode())) return fresh;
+      const top = rankProducts(fresh).slice(0, RELEVANCE_POOL); // fewer titles = a faster, steadier AI check
+      return relevant({ he: context, en: q }, top).catch(() => top);
+    };
+    let candidates;
     try {
-      products = await search(keywords);
+      candidates = await gather(keywords, new Set());
     } catch (e) {
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
       return ctx.reply(SEARCH_ERROR, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
-    const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
-    let candidates = withinPrice(filterProducts(products), maxPriceIls);
-    // Demo products always match, so the AI relevance check runs only on real AliExpress results.
-    if (live ?? !isMockMode()) candidates = await relevant({ he: header, en: keywords }, candidates).catch(() => candidates);
-    const shown = candidates.slice(0, limit);
+    if (candidates.length < limit && fallback && fallback !== keywords) {
+      try {
+        candidates = candidates.concat(await gather(fallback, new Set(candidates.map(keyOf))));
+      } catch (e) {
+        console.error(`update ${ctx.update.update_id}: fallback search failed: ${e.message}`); // the first results still show
+      }
+    }
+    const shown = rankProducts(candidates).slice(0, limit);
     if (!shown.length) return ctx.reply(NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
 
-    const { caption, buttons } = formatCard(shown, { query: header, demo: isMockMode() });
+    const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice
+    const { caption, buttons } = formatCard(shown, { query: header, demo: isMockMode(), reasons });
     const extra = { parse_mode: "HTML", ...replyParams(replyToId), ...(buttons.length ? { reply_markup: { inline_keyboard: buttons } } : {}) };
     const collageImage = await collage(shown.map((p) => p.product_main_image_url)).catch(() => null);
     const image = collageImage ? new InputFile(collageImage, "panda-results.jpg") : shown[0].product_main_image_url;
@@ -178,14 +200,69 @@ export function createBot({
     return ctx.reply(caption, { ...extra, link_preview_options: { is_disabled: true } });
   }
 
-  // Asks the requester to pick an option; the choice arrives as a callback "q:<id>:<n|raw>".
-  function askClarify(ctx, query, intent) {
-    const id = (++clarifySeq).toString(36);
+  // ---- Shopping advisor: up to 3 questions with buttons, then a search with "why it fits" lines.
+  // In groups only the first question is shown; its options are deep links that continue in private chat.
+  function newSession(ctx, request, maxPriceIls = null) {
     for (const [key, e] of pending) if (now() - e.at > CLARIFY_TTL_MS) pending.delete(key);
-    pending.set(id, { userId: ctx.from?.id, query, options: intent.options, maxPriceIls: intent.max_price_ils, replyToId: ctx.msg.message_id, at: now() });
-    const rows = intent.options.map((o, n) => [{ text: o.label_he, callback_data: `q:${id}:${n}` }]);
-    rows.push([{ text: SEARCH_AS_TYPED, callback_data: `q:${id}:raw` }]);
-    return reply(ctx, clarifyText(intent.clarify_question_he), { reply_markup: { inline_keyboard: rows } });
+    const id = (++clarifySeq).toString(36);
+    const session = { id, userId: ctx.from?.id, request, history: [], keywords: null, label: null, maxPriceIls, replyToId: ctx.msg?.message_id, at: now() };
+    pending.set(id, session);
+    return session;
+  }
+
+  function showQuestion(ctx, session, question, options, { edit = false } = {}) {
+    Object.assign(session, { question, options, at: now() });
+    const inGroup = ctx.chat.type !== "private";
+    const rows = options.map((o, n) =>
+      inGroup ? [{ text: o.label_he, url: `https://t.me/${ctx.me.username}?start=q_${session.id}_${n}` }] : [{ text: o.label_he, callback_data: `q:${session.id}:${n}` }],
+    );
+    rows.push([{ text: SEARCH_NOW, callback_data: `q:${session.id}:go` }]);
+    const extra = { parse_mode: "HTML", reply_markup: { inline_keyboard: rows } };
+    const text = questionText(question, { inGroup });
+    return edit ? ctx.editMessageText(text, extra).catch(() => {}) : reply(ctx, text, extra);
+  }
+
+  function askClarify(ctx, query, intent) {
+    return showQuestion(ctx, newSession(ctx, query, intent.max_price_ils), intent.clarify_question_he, intent.options);
+  }
+
+  // Records the answer, then asks the next question (max 3 in total) or searches.
+  async function answer(ctx, session, n, { edit }) {
+    const option = session.options?.[n];
+    if (!option) return;
+    session.history.push({ q: session.question, a: option.label_he });
+    Object.assign(session, { keywords: option.keywords_en, label: option.label_he, maxPriceIls: option.max_price_ils ?? session.maxPriceIls });
+    if (session.history.length < MAX_QUESTIONS) {
+      const step = await withTyping(ctx, () => advise({ request: session.request, history: session.history }).catch(() => null));
+      if (step?.status === "ask") return showQuestion(ctx, session, step.question_he, step.options, { edit });
+      if (step?.status === "done") Object.assign(session, { keywords: step.keywords_en, maxPriceIls: step.max_price_ils ?? session.maxPriceIls });
+    }
+    return finish(ctx, session, { edit });
+  }
+
+  async function finish(ctx, session, { edit }) {
+    pending.delete(session.id);
+    const header = session.label ?? session.request;
+    if (edit) await ctx.editMessageText(chosenText(header), { parse_mode: "HTML" }).catch(() => {}); // no reply_markup = buttons removed
+    const advice = session.history.length ? { request: session.request, history: session.history } : null;
+    const context = advice ? `${session.request} (${session.history.map((h) => h.a).join(", ")})` : session.request;
+    return withTyping(ctx, () =>
+      showResults(ctx, { keywords: session.keywords ?? session.request, header, context, maxPriceIls: session.maxPriceIls, replyToId: session.replyToId, advice }),
+    );
+  }
+
+  // A group option's deep link (/start q_<id>_<n>) continues the advice in private chat.
+  async function continueInPrivate(ctx, id, n) {
+    const source = pending.get(id);
+    if (!source || now() - source.at > CLARIFY_TTL_MS) {
+      pending.delete(id);
+      return reply(ctx, ADVICE_EXPIRED);
+    }
+    // The requester continues their own session; anyone else gets their own copy.
+    const session = source.userId === ctx.from.id ? source : { ...structuredClone(source), id: (++clarifySeq).toString(36), userId: ctx.from.id };
+    pending.set(session.id, session);
+    session.replyToId = ctx.msg.message_id;
+    return answer(ctx, session, n, { edit: false });
   }
 
   async function runConvert(ctx, url) {
@@ -202,6 +279,8 @@ export function createBot({
 
   // Private: full help. Group: one line + deep link, at most once per 10 minutes per chat (silent otherwise).
   bot.command(["start", "help"], (ctx) => {
+    const deep = ctx.chat.type === "private" && ctx.match.match(/^q_([0-9a-z]+)_(\d)$/);
+    if (deep) return continueInPrivate(ctx, deep[1], Number(deep[2]));
     if (ctx.chat.type === "private") return reply(ctx, HELP);
     const last = groupHelpAt.get(ctx.chat.id);
     if (last !== undefined && now() - last < HELP_COOLDOWN_MS) return;
@@ -210,22 +289,34 @@ export function createBot({
     return reply(ctx, GROUP_HELP, { reply_markup: { inline_keyboard: [[button]] } });
   });
   bot.command("search", (ctx) => runSearch(ctx, ctx.match));
+  bot.command("advice", async (ctx) => {
+    const request = ctx.match.trim();
+    if (!request) return reply(ctx, ADVICE_EMPTY);
+    if (!(await allow(ctx))) return;
+    const step = await withTyping(ctx, () => advise({ request, history: [] }).catch(() => null));
+    if (step?.status === "ask") return showQuestion(ctx, newSession(ctx, request), step.question_he, step.options);
+    return withTyping(ctx, () =>
+      showResults(ctx, { keywords: step?.keywords_en || request, header: request, maxPriceIls: step?.max_price_ils ?? null, replyToId: ctx.msg.message_id }),
+    );
+  });
 
-  // Clarify choice. Only the requester may choose; the search cooldown was already counted for the request.
-  bot.callbackQuery(/^q:([0-9a-z]+):(\d|raw)$/, async (ctx) => {
+  // Advisor buttons. Only the requester may press; the search cooldown was already counted for the request.
+  bot.callbackQuery(/^q:([0-9a-z]+):(\d|go)$/, async (ctx) => {
     const [, id, choice] = ctx.match;
-    const entry = pending.get(id);
-    if (!entry || now() - entry.at > CLARIFY_TTL_MS) {
+    const session = pending.get(id);
+    if (!session || now() - session.at > CLARIFY_TTL_MS) {
       pending.delete(id);
       return ctx.answerCallbackQuery({ text: CLARIFY_EXPIRED });
     }
-    if (ctx.from.id !== entry.userId) return ctx.answerCallbackQuery({ text: CLARIFY_NOT_YOURS });
-    const option = choice === "raw" ? { label_he: entry.query, keywords_en: entry.query } : entry.options[Number(choice)];
-    if (!option) return ctx.answerCallbackQuery();
-    pending.delete(id);
+    if (ctx.from.id !== session.userId) return ctx.answerCallbackQuery({ text: CLARIFY_NOT_YOURS });
     await ctx.answerCallbackQuery();
-    await ctx.editMessageText(chosenText(option.label_he), { parse_mode: "HTML" }).catch(() => {}); // no reply_markup = buttons removed
-    return withTyping(ctx, () => showResults(ctx, { keywords: option.keywords_en, header: option.label_he, maxPriceIls: entry.maxPriceIls, replyToId: entry.replyToId }));
+    if (session.busy) return; // a double tap while the AI is thinking
+    session.busy = true;
+    try {
+      return await (choice === "go" ? finish(ctx, session, { edit: true }) : answer(ctx, session, Number(choice), { edit: true }));
+    } finally {
+      session.busy = false;
+    }
   });
   bot.on("callback_query:data", (ctx) => ctx.answerCallbackQuery()); // never leave a button spinning
 

@@ -48,7 +48,7 @@ test("parseTrigger: start-of-message triggers only", () => {
   }
 });
 
-test("group /search sends ONE photo card: top 3, buttons in one row, as a reply", async () => {
+test("group /search sends ONE photo card: top 4, buttons 2×2, as a reply", async () => {
   const { sent, queries, calls } = await run("/search wireless earbuds");
   assert.deepEqual(queries, ["wireless earbuds"]);
   assert.equal(sent().length, 1);
@@ -59,19 +59,20 @@ test("group /search sends ONE photo card: top 3, buttons in one row, as a reply"
   assert.ok(msg.reply_parameters.message_id > 0);
   assert.equal(msg.reply_parameters.allow_sending_without_reply, true);
   const rows = msg.reply_markup.inline_keyboard;
-  assert.equal(rows.length, 1);
-  assert.deepEqual(rows[0].map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00"]);
-  assert.deepEqual(rows[0].map((b) => b.url), ["https://s.click.aliexpress.com/e/_p1", "https://s.click.aliexpress.com/e/_p2", "https://s.click.aliexpress.com/e/_p3"]);
-  assert.doesNotMatch(msg.caption, /4️⃣/);
+  assert.deepEqual(rows.map((r) => r.length), [2, 2]);
+  assert.deepEqual(rows.flat().map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00", "4️⃣ ₪14.00"]);
+  assert.equal(rows.flat()[0].url, "https://s.click.aliexpress.com/e/_p1");
+  assert.match(msg.caption, /4️⃣/);
+  assert.doesNotMatch(msg.caption, /5️⃣/);
   assert.ok(calls.some((c) => c.method === "sendChatAction" && c.payload.action === "typing"));
 });
 
-test("private search shows top 5 with buttons in two rows", async () => {
+test("private search also shows 4 products", async () => {
   const { sent } = await run("earbuds", {}, { chat: "private" });
   const [msg] = sent();
   assert.match(msg.caption, /4️⃣/);
-  assert.match(msg.caption, /5️⃣/);
-  assert.deepEqual(msg.reply_markup.inline_keyboard.map((r) => r.length), [3, 2]);
+  assert.doesNotMatch(msg.caption, /5️⃣/);
+  assert.deepEqual(msg.reply_markup.inline_keyboard.map((r) => r.length), [2, 2]);
 });
 
 test("falls back to a text message with the same buttons when sendPhoto fails", async () => {
@@ -276,7 +277,7 @@ test("not_product: one short reply, no search", async () => {
 
 test("max price: ILS products above the cap are dropped; non-ILS results ignore the cap", async () => {
   const ils = await run("חפש לי אוזניות עד 13 שקל", { understand: async () => intent({ max_price_ils: 13 }) });
-  assert.deepEqual(ils.sent()[0].reply_markup.inline_keyboard[0].map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00"]);
+  assert.deepEqual(ils.sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00"]);
   const tooLow = await run("חפש לי אוזניות עד 5 שקל", { understand: async () => intent({ max_price_ils: 5 }) });
   assert.equal(tooLow.sent()[0].body, NO_RESULTS);
   const usd = SIX.map((p) => ({ ...p, target_sale_price_currency: "USD" }));
@@ -295,65 +296,157 @@ const CLARIFY = intent({
   ],
 });
 
-async function clarifySetup(opts = {}) {
+const BUDGET = {
+  status: "ask",
+  question_he: "מה התקציב?",
+  options: [
+    { label_he: "עד 50 ₪", keywords_en: "women necklace", max_price_ils: 50 },
+    { label_he: "עד 150 ₪", keywords_en: "women necklace", max_price_ils: 150 },
+  ],
+};
+
+async function adviceSetup({ chat = "private", ...opts } = {}) {
   let t = 0;
   const spy = searchSpy();
-  const ctx = setup({ search: spy.search, understand: async () => CLARIFY, now: () => t, ...opts });
-  await ctx.bot.handleUpdate(textUpdate("חפש לי מתנה לאמא", { userId: 7 }));
+  const sessions = [];
+  const advise = opts.advise ?? (async (s) => (sessions.push(structuredClone(s)), null));
+  const ctx = setup({ search: spy.search, understand: async () => CLARIFY, now: () => t, ...opts, advise: async (s) => (sessions.push(structuredClone(s)), advise === opts.advise ? advise(s) : null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מתנה לאמא", { userId: 7, chat }));
   const question = ctx.sent()[0];
   const buttons = question.reply_markup.inline_keyboard.flat();
-  return { ...ctx, spy, question, buttons, tick: (ms) => (t += ms) };
+  return { ...ctx, spy, question, buttons, sessions, tick: (ms) => (t += ms) };
 }
+const press = (ctx, button, userId = 7, chat = "private") => ctx.bot.handleUpdate(callbackUpdate(button.callback_data, { userId, chat }));
 
-test("clarify: question as a reply with one button per option + 'search as written'", async () => {
-  const { question, buttons, spy } = await clarifySetup();
+test("advisor (private): first question as a reply, option buttons + 'search already', no search yet", async () => {
+  const { question, buttons, spy } = await adviceSetup();
   assert.match(question.body, /איזו מתנה\?/);
   assert.ok(question.reply_parameters.message_id > 0);
-  assert.deepEqual(buttons.map((b) => b.text), ["תכשיט", "משהו לבית", "🔎 לחפש כמו שכתבתי"]);
+  assert.deepEqual(buttons.map((b) => b.text), ["תכשיט", "משהו לבית", "🔎 תחפש כבר"]);
   for (const b of buttons) {
-    assert.match(b.callback_data, /^q:[0-9a-z]+:(\d|raw)$/);
+    assert.match(b.callback_data, /^q:[0-9a-z]+:(\d|go)$/);
     assert.ok(Buffer.byteLength(b.callback_data) <= 64);
   }
-  assert.deepEqual(spy.queries, [], "no search before a choice");
-});
-
-test("clarify: only the requester can choose; others get a notice", async () => {
-  const { bot, calls, buttons, spy } = await clarifySetup();
-  await bot.handleUpdate(callbackUpdate(buttons[0].callback_data, { userId: 99 }));
-  const answer = calls.find((c) => c.method === "answerCallbackQuery");
-  assert.equal(answer.payload.text, "רק מי שביקש יכול לבחור");
   assert.deepEqual(spy.queries, []);
 });
 
-test("clarify: requester's choice edits the question, removes buttons and searches, without a second cooldown", async () => {
-  const { bot, calls, buttons, spy, sent, question, tick } = await clarifySetup();
-  tick(1000); // well inside the 10 s search cooldown
-  await bot.handleUpdate(callbackUpdate(buttons[1].callback_data, { userId: 7 }));
-  assert.ok(calls.some((c) => c.method === "answerCallbackQuery"));
-  const edit = calls.find((c) => c.method === "editMessageText");
-  assert.equal(edit.payload.text, `${RLM}🔎 משהו לבית`);
-  assert.equal(edit.payload.reply_markup, undefined);
-  assert.deepEqual(spy.queries, ["home decor"]);
-  const card = sent().at(-1);
+test("advisor (private): a choice asks the next question in the same message, then searches when done, with 'why it fits'", async () => {
+  let step = 0;
+  const advise = async () => (++step === 1 ? BUDGET : { status: "done", keywords_en: "silver necklace", max_price_ils: 150 });
+  const explained = [];
+  const explain = async (session, products) => (explained.push(session), products.map((_, i) => `סיבה ${i + 1}`));
+  const ctx = await adviceSetup({ advise, explain });
+  await press(ctx, ctx.buttons[0]);
+  assert.deepEqual(ctx.sessions[0], { request: "מתנה לאמא", history: [{ q: "איזו מתנה?", a: "תכשיט" }] });
+  const edit = ctx.calls.find((c) => c.method === "editMessageText");
+  assert.match(edit.payload.text, /מה התקציב\?/);
+  const next = edit.payload.reply_markup.inline_keyboard.flat();
+  assert.deepEqual(next.map((b) => b.text), ["עד 50 ₪", "עד 150 ₪", "🔎 תחפש כבר"]);
+  assert.deepEqual(ctx.spy.queries, []);
+
+  await press(ctx, next[1]);
+  assert.deepEqual(ctx.sessions[1].history.map((h) => h.a), ["תכשיט", "עד 150 ₪"]);
+  assert.deepEqual(ctx.spy.queries, ["silver necklace"]);
+  const card = ctx.sent().at(-1);
   assert.equal(card.method, "sendPhoto");
-  assert.equal(card.reply_parameters.message_id, question.reply_parameters.message_id, "card replies to the original request");
-  assert.match(card.caption.split("\n")[0], /משהו לבית/);
+  assert.match(card.caption, /💡 סיבה 1/);
+  assert.equal(explained.length, 1);
 });
 
-test("clarify: 'search as written' searches the raw query; a second press is expired", async () => {
-  const { bot, calls, buttons, spy } = await clarifySetup();
-  await bot.handleUpdate(callbackUpdate(buttons[2].callback_data, { userId: 7 }));
-  assert.deepEqual(spy.queries, ["מתנה לאמא"]);
-  await bot.handleUpdate(callbackUpdate(buttons[0].callback_data, { userId: 7 }));
-  assert.equal(calls.filter((c) => c.method === "answerCallbackQuery").at(-1).payload.text, "הבקשה פגה, חפשו שוב");
+test("advisor: at most 3 questions, then it searches with the last choice's keywords", async () => {
+  const ctx = await adviceSetup({ advise: async () => BUDGET });
+  await press(ctx, ctx.buttons[0]); // answer 1 -> question 2
+  let kb = () => ctx.calls.filter((c) => c.method === "editMessageText").at(-1).payload.reply_markup?.inline_keyboard.flat();
+  await press(ctx, kb()[0]); // answer 2 -> question 3
+  await press(ctx, kb()[0]); // answer 3 -> search, no 4th question
+  assert.equal(ctx.sessions.length, 2, "advisor asked twice after the first question");
+  assert.deepEqual(ctx.spy.queries, ["women necklace"]);
 });
 
-test("clarify: buttons expire after 10 minutes", async () => {
-  const { bot, calls, buttons, spy, tick } = await clarifySetup();
-  tick(10 * 60_000 + 1);
-  await bot.handleUpdate(callbackUpdate(buttons[0].callback_data, { userId: 7 }));
-  assert.equal(calls.find((c) => c.method === "answerCallbackQuery").payload.text, "הבקשה פגה, חפשו שוב");
-  assert.deepEqual(spy.queries, []);
+test("advisor: 'search already' searches right away with the best keywords so far", async () => {
+  const ctx = await adviceSetup({ advise: async () => BUDGET });
+  await press(ctx, ctx.buttons[2]); // before any answer: the original request
+  assert.deepEqual(ctx.spy.queries, ["מתנה לאמא"]);
+  const ctx2 = await adviceSetup({ advise: async () => BUDGET });
+  await press(ctx2, ctx2.buttons[0]);
+  const kb = ctx2.calls.find((c) => c.method === "editMessageText").payload.reply_markup.inline_keyboard.flat();
+  await press(ctx2, kb.at(-1));
+  assert.deepEqual(ctx2.spy.queries, ["women necklace"]);
+});
+
+test("advisor: if the AI fails mid-way, it searches with what it has", async () => {
+  const ctx = await adviceSetup(); // advise returns null
+  await press(ctx, ctx.buttons[1]);
+  assert.deepEqual(ctx.spy.queries, ["home decor"]);
+});
+
+test("advisor: buttons expire after 10 minutes, and a used question can't be pressed again", async () => {
+  const ctx = await adviceSetup();
+  ctx.tick(10 * 60_000 + 1);
+  await press(ctx, ctx.buttons[0]);
+  assert.equal(ctx.calls.find((c) => c.method === "answerCallbackQuery").payload.text, "הבקשה פגה, חפשו שוב");
+  const fresh = await adviceSetup();
+  await press(fresh, fresh.buttons[2]);
+  await press(fresh, fresh.buttons[0]);
+  assert.equal(fresh.calls.filter((c) => c.method === "answerCallbackQuery").at(-1).payload.text, "הבקשה פגה, חפשו שוב");
+});
+
+test("advisor (group): only the first question in the group; options open the private chat", async () => {
+  const ctx = await adviceSetup({ chat: "group" });
+  assert.match(ctx.question.body, /פרטי/);
+  const [opt0, opt1, go] = ctx.buttons;
+  assert.match(opt0.url, /^https:\/\/t\.me\/panda_test_bot\?start=q_[0-9a-z]+_0$/);
+  assert.match(opt1.url, /_1$/);
+  assert.match(go.callback_data, /:go$/);
+});
+
+test("advisor (group): 'search already' is for the requester only and answers in the group", async () => {
+  const ctx = await adviceSetup({ chat: "group" });
+  const go = ctx.buttons[2];
+  await press(ctx, go, 99, "group");
+  assert.equal(ctx.calls.find((c) => c.method === "answerCallbackQuery").payload.text, "רק מי שביקש יכול לבחור");
+  await press(ctx, go, 7, "group");
+  assert.deepEqual(ctx.spy.queries, ["מתנה לאמא"]);
+  assert.equal(ctx.sent().at(-1).reply_parameters.message_id, ctx.question.reply_parameters.message_id);
+});
+
+test("advisor (group → private): the deep link continues the advice in private chat", async () => {
+  const ctx = await adviceSetup({ chat: "group", advise: async () => BUDGET });
+  const start = new URL(ctx.buttons[0].url).searchParams.get("start");
+  await ctx.bot.handleUpdate(textUpdate(`/start ${start}`, { userId: 7, chat: "private" }));
+  assert.deepEqual(ctx.sessions[0].history, [{ q: "איזו מתנה?", a: "תכשיט" }]);
+  const q2 = ctx.sent().at(-1);
+  assert.equal(q2.chat_id, 7, "next question goes to the private chat");
+  assert.match(q2.body, /מה התקציב\?/);
+  assert.match(q2.reply_markup.inline_keyboard.flat()[0].callback_data, /^q:/);
+});
+
+test("advisor (group → private): someone else's link starts their own copy; an expired link says so", async () => {
+  const ctx = await adviceSetup({ chat: "group", advise: async () => BUDGET });
+  const start = new URL(ctx.buttons[1].url).searchParams.get("start");
+  await ctx.bot.handleUpdate(textUpdate(`/start ${start}`, { userId: 55, chat: "private" }));
+  assert.equal(ctx.sent().at(-1).chat_id, 55);
+  ctx.tick(10 * 60_000 + 1);
+  await ctx.bot.handleUpdate(textUpdate(`/start ${start}`, { userId: 7, chat: "private" }));
+  assert.match(ctx.sent().at(-1).body, /פג/);
+});
+
+test("/advice starts the advisor even for a specific product; without the AI it just searches", async () => {
+  const sessions = [];
+  const ctx = setup({ search: searchSpy().search, advise: async (s) => (sessions.push(s), BUDGET) });
+  await ctx.bot.handleUpdate(textUpdate("/advice אוזניות", { chat: "private" }));
+  assert.deepEqual(sessions, [{ request: "אוזניות", history: [] }]);
+  assert.match(ctx.sent()[0].body, /מה התקציב\?/);
+  const spy = searchSpy();
+  const plain = setup({ search: spy.search });
+  await plain.bot.handleUpdate(textUpdate("/advice אוזניות", { chat: "private" }));
+  assert.deepEqual(spy.queries, ["אוזניות"]);
+});
+
+test("'why it fits' is only for advisor results", async () => {
+  const explained = [];
+  await run("/search x", { explain: async (...a) => (explained.push(a), null) });
+  assert.equal(explained.length, 0);
 });
 
 test("any other callback is still answered", async () => {
@@ -370,7 +463,7 @@ test("a collage image is sent as the photo when it can be built", async () => {
   const collage = async (urls) => (seen.push(urls), Buffer.from([0xff, 0xd8, 0xff]));
   const { sent } = await run("/search x", { collage });
   assert.ok(sent()[0].photo instanceof InputFile);
-  assert.deepEqual(seen, [["https://ae01.alicdn.com/kf/img1.jpg", "https://ae01.alicdn.com/kf/img2.jpg", "https://ae01.alicdn.com/kf/img3.jpg"]]);
+  assert.deepEqual(seen, [[1, 2, 3, 4].map((n) => `https://ae01.alicdn.com/kf/img${n}.jpg`)]);
 });
 
 test("relevance filter decides which products are shown, using the corrected Hebrew and English keywords", async () => {
@@ -379,7 +472,7 @@ test("relevance filter decides which products are shown, using the corrected Heb
   const ctx = setup({ search: async () => SIX, understand: async () => intent(), relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אושניות"));
   assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds" }]);
-  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard[0].map((b) => b.text), ["🥇 ₪12.00", "🥈 ₪15.00"]);
+  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.text), ["🥇 ₪12.00", "🥈 ₪15.00"]);
 });
 
 test("relevance filter leaving nothing -> no-results message", async () => {
@@ -464,4 +557,56 @@ test("'typing…' is refreshed while a slow search runs, and stops after the rep
   const after = typing();
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(typing(), after, "no typing after the answer");
+});
+
+
+// ---- accuracy: more candidates, broader fallback, ranking, full context ----
+
+test("too few relevant results -> a second, broader search fills up to 4 (no duplicates)", async () => {
+  const queries = [];
+  const search = async (q) => (queries.push(q), q === "floral ipad case" ? [product(1)] : [product(1), product(2), product(3), product(4)]);
+  const ctx = setup({ search, understand: async () => intent({ corrected_he: "כיסוי לאייפד פרחוני", keywords_en: "floral ipad case", fallback_en: "ipad case" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי כיסוי לאייפד פרחוני"));
+  assert.deepEqual(queries, ["floral ipad case", "ipad case"]);
+  assert.equal(ctx.sent()[0].reply_markup.inline_keyboard.flat().length, 4);
+});
+
+test("enough relevant results -> no second search", async () => {
+  const queries = [];
+  const ctx = setup({ search: async (q) => (queries.push(q), SIX), understand: async () => intent({ fallback_en: "earphones" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  assert.deepEqual(queries, ["wireless earbuds"]);
+});
+
+test("results are ranked by sales × positive feedback, best first", async () => {
+  const items = [
+    product(1, { lastest_volume: "50", evaluate_rate: "99%" }),
+    product(2, { lastest_volume: "20000", evaluate_rate: "95%" }),
+    product(3, { lastest_volume: "3000", evaluate_rate: "98%" }),
+  ];
+  const { sent } = await run("/search x", { result: items });
+  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.text.slice(0, 2)), ["🥇", "🥈", "🥉"]);
+  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.url.at(-1)), ["2", "3", "1"]);
+});
+
+test("the relevance check gets the full advisor context, not just the last button", async () => {
+  const seen = [];
+  const relevant = async (req, products) => (seen.push(req), products);
+  const ctx = await adviceSetup({ relevant, live: true });
+  await press(ctx, ctx.buttons[0]); // AI unavailable -> search with "תכשיט"
+  assert.equal(seen[0].he, "מתנה לאמא (תכשיט)");
+  assert.equal(seen[0].en, "women necklace");
+});
+
+test("no-results message no longer claims English works better", () => {
+  assert.doesNotMatch(NO_RESULTS, /באנגלית/);
+});
+
+
+test("only the 24 best-ranked candidates go to the relevance check (keeps it fast)", async () => {
+  const many = Array.from({ length: 40 }, (_, i) => product(i + 1, { lastest_volume: String(1000 - i) }));
+  let sentToAi = 0;
+  const ctx = setup({ search: async () => many, relevant: async (_r, p) => ((sentToAi = p.length), p), live: true });
+  await ctx.bot.handleUpdate(textUpdate("/search x"));
+  assert.equal(sentToAi, 24);
 });

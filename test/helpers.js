@@ -17,9 +17,9 @@ export const BOT_INFO = {
 // understand defaults to "AI unavailable" (null), i.e. the raw query is searched.
 // Network-free defaults: no collage (single photo URL) and no relevance filtering.
 // admins: user ids returned by getChatAdministrators.
-export function setup({ failMethods = [], admins = [], understand = async () => null, collage = async () => null, relevant = async (_r, p) => p, ...opts } = {}) {
+export function setup({ failMethods = [], admins = [], understand = async () => null, collage = async () => null, relevant = async (_r, p) => p, advise = async () => null, explain = async () => null, ...opts } = {}) {
   const calls = [];
-  const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, understand, collage, relevant, ...opts });
+  const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, understand, collage, relevant, advise, explain, ...opts });
   bot.api.config.use(async (_prev, method, payload) => {
     calls.push({ method, payload });
     if (failMethods.includes(method)) return { ok: false, error_code: 400, description: "Bad Request: wrong file identifier/HTTP URL specified" };
@@ -52,7 +52,7 @@ export function joinUpdate(members, { byUserId = 7, chatId = -100123 } = {}) {
   };
 }
 
-export function callbackUpdate(data, { userId = 7, chatId = -100123, messageId = 500 } = {}) {
+export function callbackUpdate(data, { userId = 7, chatId = -100123, messageId = 500, chat = "group" } = {}) {
   const id = nextId++;
   return {
     update_id: id,
@@ -61,7 +61,7 @@ export function callbackUpdate(data, { userId = 7, chatId = -100123, messageId =
       from: { id: userId, is_bot: false, first_name: "U" },
       chat_instance: "ci",
       data,
-      message: { message_id: messageId, date: 0, chat: { id: chatId, type: "supergroup", title: "G" }, text: "question" },
+      message: { message_id: messageId, date: 0, chat: chat === "private" ? { id: userId, type: "private", first_name: "U" } : { id: chatId, type: "supergroup", title: "G" }, text: "question" },
     },
   };
 }

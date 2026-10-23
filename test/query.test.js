@@ -28,8 +28,9 @@ test("sends only the query text to OpenAI Responses with a strict schema, storag
   const [req] = api.requests;
   assert.equal(req.url, "https://api.openai.com/v1/responses");
   assert.equal(req.init.headers.authorization, "Bearer sk-test");
-  assert.deepEqual(Object.keys(req.body).sort(), ["input", "instructions", "max_output_tokens", "model", "store", "text"]);
-  assert.equal(req.body.model, "gpt-4.1-nano", "default chosen by the head-to-head eval");
+  assert.deepEqual(Object.keys(req.body).sort(), ["input", "instructions", "max_output_tokens", "model", "reasoning", "store", "text"]);
+  assert.equal(req.body.model, "gpt-5.4-nano", "gpt-4.1-nano was deprecated by OpenAI on 2026-10-23; gpt-5.4-nano scored 16/16");
+  assert.deepEqual(req.body.reasoning, { effort: "none" });
   assert.equal(req.body.store, false);
   assert.ok(req.body.max_output_tokens <= 300);
   assert.equal(req.body.text.format.type, "json_schema");
@@ -157,7 +158,7 @@ test("relevance: sends only the request and numbered titles; keeps the chosen pr
   const kept = await filter({ he: "משענת לאוטו", en: "car headrest pillow" }, items);
   assert.deepEqual(kept.map((p) => p.product_id), ["0", "3"]);
   const body = api.requests[0].body;
-  assert.equal(body.model, "gpt-6-luna", "relevance uses the stronger model by default (2026-10-23 comparison)");
+  assert.equal(body.model, "gpt-5.4-nano", "gpt-6-luna timed out too often on 2026-10-23");
   assert.deepEqual(body.reasoning, { effort: "none" });
   assert.equal(body.store, false);
   assert.equal(body.text.format.strict, true);
@@ -185,4 +186,60 @@ test("relevance fail-open: no key, HTTP error, timeout or bad output keeps every
 
 test("relevance: no products -> no AI call", async () => {
   assert.deepEqual(await createRelevanceFilter({ fetch: async () => assert.fail("no call"), env: ENV })({ he: "x", en: "x" }, []), []);
+});
+
+// ---- shopping advisor (multi-step questions) + "why it fits" ----
+import { createAdvisor, createExplainer } from "../query.js";
+
+const ASK = {
+  status: "ask",
+  question_he: "מה התקציב?",
+  options: [
+    { label_he: "עד 50 ₪", keywords_en: "women necklace", max_price_ils: 50 },
+    { label_he: "עד 150 ₪", keywords_en: "women necklace", max_price_ils: 150 },
+  ],
+  keywords_en: null,
+  max_price_ils: null,
+};
+
+test("advisor: sends only the request and the answers so far; returns the next question", async () => {
+  const api = openai(ASK);
+  const next = await createAdvisor({ fetch: api.fetch, env: ENV })({ request: "מתנה לאמא", history: [{ q: "איזה סוג?", a: "תכשיט" }] });
+  assert.equal(next.status, "ask");
+  assert.equal(next.options.length, 2);
+  assert.equal(next.options[0].max_price_ils, 50);
+  const body = api.requests[0].body;
+  assert.equal(body.store, false);
+  assert.equal(body.text.format.strict, true);
+  assert.deepEqual(body.input, [{ role: "user", content: 'Request: "מתנה לאמא"\nAnswers so far:\n1. איזה סוג? → תכשיט' }]);
+});
+
+test("advisor: 'done' carries the final keywords; bad output and failures return null", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const done = await createAdvisor({ fetch: openai({ status: "done", question_he: null, options: null, keywords_en: "silver necklace for women", max_price_ils: 150 }).fetch, env: ENV })({ request: "x", history: [] });
+  assert.deepEqual(done, { status: "done", keywords_en: "silver necklace for women", max_price_ils: 150 });
+  for (const fetch of [
+    openai({ ...ASK, options: [ASK.options[0]] }).fetch, // one option is not a question
+    openai({ status: "done", question_he: null, options: null, keywords_en: "", max_price_ils: null }).fetch,
+    openai(ASK, { status: 500 }).fetch,
+  ]) {
+    assert.equal(await createAdvisor({ fetch, env: ENV })({ request: "x", history: [] }), null);
+  }
+  assert.equal(await createAdvisor({ fetch: async () => assert.fail("no key"), env: {} })({ request: "x", history: [] }), null);
+});
+
+test("explainer: one short reason per product, same order; anything else is null", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const products = [{ product_title: "שרשרת כסף" }, { product_title: "צמיד זהב" }];
+  const api = openai({ reasons: ["כסף עדין, מתאים לתקציב", "צמיד אלגנטי ליום יום"] });
+  assert.deepEqual(await createExplainer({ fetch: api.fetch, env: ENV })({ request: "מתנה לאמא", history: [{ q: "סוג?", a: "תכשיט" }] }, products), ["כסף עדין, מתאים לתקציב", "צמיד אלגנטי ליום יום"]);
+  assert.match(api.requests[0].body.input[0].content, /0\. שרשרת כסף\n1\. צמיד זהב/);
+  assert.equal(await createExplainer({ fetch: openai({ reasons: ["רק אחד"] }).fetch, env: ENV })({ request: "x", history: [] }, products), null);
+  assert.equal(await createExplainer({ fetch: openai({}, { status: 500 }).fetch, env: ENV })({ request: "x", history: [] }, products), null);
+});
+
+
+test("validateIntent keeps an optional broader fallback search", () => {
+  assert.equal(validateIntent({ ...STRICT_OK, fallback_en: "ipad case" }).fallback_en, "ipad case");
+  assert.equal(validateIntent({ ...STRICT_OK, fallback_en: null }).fallback_en, undefined);
 });

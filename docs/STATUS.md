@@ -115,6 +115,26 @@ The bot now also answers group messages without "חפש לי". It reacts to natu
   - Requires admin rights: delete messages + ban users. Without them it only logs once per chat.
   - State is in memory, so strikes reset when the free server sleeps.
 
+## 3e. Shopping advisor + accuracy round (2026-10-23 evening)
+
+- **Incident:** OpenAI deprecated `gpt-4.1-nano` (404). Since then every AI step failed open, so raw Hebrew was searched. That explains many of the bad results Eden saw.
+  - All AI steps now use `gpt-5.4-nano`: 16/16 on the eval, p50 1.3 s.
+  - `gpt-6-luna` kept hitting the 5 s timeout, which skipped the relevance filter.
+- **Advisor:**
+  - Up to 3 questions with buttons, a "🔎 תחפש כבר" button, and a "💡 why it fits" line per product. `/advice <text>` starts it.
+  - In groups only the first question is shown; its options are deep links (`/start q_<id>_<n>`) that continue in private chat. Anyone else who clicks gets their own copy.
+  - Sessions are in memory with a 10-minute timeout.
+- **Accuracy:**
+  - 4 results everywhere (2×2 collage and buttons).
+  - A 50-product pool; ranking by log(sales) × positive feedback.
+  - Relevance runs on the top 24 only, with the full request and answers as context.
+  - A broader AI `fallback_en` search fills up when fewer than 4 remain.
+  - Brands AliExpress doesn't sell (Zara…) are searched as similar unbranded items.
+  - Stricter item-type rules.
+- **Live re-run:**
+  - Good now: work bag → laptop/business bags; Zara → similar clothing; iPad case → iPad cases; toothbrush, drone and car charger all relevant.
+  - Still weak: "מגפיים לנשים" also returns winter shoes and slippers.
+
 ## 4. Decisions log (closed)
 
 - **Stack:** Node.js ESM + Express + grammY. `ae_sdk` not used (v0.6.0, last published 2025-03-30); own signing with tests.

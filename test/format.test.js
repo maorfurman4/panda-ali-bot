@@ -163,6 +163,8 @@ test("card buttons: one per product with medal + price; 3 per row; invalid links
     { text: "🥈 ₪24.50", url: "https://s.click.aliexpress.com/e/_2" },
     { text: "🥉 ₪39.90", url: "https://s.click.aliexpress.com/e/_3" },
   ]]);
+  const four = formatCard([1, 2, 3, 4].map((n) => full(n)), { query: "x" });
+  assert.deepEqual(four.buttons.map((r) => r.length), [2, 2], "4 buttons as a 2×2 grid");
   const five = formatCard([1, 2, 3, 4, 5].map((n) => full(n)), { query: "x" });
   assert.deepEqual(five.buttons.map((r) => r.length), [3, 2]);
   const bad = formatCard([full(1, { promotion_link: "javascript:alert(1)" })], { query: "x" });
