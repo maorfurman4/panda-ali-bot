@@ -7,7 +7,7 @@ const TITLE_MAX = 30; // photo captions are only as wide as the photo
 const QUERY_MAX = 30;
 const CAPTION_MAX = 1024; // Telegram photo caption limit, counted after HTML parsing
 const MEDALS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
-const GROUP_URL = process.env.GROUP_URL || "https://t.me/panda_deals_il"; // shown as the "פנדה אקספרס" header link
+const GROUP_URL = process.env.GROUP_URL || "https://t.me/panda_deals_il"; // shown under "🐼 פנדה אקספרס" at the end of each result
 
 export const esc = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -91,10 +91,7 @@ export function discountLine(p) {
 }
 
 function buildCard(products, query, demo) {
-  const lines = [
-    `🐼 <a href="${esc(GROUP_URL)}">פנדה אקספרס</a>`,
-    `🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`,
-  ];
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`];
   const buttons = [];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
@@ -112,6 +109,7 @@ function buildCard(products, query, demo) {
     );
     if (link) buttons.push({ text: salePrice(p) ? `${MEDALS[i]} ${salePrice(p)}` : MEDALS[i], url: link });
   });
+  lines.push("", "🐼 פנדה אקספרס", esc(GROUP_URL)); // group link at the end (owner request)
   const rows = [];
   for (let i = 0; i < buttons.length; i += 3) rows.push(buttons.slice(i, i + 3));
   return { caption: rtl(lines), buttons: rows };

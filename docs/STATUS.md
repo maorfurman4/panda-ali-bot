@@ -85,7 +85,7 @@ Owner feedback fixed:
 - **One collage photo:** all result images in one photo (sharp; 3 → 1×3, 4 → 2×2, 5 → 3+2), with rank badges and rank 1 at the top right.
 - **Layout:** each detail on its own line (מחיר / לפני הנחה / משוב חיובי or דירוג / נמכרו).
 - **Links:** a visible short link under each product, plus the price buttons.
-- **Header:** "🐼 פנדה אקספרס" linking to the group (`GROUP_URL`, default `https://t.me/panda_deals_il`).
+- **Group link:** "🐼 פנדה אקספרס" and the group link (`GROUP_URL`, default `https://t.me/panda_deals_il`) at the end of each result (moved from the top at the owner's request).
 - **Relevance:** an AI filter (`gpt-6-luna`, fail-open) runs on real results only. In the live comparison gpt-4.1-nano dropped real chargers; gpt-6-luna kept 6 headrest pillows and dropped seat hooks, tablet holders and cables.
 
 Latency is now about 6–8 s per search (AI + search + link shortening + relevance + collage), plus ~50 s on a cold start.

@@ -146,7 +146,7 @@ test("mock mode labels the header only and hides the <90% demo product", async (
   await ctx.bot.handleUpdate(textUpdate("/search earbuds", { chat: "private" }));
   const caption = ctx.sent()[0].caption;
   const lines = caption.split("\n");
-  assert.match(lines[1], /\[דמו – תוצאות קבועות\]/);
+  assert.match(lines[0], /\[דמו – תוצאות קבועות\]/);
   assert.equal(caption.match(/\[דמו/g).length, 1);
   assert.doesNotMatch(caption, /85%/);
 });
@@ -251,7 +251,7 @@ test("typo: AI-corrected Hebrew in the header, English keywords sent to the sear
   const { sent, queries } = await run("חפש לי אושניות", { understand: async (q) => (seen.push(q), intent()) });
   assert.deepEqual(seen, ["אושניות"], "only the query text goes to the AI");
   assert.deepEqual(queries, ["wireless earbuds"]);
-  const header = sent()[0].caption.split("\n")[1];
+  const header = sent()[0].caption.split("\n")[0];
   assert.match(header, /אוזניות/);
   assert.doesNotMatch(header, /אושניות|wireless/);
 });
@@ -259,7 +259,7 @@ test("typo: AI-corrected Hebrew in the header, English keywords sent to the sear
 test("fail-open: when the AI returns null the raw query is searched as before", async () => {
   const { queries, sent } = await run("חפש לי אושניות", { understand: async () => null });
   assert.deepEqual(queries, ["אושניות"]);
-  assert.match(sent()[0].caption.split("\n")[1], /אושניות/);
+  assert.match(sent()[0].caption.split("\n")[0], /אושניות/);
 });
 
 test("fail-open: an AI function that throws is treated as unavailable", async () => {
@@ -337,7 +337,7 @@ test("clarify: requester's choice edits the question, removes buttons and search
   const card = sent().at(-1);
   assert.equal(card.method, "sendPhoto");
   assert.equal(card.reply_parameters.message_id, question.reply_parameters.message_id, "card replies to the original request");
-  assert.match(card.caption.split("\n")[1], /משהו לבית/);
+  assert.match(card.caption.split("\n")[0], /משהו לבית/);
 });
 
 test("clarify: 'search as written' searches the raw query; a second press is expired", async () => {

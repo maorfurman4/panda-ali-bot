@@ -117,13 +117,13 @@ const full = (n, over = {}) => ({
   ...over,
 });
 
-test("card layout: group link header, each detail on its own line, visible link per product, RLM everywhere", () => {
+test("card layout: query header, each detail on its own line, visible link per product, group link at the end, RLM everywhere", () => {
   const { caption } = formatCard([full(1), full(2)], { query: "אוזניות" });
   const lines = caption.split("\n");
   for (const line of lines) assert.ok(line.startsWith(RLM), JSON.stringify(line));
   const body = lines.map((l) => l.slice(1));
-  assert.deepEqual(body.slice(0, 9), [
-    '🐼 <a href="https://t.me/panda_deals_il">פנדה אקספרס</a>',
+  assert.deepEqual(body.slice(-3), ["", "🐼 פנדה אקספרס", "https://t.me/panda_deals_il"], "group link at the end");
+  assert.deepEqual(body.slice(0, 8), [
     "🔎 <b>אוזניות</b>",
     "",
     "🥇 <b>אוזניות אלחוטיות Baseus Bowie…</b>",
@@ -133,13 +133,13 @@ test("card layout: group link header, each detail on its own line, visible link 
     "🛒 נמכרו: 5,200+",
     "🔗 https://s.click.aliexpress.com/e/_1",
   ]);
-  assert.match(body[10], /^🥈 /);
+  assert.match(body[9], /^🥈 /);
   assert.doesNotMatch(caption, /קישורי שותפים/);
 });
 
 test("card: demo label on the query line only; query escaped and max 30 chars", () => {
   const { caption } = formatCard([full(1)], { query: "<b>" + "א".repeat(40), demo: true });
-  const queryLine = caption.split("\n")[1];
+  const queryLine = caption.split("\n")[0];
   assert.ok(queryLine.includes("&lt;b&gt;"));
   assert.ok(queryLine.endsWith(" [דמו – תוצאות קבועות]"));
   assert.equal(caption.match(/\[דמו/g).length, 1);
@@ -150,7 +150,7 @@ test("card: demo label on the query line only; query escaped and max 30 chars", 
 test("card: missing details drop their own line; ranks 4–5 use keycaps", () => {
   const bare = full(1, { evaluate_rate: undefined, lastest_volume: undefined, avgStars: undefined, reviewCount: undefined, target_original_price: undefined });
   const { caption } = formatCard([bare], { query: "x" });
-  assert.equal(caption.split("\n").length, 6, "brand, query, blank, title, price, link");
+  assert.equal(caption.split("\n").length, 8, "query, blank, title, price, link, blank, brand, group link");
   const five = formatCard([1, 2, 3, 4, 5].map((n) => full(n)), { query: "x" });
   assert.match(five.caption, /4️⃣ /);
   assert.match(five.caption, /5️⃣ /);
