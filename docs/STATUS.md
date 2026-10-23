@@ -9,6 +9,7 @@ Bot: `@panda_ali_deals_bot` · Last updated: 2026-10-22 · Research and roadmap:
 - **AI:** OpenAI `gpt-4.1-nano` (override with `OPENAI_MODEL`). `OPENAI_API_KEY` is filled. When it's empty, the AI is off (fail-open: raw queries are searched). `npm run eval:query [-- --model <id>]` checks the AI alone.
 - **`.env`:** `BOT_TOKEN` and `ALI_TRACKING_ID` filled. `ALI_APP_KEY` and `ALI_APP_SECRET` empty, so the bot runs in **mock mode** (`[דמו]` products, fake links).
 - **Telegram:** privacy mode OFF in BotFather. The bot was removed and re-added to the test group after the change.
+- **Bot profile (set 2026-10-23 via Bot API):** commands `/search`, `/help`; description and About say "not an official AliExpress bot" and include the affiliate disclosure.
 - **Runtime:** local only (`npm start`, long polling). No hosting yet.
 - **AliExpress:** the Open Platform app is pending approval. No API keys yet.
 
