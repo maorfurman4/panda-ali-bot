@@ -53,7 +53,7 @@ export async function apiCall(method, params, { fetch = globalThis.fetch, env = 
 
 export async function searchProducts(query, deps = {}) {
   const env = deps.env ?? process.env;
-  if (isMockMode(env)) return mockProducts();
+  if (isMockMode(env)) return mockProducts(query);
   const result = await apiCall(
     "aliexpress.affiliate.product.query",
     {
@@ -93,20 +93,21 @@ export async function convertToAffiliate(url, deps = {}) {
 
 // Demo data covering every display branch. avgStars/reviewCount are optional and absent from the Affiliate API;
 // their future source is the DS API, so real products leave them undefined.
-function mockProducts() {
+function mockProducts(query) {
+  // The title starts with the searched keywords (what the AI sent), so a demo search looks related to the request.
   const rows = [
-    // title, sale, original, evaluate_rate, lastest_volume, avgStars, reviewCount
-    ["אוזניות אלחוטיות Baseus Bowie E19 Bluetooth 5.3 עם ביטול רעשים ENC", "39.90", "69.90", "97.8%", "5230", 4.8, 1234], // 43% badge
-    ["מטען מהיר לרכב UGREEN 65W עם שתי יציאות USB-C ויציאת USB-A", "24.50", undefined, "95.1%", "1874"], // no original, % only
-    ["כבל טעינה Lightning באורך 2 מטר", "12.90", "15.90", "85.0%", "990"], // <90%: filtered out
-    ["שעון חכם Xiaomi Redmi Watch 5 Active עם מסך 2 אינץ' ו-GPS", "59.00", "399.00", "93.4%", "642", 4.6, 87], // ≥80% "discount": no badge
-    ["מנורת לילה לילדים עם חיישן תנועה ותאורה חמה", "18.30", "21.00", undefined, "87"], // no rating at all, exact sold
-    ["מעמד לטלפון לשולחן עבודה מאלומיניום מתכוונן", "31.70", "33.00", "98.0%", "155", 4.9, 12034], // <5%: no badge
-    ["מחזיק מפתחות קטן עם פנס LED", "12.00", undefined, undefined, undefined], // neither rating nor sold
+    // title suffix, sale, original, evaluate_rate, lastest_volume, avgStars, reviewCount
+    ["דגם Pro עם סוללה ל-30 שעות", "39.90", "69.90", "97.8%", "5230", 4.8, 1234], // 43% badge
+    ["דגם Lite קומפקטי", "24.50", undefined, "95.1%", "1874"], // no original, % only
+    ["דגם בסיסי", "12.90", "15.90", "85.0%", "990"], // <90%: filtered out
+    ["דגם Max 2025 במארז מתנה", "59.00", "399.00", "93.4%", "642", 4.6, 87], // ≥80% "discount": no badge
+    ["דגם Mini", "18.30", "21.00", undefined, "87"], // no rating at all, exact sold
+    ["דגם Plus מאלומיניום", "31.70", "33.00", "98.0%", "155", 4.9, 12034], // <5%: no badge
+    ["דגם Eco", "12.00", undefined, undefined, undefined], // neither rating nor sold
   ];
-  return rows.map(([title, sale, original, rate, volume, avgStars, reviewCount], i) => ({
+  return rows.map(([suffix, sale, original, rate, volume, avgStars, reviewCount], i) => ({
     product_id: `demo${i + 1}`,
-    product_title: title,
+    product_title: `${query} ${suffix}`,
     product_main_image_url: `https://placehold.co/600x600.png?text=Demo+${i + 1}`,
     target_sale_price: sale,
     target_original_price: original,

@@ -93,6 +93,11 @@ test("searchProducts in mock mode returns demo products with images and fake lin
   assert.ok(products.some((p) => !p.avgStars && !p.evaluate_rate), "one has neither");
 });
 
+test("mock titles show the searched keywords, so demo results look related to the request", async () => {
+  const products = await searchProducts("wireless earbuds", { env: {} });
+  for (const p of products) assert.match(p.product_title, /^wireless earbuds /);
+});
+
 test("searchProducts live: requests IL/ILS/HE sorted by orders and reads both product shapes", async () => {
   let sent;
   const fetch = async (url, init) => {
