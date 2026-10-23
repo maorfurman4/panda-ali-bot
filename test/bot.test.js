@@ -63,7 +63,7 @@ test("group /search sends ONE photo card: top 3, buttons in one row, as a reply"
   assert.deepEqual(rows[0].map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00"]);
   assert.deepEqual(rows[0].map((b) => b.url), ["https://s.click.aliexpress.com/e/_p1", "https://s.click.aliexpress.com/e/_p2", "https://s.click.aliexpress.com/e/_p3"]);
   assert.doesNotMatch(msg.caption, /4️⃣/);
-  assert.ok(calls.some((c) => c.method === "sendChatAction" && c.payload.action === "upload_photo"));
+  assert.ok(calls.some((c) => c.method === "sendChatAction" && c.payload.action === "typing"));
 });
 
 test("private search shows top 5 with buttons in two rows", async () => {
@@ -452,4 +452,16 @@ test("natural request that needs clarifying shows the question", async () => {
 test("private chat and help text are unaffected / mention natural phrases", async () => {
   assert.deepEqual((await run("מישהו מכיר אוזניות?", {}, { chat: "private" })).queries, ["מישהו מכיר אוזניות?"]);
   assert.match(HELP, /מישהו מכיר/);
+});
+
+
+test("'typing…' is refreshed while a slow search runs, and stops after the reply", async () => {
+  const slow = async () => (await new Promise((r) => setTimeout(r, 250)), SIX);
+  const ctx = setup({ search: slow, typingEveryMs: 20 });
+  await ctx.bot.handleUpdate(textUpdate("/search x"));
+  const typing = () => ctx.calls.filter((c) => c.method === "sendChatAction" && c.payload.action === "typing").length;
+  assert.ok(typing() >= 3, `typing sent ${typing()} times`);
+  const after = typing();
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(typing(), after, "no typing after the answer");
 });

@@ -5,6 +5,7 @@ import { searchProducts, convertToAffiliate, isMockMode } from "./aliexpress.js"
 import { findAliExpressUrl } from "./links.js";
 import { understandQuery, filterRelevant } from "./query.js";
 import { makeCollage } from "./collage.js";
+import { createModeration } from "./moderation.js";
 import {
   filterProducts,
   withinPrice,
@@ -66,10 +67,14 @@ export function createBot({
   relevant = filterRelevant,
   collage = makeCollage,
   live, // tests only: force the live (non-mock) path
+  typingEveryMs = 4000,
   now = Date.now,
   cooldownMs = 10_000,
 }) {
   const bot = new Bot(token, botInfo ? { botInfo } : {});
+  const moderation = createModeration({ now });
+  bot.use(moderation.middleware); // runs first: spam is removed before any search logic sees it
+  bot.on("message:new_chat_members", moderation.onJoin);
   const cooldowns = new Map(); // shortcut: in-memory, resets on restart; fine for a single instance
   const groupHelpAt = new Map();
   const pending = new Map(); // clarify questions waiting for a button press, by short id (same shortcut as above)
@@ -102,20 +107,33 @@ export function createBot({
     return true;
   }
 
+  // Telegram shows a chat action for ~5 s only, so "typing…" is refreshed until the work is done.
+  async function withTyping(ctx, work) {
+    const send = () => ctx.replyWithChatAction("typing").catch(() => {});
+    send();
+    const timer = setInterval(send, typingEveryMs);
+    try {
+      return await work();
+    } finally {
+      clearInterval(timer);
+    }
+  }
+
   async function runSearch(ctx, rawQuery) {
     const query = rawQuery.trim();
     if (!query) return reply(ctx, EMPTY_QUERY);
     if (!(await allow(ctx))) return;
 
-    ctx.replyWithChatAction("upload_photo").catch(() => {});
-    const intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
-    if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
-    if (intent?.status === "clarify") return askClarify(ctx, query, intent);
-    return showResults(ctx, {
-      keywords: intent?.keywords_en || query,
-      header: intent?.corrected_he || query,
-      maxPriceIls: intent?.max_price_ils ?? null,
-      replyToId: ctx.msg.message_id,
+    return withTyping(ctx, async () => {
+      const intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
+      if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
+      if (intent?.status === "clarify") return askClarify(ctx, query, intent);
+      return showResults(ctx, {
+        keywords: intent?.keywords_en || query,
+        header: intent?.corrected_he || query,
+        maxPriceIls: intent?.max_price_ils ?? null,
+        replyToId: ctx.msg.message_id,
+      });
     });
   }
 
@@ -125,9 +143,10 @@ export function createBot({
     const intent = await understand(text).catch(() => null);
     if (intent?.status !== "ok" && intent?.status !== "clarify") return;
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
-    ctx.replyWithChatAction("upload_photo").catch(() => {});
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
-    return showResults(ctx, { keywords: intent.keywords_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, replyToId: ctx.msg.message_id });
+    return withTyping(ctx, () =>
+      showResults(ctx, { keywords: intent.keywords_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, replyToId: ctx.msg.message_id }),
+    );
   }
 
   async function showResults(ctx, { keywords, header, maxPriceIls, replyToId }) {
@@ -206,8 +225,7 @@ export function createBot({
     pending.delete(id);
     await ctx.answerCallbackQuery();
     await ctx.editMessageText(chosenText(option.label_he), { parse_mode: "HTML" }).catch(() => {}); // no reply_markup = buttons removed
-    ctx.replyWithChatAction("upload_photo").catch(() => {});
-    return showResults(ctx, { keywords: option.keywords_en, header: option.label_he, maxPriceIls: entry.maxPriceIls, replyToId: entry.replyToId });
+    return withTyping(ctx, () => showResults(ctx, { keywords: option.keywords_en, header: option.label_he, maxPriceIls: entry.maxPriceIls, replyToId: entry.replyToId }));
   });
   bot.on("callback_query:data", (ctx) => ctx.answerCallbackQuery()); // never leave a button spinning
 

@@ -16,14 +16,19 @@ export const BOT_INFO = {
 // failMethods: Telegram methods that should answer with a 400 error (e.g. ["sendPhoto"]).
 // understand defaults to "AI unavailable" (null), i.e. the raw query is searched.
 // Network-free defaults: no collage (single photo URL) and no relevance filtering.
-export function setup({ failMethods = [], understand = async () => null, collage = async () => null, relevant = async (_r, p) => p, ...opts } = {}) {
+// admins: user ids returned by getChatAdministrators.
+export function setup({ failMethods = [], admins = [], understand = async () => null, collage = async () => null, relevant = async (_r, p) => p, ...opts } = {}) {
   const calls = [];
   const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, understand, collage, relevant, ...opts });
   bot.api.config.use(async (_prev, method, payload) => {
     calls.push({ method, payload });
     if (failMethods.includes(method)) return { ok: false, error_code: 400, description: "Bad Request: wrong file identifier/HTTP URL specified" };
     const isSend = method === "sendMessage" || method === "sendPhoto";
-    const result = isSend ? { message_id: 999, date: 0, chat: { id: payload.chat_id, type: "supergroup" } } : true;
+    const result = isSend
+      ? { message_id: 999, date: 0, chat: { id: payload.chat_id, type: "supergroup" } }
+      : method === "getChatAdministrators"
+        ? admins.map((id) => ({ status: "administrator", user: { id, is_bot: false, first_name: "A" } }))
+        : true;
     return { ok: true, result };
   });
   const sends = () => calls.filter((c) => c.method === "sendMessage" || c.method === "sendPhoto");
@@ -32,6 +37,20 @@ export function setup({ failMethods = [], understand = async () => null, collage
 }
 
 let nextId = 1;
+
+export function joinUpdate(members, { byUserId = 7, chatId = -100123 } = {}) {
+  const id = nextId++;
+  return {
+    update_id: id,
+    message: {
+      message_id: id,
+      date: 0,
+      chat: { id: chatId, type: "supergroup", title: "G" },
+      from: { id: byUserId, is_bot: false, first_name: "U" },
+      new_chat_members: members,
+    },
+  };
+}
 
 export function callbackUpdate(data, { userId = 7, chatId = -100123, messageId = 500 } = {}) {
   const id = nextId++;

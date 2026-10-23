@@ -100,6 +100,21 @@ The bot now also answers group messages without "חפש לי". It reacts to natu
 - Extra explicit command forms: תחפש / תמצא / חפשו / מצאו / חפשי / מצאי לי.
 - Live eval: 16/16, including "מחפש עבודה" and "מישהו מכיר את דני?" → silence. Results vary slightly between runs (one earlier run gave 15/16).
 
+## 3d. Typing, feature-aware relevance, group protection (2026-10-23)
+
+- **Typing:** "typing…" is refreshed every 4 s until the answer is sent. It replaced `upload_photo`.
+- **Relevance:** the filter keeps only products that show a named feature ("עם מסנן", "for kids", "750 ml"). Lesson: the 30-character titles can hide the feature that matched (the "בקבוק עם מסנן" results did have filters).
+- **Moderation (`moderation.js`):**
+  - A bot added by a non-admin is banned at once. Telegram never delivers other bots' messages, so joins are the only way to catch bots.
+  - Member spam gets delete + warning 1/2, delete + warning 2/2, then a kick (ban + unban, so the person can rejoin). It counts as spam when a message has:
+    - a link to another Telegram group or channel;
+    - an outside link from someone who joined in the last 24 h (AliExpress links are fine);
+    - the same text of 15+ chars sent 3× in 2 min;
+    - 6 messages in 10 s.
+  - Admins are exempt.
+  - Requires admin rights: delete messages + ban users. Without them it only logs once per chat.
+  - State is in memory, so strikes reset when the free server sleeps.
+
 ## 4. Decisions log (closed)
 
 - **Stack:** Node.js ESM + Express + grammY. `ae_sdk` not used (v0.6.0, last published 2025-03-30); own signing with tests.
