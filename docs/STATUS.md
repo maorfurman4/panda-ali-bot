@@ -202,3 +202,12 @@ Errors appear in the terminal as `update <id>: search failed: <code>: <message>`
 | 11 | Phone rendering | Repeat one search on iOS or Android | If RTL or the numbers flip on mobile, record a screenshot and revisit the RLM/LRM placement in `format.js`. |
 
 Before keys day, run only **one** instance of the bot (two pollers cause `409 Conflict`).
+
+## 3f. Telegram check round (2026-10-24)
+
+The owner ran 9 searches in the group. Fixes:
+- **Visible progress:** a "🔎 מחפש לכם… רגע ⏳" reply appears while searching and is deleted when the card is sent. Telegram only shows "typing" in the chat header.
+- **Relevance sees photos:** the model is now `gpt-5.4-mini`, and each title is sent with its photo (220px, low detail). Products that contradict the request are dropped: another color (a brown rug when gray was asked), the other gender (men's safety shoes for "women boots"), or another use (sport earbuds for "gaming"). If the photo call fails, one retry runs with titles only, which also covers a slow first call after a cold start.
+  - eval:search: every requested feature 73% → 84%; right item 89% (the judge now sees photos too); p50 4.1 s → 5.8 s.
+- **Unclear requests:** gibberish gets a clear "לא הבנתי… נסו לכתוב שוב: חפש לי + שם המוצר" reply, and "no results" suggests rewording too. A missing space ("חפש ליהדום") now works, because the AI fixes it to "הדום".
+

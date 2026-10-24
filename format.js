@@ -167,14 +167,15 @@ export const HELP = rtl([
 ]);
 
 export const GROUP_HELP = rtl(['🐼 כתבו "חפש לי ..." ואמצא לכם מוצרים. הסבר מלא בפרטי 👈']);
-export const NOT_PRODUCT = rtl(["לא הבנתי איזה מוצר לחפש 🙂 נסו למשל: חפש לי אוזניות"]);
+export const NOT_PRODUCT = rtl(["🤔 לא הבנתי מה לחפש.", 'נסו לכתוב שוב: "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
+export const SEARCHING = rtl(["🔎 מחפש לכם… רגע ⏳"]);
 export const SEARCH_NOW = "🔎 תחפש כבר";
 export const ADVICE_EXPIRED = rtl(["הייעוץ פג. כתבו לי שוב מה אתם מחפשים 🙂"]);
 export const ADVICE_EMPTY = rtl(["על מה להתייעץ? לדוגמה: /advice מתנה לאמא"]);
 export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
 export const CLARIFY_EXPIRED = "הבקשה פגה, חפשו שוב";
 export const EMPTY_QUERY = rtl(["מה לחפש? לדוגמה: חפש לי אוזניות אלחוטיות"]);
-export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים שמתאימים בדיוק. נסו לנסח אחרת או קצת יותר כללי."]);
+export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים שמתאימים בדיוק.", 'נסו לכתוב שוב, במילים פשוטות או קצת יותר כללי, למשל: חפש לי מטען לאייפון']);
 export const SEARCH_ERROR = rtl(["😕 הייתה תקלה בחיבור לעלי אקספרס. נסו שוב בעוד דקה."]);
 export const LINK_ERROR = rtl(["😕 לא הצלחתי ליצור קישור כרגע. נסו שוב בעוד דקה."]);
 export const cooldownMessage = (seconds) => rtl([`⏳ רגע… אפשר לחפש שוב בעוד ${seconds} שניות.`]);

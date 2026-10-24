@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, SEARCHING } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -43,9 +43,21 @@ test("parseTrigger: start-of-message triggers only", () => {
   assert.equal(parseTrigger("@Panda_Test_Bot, מנורה", u), "מנורה");
   assert.equal(parseTrigger("חפש לי", u), "");
   assert.equal(parseTrigger("@panda_test_bot", u), "");
+  assert.equal(parseTrigger("חפש ליהדום לרגליים", u), "ליהדום לרגליים", "missing space: the AI fixes the rest");
+  assert.equal(parseTrigger("חפש לימון", u), "לימון");
   for (const text of ["תודה @panda_test_bot", "חפש בגוגל", "חפש מטען", "חפש", "חפשתי אתמול", "@panda_test_bot_fake כבל", "מה קורה"]) {
     assert.equal(parseTrigger(text, u), null, text);
   }
+});
+
+test('a "searching…" note is shown while searching, as a reply, and deleted after the card', async () => {
+  const { calls } = await run("/search wireless earbuds");
+  const methods = calls.map((c) => c.method).filter((m) => ["sendMessage", "sendPhoto", "deleteMessage"].includes(m));
+  assert.deepEqual(methods, ["sendMessage", "sendPhoto", "deleteMessage"]);
+  const note = calls.find((c) => c.method === "sendMessage").payload;
+  assert.equal(note.text, SEARCHING);
+  assert.ok(note.reply_parameters.message_id > 0);
+  assert.equal(calls.find((c) => c.method === "deleteMessage").payload.message_id, 999);
 });
 
 test("group /search sends ONE photo card: top 4, buttons 2×2, as a reply", async () => {

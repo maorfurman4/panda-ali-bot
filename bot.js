@@ -25,6 +25,7 @@ import {
   EMPTY_QUERY,
   NO_RESULTS,
   NOT_PRODUCT,
+  SEARCHING,
   SEARCH_ERROR,
   LINK_ERROR,
   SEARCH_NOW,
@@ -42,6 +43,8 @@ const MAX_QUESTIONS = 3;
 const RELEVANCE_POOL = 24;
 const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile text often starts with one
 const TRIGGER = /^\s*(?:ת?חפש|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+לי(?=[\s:]|$)[\s:]*([\s\S]*)$/;
+// A missing space ("חפש ליהדום"): the whole rest goes to the AI, which fixes it (and keeps real words like "לימון").
+const TRIGGER_GLUED = /^\s*(?:ת?חפש|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+(לי[^\s:][\s\S]*)$/;
 // Natural shopping phrases that may appear anywhere in a group message. Only these messages are sent to the AI,
 // and the bot answers only if the AI confirms a product request (otherwise it stays silent).
 const SOFT_PHRASES = [
@@ -64,7 +67,8 @@ function mentionRest(text, username) {
 
 // Query for a start-of-message trigger ("" when it has no query), or null when the text isn't addressed to the bot.
 export function parseTrigger(text, username) {
-  const m = text.replace(BIDI_MARKS, "").match(TRIGGER);
+  const clean = text.replace(BIDI_MARKS, "");
+  const m = clean.match(TRIGGER) ?? clean.match(TRIGGER_GLUED);
   return m ? m[1].trim() : mentionRest(text, username);
 }
 
@@ -211,7 +215,17 @@ export function createBot({
 
   // Search -> quality filter (≥90% feedback, price cap) -> AI relevance (real results only) -> ranking.
   // When fewer than the limit remain, a broader fallback search fills up (no duplicates).
-  async function showResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, replyToId, advice = null }) {
+  async function showResults(ctx, opts) {
+    // A visible "searching…" note (Telegram shows "typing" only in the header), removed once the answer is sent.
+    const note = await ctx.reply(SEARCHING, replyParams(opts.replyToId)).catch(() => null);
+    try {
+      return await sendResults(ctx, opts);
+    } finally {
+      if (note) await ctx.api.deleteMessage(ctx.chat.id, note.message_id).catch(() => {});
+    }
+  }
+
+  async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let shown;

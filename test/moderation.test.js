@@ -73,8 +73,9 @@ test("the same message 3 times in 2 minutes is spam; flooding 6 messages in 10 s
 
 test("private chats are not moderated", async () => {
   const ctx = setup({ admins: [] });
-  await ctx.bot.handleUpdate(textUpdate("t.me/some_channel", { chat: "private", userId: 9 }));
-  assert.equal(ctx.calls.filter((c) => c.method === "deleteMessage").length, 0);
+  const update = textUpdate("t.me/some_channel", { chat: "private", userId: 9 });
+  await ctx.bot.handleUpdate(update);
+  assert.equal(ctx.calls.filter((c) => c.method === "deleteMessage" && c.payload.message_id === update.message.message_id).length, 0);
 });
 
 test("missing admin rights are logged once, without message text, and the bot keeps working", async (t) => {

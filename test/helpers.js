@@ -1,5 +1,6 @@
 // Test helpers: a bot with a preset botInfo and all outgoing Telegram API calls intercepted (no token, no network).
 import { createBot } from "../bot.js";
+import { SEARCHING } from "../format.js";
 
 export const BOT_INFO = {
   id: 42,
@@ -31,7 +32,8 @@ export function setup({ failMethods = [], admins = [], understand = async () => 
         : true;
     return { ok: true, result };
   });
-  const sends = () => calls.filter((c) => c.method === "sendMessage" || c.method === "sendPhoto");
+  // The "searching…" note is checked by its own test; everything else ignores it.
+  const sends = () => calls.filter((c) => (c.method === "sendMessage" && c.payload.text !== SEARCHING) || c.method === "sendPhoto");
   const sent = () => sends().map((c) => ({ ...c.payload, method: c.method, body: c.payload.text ?? c.payload.caption }));
   return { bot, calls, sent };
 }
