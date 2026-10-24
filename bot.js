@@ -57,10 +57,20 @@ const MORE_TTL_MS = 10 * 60_000;
 const CARD_TTL_MS = 24 * 60 * 60_000; // votes are deduplicated for a day
 const CARDS_MAX = 500;
 const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile text often starts with one
-// Also common typos: "חפשלי" (no space), "חפס לי" (ס for ש), "חפש לי, ...", "חפש לי🎧".
-const TRIGGER = /^\s*(?:ת?חפ[שס]|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s*-?\s*לי(?![\u05D0-\u05EA])[\s:,]*([\s\S]*)$/;
+// The search command in its common forms and typos (owner request: every way people write it should work):
+// - verbs: חפש/מצא with ח/כ/ה, ש/ס, א/ה/ע swaps and extra/missing י/ו (חפס, כפש, חיפש, תחפוש, מצה, מצע, תמצאי…)
+// - a stray or grammatical first letter (החפש, וחפש, לחפש) and polite openers (בבקשה / אפשר / תוכל / פנדה …)
+// - "לי" / "ליי" / "לנו", glued or not ("חפשלי"), and the same keys typed on an English layout ("jpa kh")
+const LEAD = String.raw`(?:(?:פנדה|בוט|היי|הי|בבקשה|אפשר|תוכל|תוכלי|אתה יכול|את יכולה)[\s,]+)*`;
+const VERB = String.raw`[הושל]?(?:ת?[חכה]י?פו?[שס]{1,2}[וי]?|ת?מי?צ(?:[אהע]|וא)[וי]?)`;
+const ME = String.raw`(?:לי{1,2}|לנו)`;
+const TRIGGER = new RegExp(String.raw`^\s*${LEAD}(?:${VERB}\s*-?\s*${ME}|jpa\s*kh|nmt\s*kh)(?![\u05D0-\u05EA])[\s:,.]*([\s\S]*)$`, "i");
 // A missing space after "לי" ("חפש ליהדום"): the whole rest goes to the AI, which fixes it (and keeps real words like "לימון").
-const TRIGGER_GLUED = /^\s*(?:ת?חפ[שס]|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+(לי[\u05D0-\u05EA][\s\S]*)$/;
+const TRIGGER_GLUED = new RegExp(String.raw`^\s*${LEAD}${VERB}\s+(לי[\u05D0-\u05EA][\s\S]*)$`);
+// The verb without "לי" ("חפש מטען", "תמצא אוזניות"): searched only if the AI confirms a product; otherwise silent.
+const VERB_START = new RegExp(String.raw`^\s*${LEAD}${VERB}\s+\S`);
+export const startsWithSearchVerb = (text) => VERB_START.test(text.replace(BIDI_MARKS, ""));
+
 // Natural shopping phrases that may appear anywhere in a group message. Only these messages are sent to the AI,
 // and the bot answers only if the AI confirms a product request (otherwise it stays silent).
 const SOFT_PHRASES = [
@@ -252,10 +262,10 @@ export function createBot({
 
   // A natural group request ("מישהו מכיר מטען טוב?"): searched when the AI confirms a product request. A request for
   // something that isn't a product ("מחפש עבודה", "יש המלצה על רופא?") gets a warning-style hint; other cases stay silent.
-  async function runSoftSearch(ctx, text) {
+  async function runSoftSearch(ctx, text, { warn = true } = {}) {
     if (coolingDown(ctx)) return;
     const intent = await understand(text).catch(() => null);
-    if (intent?.status === "not_product" && hintAllowed(ctx)) return hint(ctx, OFF_TOPIC);
+    if (warn && intent?.status === "not_product" && hintAllowed(ctx)) return hint(ctx, OFF_TOPIC);
     if (intent?.status !== "ok" && intent?.status !== "clarify") return;
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
@@ -268,7 +278,11 @@ export function createBot({
   async function guideBareName(ctx, text) {
     if (!hintAllowed(ctx)) return;
     const intent = await understand(text).catch(() => null);
-    if (intent?.status === "ok") return hint(ctx, guideText(intent.corrected_he || text));
+    if (intent?.status !== "ok") return;
+    // The AI fixed a mistyped command ("החפש לי אוזניות" -> "חפש לי אוזניות"): search it instead of hinting.
+    const fixed = parseTrigger(intent.corrected_he ?? "", ctx.me.username);
+    if (fixed) return runSearch(ctx, fixed);
+    return hint(ctx, guideText(intent.corrected_he || text));
   }
 
   // Search -> quality filter (≥90% feedback, price cap) -> AI relevance (real results only) -> ranking.
@@ -507,6 +521,7 @@ export function createBot({
     if (query !== null) return runSearch(ctx, query);
     if (isPrivate) return runSearch(ctx, text);
     if (isSoftRequest(text)) return runSoftSearch(ctx, text);
+    if (startsWithSearchVerb(text)) return runSoftSearch(ctx, text, { warn: false }); // "חפש מטען": searched if the AI sees a product
     if (!ctx.msg.reply_to_message && isBareName(text)) return guideBareName(ctx, text); // replies are conversation, not requests
   });
 

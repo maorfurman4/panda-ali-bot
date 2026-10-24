@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, isBareName } from "../bot.js";
+import { parseTrigger, isSoftRequest, isBareName, startsWithSearchVerb } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -53,6 +53,13 @@ test("parseTrigger: start-of-message triggers only", () => {
   assert.equal(parseTrigger("חפש לי, אוזניות", u), "אוזניות");
   assert.equal(parseTrigger("חפש-לי אוזניות", u), "אוזניות");
   assert.equal(parseTrigger("חפש לי🎧", u), "🎧");
+  // every common way of writing the command (owner request)
+  for (const text of [
+    "החפש לי מטען", "וחפש לי מטען", "חיפש לי מטען", "כפש לי מטען", "הפש לי מטען", "חפשש לי מטען", "תחפוש לי מטען", "תחפס לי מטען",
+    "תחפשי לי מטען", "תחפשו לי מטען", "מצה לי מטען", "מצע לי מטען", "תמצא לי מטען", "תמצאי לי מטען", "מיצא לי מטען",
+    "חפש ליי מטען", "חפש לנו מטען", "חפש לי. מטען", "בבקשה תחפש לי מטען", "אפשר לחפש לי מטען", "תוכל למצוא לי מטען",
+    "פנדה, חפש לי מטען", "jpa kh מטען", "JPA KH מטען",
+  ]) assert.equal(parseTrigger(text, u), "מטען", text);
   for (const text of ["תודה @panda_test_bot", "חפש בגוגל", "חפש מטען", "חפש", "חפשתי אתמול", "מצאתי לי מטען", "חפשליד", "@panda_test_bot_fake כבל", "מה קורה"]) {
     assert.equal(parseTrigger(text, u), null, text);
   }
@@ -772,4 +779,22 @@ test("sensitive items are refused even when the AI is down, and through /advice 
   assert.equal(fine.sent()[0].method, "sendPhoto", "ordinary items still search when the AI is down");
   const advice = await run("/advice מצלמה נסתרת", { understand: async () => intent({ status: "not_allowed", keywords_en: "" }), advise: async () => assert.fail("no advisor") }, { chat: "private" });
   assert.deepEqual(advice.sent().map((m) => m.body), [NOT_ALLOWED]);
+});
+
+test("the verb without 'לי' ('חפש מטען') searches when the AI sees a product; otherwise silent, no warning", async () => {
+  for (const t of ["חפש מטען", "תמצא אוזניות טובות", "החפש כבל"]) assert.ok(startsWithSearchVerb(t), t);
+  for (const t of ["חפשתי אתמול", "מצאתי מטען מעולה", "הפסד גדול", "כפשוטו"]) assert.ok(!startsWithSearchVerb(t), t);
+  const ok = await run("חפש מטען", { understand: async () => intent({ keywords_en: "charger" }) });
+  assert.equal(ok.sent()[0].method, "sendPhoto");
+  const chat = await run("תחפש בגוגל", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  assert.equal(chat.sent().length, 0);
+});
+
+test("a short message the AI corrects into a command ('החפש לי…' typos) is searched, never answered with 'write חפש לי'", async () => {
+  const seen = [];
+  const understand = async (q) => (seen.push(q), q === "אוזניות אלחוטיות" ? intent() : intent({ corrected_he: "חפש לי אוזניות אלחוטיות" }));
+  const { sent } = await run("חהפש ךי אוזניות אלחוטיות", { understand });
+  assert.equal(sent()[0].method, "sendPhoto");
+  assert.ok(!sent().some((m) => /כתבו "חפש לי"/.test(m.body ?? "")));
+  assert.deepEqual(seen, ["חהפש ךי אוזניות אלחוטיות", "אוזניות אלחוטיות"]);
 });

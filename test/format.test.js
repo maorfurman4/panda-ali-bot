@@ -58,6 +58,7 @@ test("title: first clause without seller filler, max 40 chars, cut at a word bou
   assert.equal(shortTitle("2022 חדש סתיו חורף מגפי נשים חמים, בעבודת יד"), "סתיו חורף מגפי נשים חמים");
   assert.equal(shortTitle("מנורת קריאה תלויה לצוואר - נטענת USB"), "מנורת קריאה תלויה לצוואר");
   assert.equal(shortTitle("נעלי נשים, מגפי פליז"), "נעלי נשים, מגפי פליז", "too-short first clause keeps the rest");
+  assert.equal(shortTitle("2026 – מגפי פלטפורמה קלאסיות חדשות לנשים"), "מגפי פלטפורמה קלאסיות חדשות לנשים", "no leading dash");
   const oneWord = shortTitle("x".repeat(60));
   assert.equal([...oneWord].length, 40);
   assert.ok(oneWord.endsWith("…"));
@@ -209,6 +210,8 @@ test("dedupe: the same product from several sellers shows once (brand + model, o
     t("שטיח אפור כהה מעונב בצביעת טאי דאי, שטיחים שאגי"),
     t("שטיח אפור כהה מעונב בצביעת טאי דאי, לסלון"),
     t("אוזניות Bluetooth 5.3 ספורט"),
+    t("2025 – מגפי פלטפורמה קלאסיות חדשות לנשים"),
+    t("2026 – מגפי פלטפורמה קלאסיות חדשות, חמות"),
   ]).map((p) => p.product_title);
   assert.deepEqual(out, [
     "אוזניות גיימינג אלחוטיות BINNUNE BW06 Bluetooth עם מיקרופון",
@@ -216,5 +219,6 @@ test("dedupe: the same product from several sellers shows once (brand + model, o
     "אוזניות Lenovo XT53 Bluetooth",
     "שטיח אפור כהה מעונב בצביעת טאי דאי, שטיחים שאגי",
     "אוזניות Bluetooth 5.3 ספורט",
+    "2025 – מגפי פלטפורמה קלאסיות חדשות לנשים",
   ]);
 });

@@ -7,6 +7,7 @@ const TITLE_MAX = 40; // photo captions are only as wide as the photo
 const QUERY_MAX = 45;
 // Seller filler at the start of machine-translated titles ("2022 חדש", "NEW", "1 יחידה").
 const TITLE_JUNK = /^(?:(?:20\d\d|new|חדש(?:ה|ים|ות)?|hot|1\s*(?:יחידה|יחידות|pcs?)|מקורי(?:ת)?|לשנת)[\s,:-]*)+/i;
+const cleanTitle = (title) => oneLine(title).replace(TITLE_JUNK, "").replace(/^[\s\-–—|,.:;*•]+/, ""); // also a leading "–"
 const CAPTION_MAX = 1024; // Telegram photo caption limit, counted after HTML parsing
 const MEDALS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
 const GROUP_URL = process.env.GROUP_URL || "https://t.me/panda_deals_il"; // shown under "🐼 פנדה אקספרס" at the end of each result
@@ -41,7 +42,7 @@ export function rankProducts(products) {
 export function dedupeProducts(products) {
   const seen = new Set();
   return products.filter((p) => {
-    const t = oneLine(p.product_title).toLowerCase();
+    const t = cleanTitle(p.product_title).toLowerCase(); // "2025 – מגפי…" and "2026 – מגפי…" are the same product
     const model = t.match(/\b[a-z]{3,}\s+(?:[a-z]+\d|\d+[a-z])[a-z0-9]*\b/)?.[0];
     const keys = [model && `m:${model}`, `t:${t.replace(/[^\p{L}\p{N}]+/gu, "").slice(0, 24)}`].filter(Boolean);
     if (keys.some((k) => seen.has(k))) return false;
@@ -65,7 +66,7 @@ export function formatPrice(value, currency) {
 
 // The title's first clause without seller filler, one line, cut at a word boundary so brand/model words stay intact.
 export function shortTitle(title) {
-  const full = oneLine(title).replace(TITLE_JUNK, "");
+  const full = cleanTitle(title);
   const first = full.split(/\s*[,،|;]\s*|\s+[-–]\s+/)[0];
   const t = [...first].length >= 12 ? first : full; // a too-short first clause ("נעלי נשים") says too little
   if ([...t].length <= TITLE_MAX) return t;

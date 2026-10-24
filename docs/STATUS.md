@@ -255,3 +255,18 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - eval:search after this round (judge gpt-5.4-mini): 95% right item, 77% every feature (was 94% / 75%). The eval's cost label was fixed: it had priced luna calls at mini rates.
 - **Keep-awake (2026-10-24):** cron-job.org (owner's free account) calls `/health` with `*/10 8-23 * * *` (Asia/Jerusalem). No cold start and no memory reset from 08:00 to 24:00; the server sleeps at night. About 480 of the 750 free Render hours per month, shared with 2 other services (7 h used by the 24th).
 
+## 3k. Full test, step 1 (2026-10-24, 23:25)
+
+- **Every way of writing the command** (owner request):
+  - Letter swaps (ח/כ/ה, ש/ס, א/ה/ע, extra or missing י/ו).
+  - A stray first letter (החפש/וחפש/לחפש).
+  - Polite openers (בבקשה/אפשר/תוכל/פנדה), "ליי/לנו", and "jpa kh" (English keyboard).
+  - The verb without "לי" ("חפש מטען"): searched if the AI sees a product.
+  - A short message the AI corrects into "חפש לי …": searched, never answered with "write חפש לי". (Step 1 showed "חפש לי חפש לי…".)
+- **AI rule:** a question about a buyable item ("מישהו מכיר מטען טוב לרכב?") is "ok". It was flaky (2/3 not_product, even in older prompts), which mattered more since off-topic messages now get a warning. Now 3/3 ok, and services, jobs and people are still not_product. eval:query 16/16.
+- **Brands, from the owner's brand searches:**
+  - Nike, UGG and Starbucks return the real brand.
+  - Zara has few items, so fallback_en must always drop the brand ("Zara men clothing" -> "men casual clothing").
+  - Titles lose a leading "–".
+  - The dedupe key ignores seller filler, so "2025 – מגפי…" and "2026 – מגפי…" are the same product.
+
