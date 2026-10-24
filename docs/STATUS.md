@@ -253,4 +253,5 @@ A probe of 38 unusual messages found 4 issues. All fixed:
   - The `a.aliexpress.com` short link (to test with a real link from the app).
 - **Speed:** the broader (fallback) search now starts in parallel with the first search. Only its AI check waits. This saves ~2 s whenever the fallback is needed, at no AI cost. Stage timings measured: understanding ~1.2 s, AliExpress ~2.2 s, relevance ~2 s.
 - eval:search after this round (judge gpt-5.4-mini): 95% right item, 77% every feature (was 94% / 75%). The eval's cost label was fixed: it had priced luna calls at mini rates.
+- **Keep-awake (2026-10-24):** cron-job.org (owner's free account) calls `/health` with `*/10 8-23 * * *` (Asia/Jerusalem). No cold start and no memory reset from 08:00 to 24:00; the server sleeps at night. About 480 of the 750 free Render hours per month, shared with 2 other services (7 h used by the 24th).
 

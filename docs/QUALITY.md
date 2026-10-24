@@ -52,6 +52,8 @@
 | לוגים של השרת | Render ← Logs | שורות `failed`. אף פעם לא אמור להופיע טקסט של הודעות |
 | עמלות | AliExpress Portals ← Reports, לפי Tracking ID `panda_bot` | קליקים והזמנות |
 | עלות AI | OpenAI ← Usage | סנטים ביום |
+| המעורר (cron-job.org) | cron-job.org ← Panda bot keep awake ← History | כל ריצה בין 08:00 ל-23:50 מחזירה 200 |
+| שעות חינם ב-Render | Render ← Billing ← Free Instance Hours | פחות מ-750 בחודש (בערך 480 לבוט) |
 | מודלים שיוצאים משימוש | https://platform.openai.com/docs/deprecations | `gpt-5.4-nano` |
 
 ## הגדרה (פעם אחת)
