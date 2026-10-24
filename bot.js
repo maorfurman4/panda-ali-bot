@@ -69,25 +69,29 @@ export function parseTrigger(text, username) {
 }
 
 // The result pipeline, shared by the bot and the search-quality eval:
-// search -> quality filter (≥90% feedback, price cap) -> AI relevance on the top 24 (real results only) -> ranking.
-// When fewer than `limit` remain, a broader fallback search fills up (no duplicates). Throws if the first search fails.
+// search -> quality filter (≥90% feedback, price cap) -> AI relevance on the top 24 (real results only, exact before partial)
+// -> ranking. With fewer than `limit` exact matches a broader fallback search runs (no duplicates). Throws if the first search fails.
 export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, limit = 4 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const gather = async (q, seen) => {
     const fresh = withinPrice(filterProducts(await search(q)), maxPriceIls).filter((p) => !seen.has(keyOf(p)));
-    if (!live) return fresh;
+    if (!live) return { exact: fresh, partial: [] };
     const top = rankProducts(fresh).slice(0, RELEVANCE_POOL); // fewer titles = a faster, steadier AI check
-    return relevant({ he: context, en: q }, top).catch(() => top);
+    const out = await relevant({ he: context, en: q }, top).catch(() => ({ exact: top, partial: [] }));
+    return Array.isArray(out) ? { exact: out, partial: [] } : out;
   };
-  let candidates = await gather(keywords, new Set());
-  if (candidates.length < limit && fallback && fallback !== keywords) {
+  let { exact, partial } = await gather(keywords, new Set());
+  // Fewer than `limit` exact matches: a broader search may find more, before partial matches fill the card.
+  if (exact.length < limit && fallback && fallback !== keywords) {
     try {
-      candidates = candidates.concat(await gather(fallback, new Set(candidates.map(keyOf))));
+      const more = await gather(fallback, new Set([...exact, ...partial].map(keyOf)));
+      exact = exact.concat(more.exact);
+      partial = partial.concat(more.partial);
     } catch (e) {
       console.error(`fallback search failed: ${e.message}`); // the first results still show
     }
   }
-  return rankProducts(candidates).slice(0, limit);
+  return [...rankProducts(exact), ...rankProducts(partial)].slice(0, limit);
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.

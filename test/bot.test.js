@@ -610,3 +610,21 @@ test("only the 24 best-ranked candidates go to the relevance check (keeps it fas
   await ctx.bot.handleUpdate(textUpdate("/search x"));
   assert.equal(sentToAi, 24);
 });
+
+
+test("exact matches are shown before partial ones, even with fewer sales", async () => {
+  const items = [product(1, { lastest_volume: "90000" }), product(2, { lastest_volume: "10" }), product(3, { lastest_volume: "50000" })];
+  const relevant = async (_r, p) => ({ exact: [p.find((x) => x.promotion_link.endsWith("_p2"))], partial: p.filter((x) => !x.promotion_link.endsWith("_p2")) });
+  const { sent } = await run("/search x", { result: items, relevant, live: true });
+  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.url.at(-1)), ["2", "1", "3"]);
+});
+
+test("fewer than 4 exact matches -> the broader search runs even if partials fill the card", async () => {
+  const queries = [];
+  const search = async (q) => (queries.push(q), q === "primary" ? [product(1), product(2), product(3), product(4)] : [product(5)]);
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => /_p(1|5)$/.test(x.promotion_link)), partial: p.filter((x) => !/_p(1|5)$/.test(x.promotion_link)) });
+  const ctx = setup({ search, relevant, live: true, understand: async () => intent({ keywords_en: "primary", fallback_en: "broader" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  assert.deepEqual(queries, ["primary", "broader"]);
+  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.url.at(-1)).slice(0, 2).sort(), ["1", "5"], "both exact matches first");
+});

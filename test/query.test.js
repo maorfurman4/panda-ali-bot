@@ -148,15 +148,15 @@ import { createRelevanceFilter } from "../query.js";
 
 const items = ["כרית משענת ראש לרכב", "עוגן פחמן למושב", "מחזיק טאבלט לרכב", "כרית צוואר לרכב"].map((t, i) => ({ product_id: String(i), product_title: t }));
 
-function openaiRelevant(relevant, opts = {}) {
-  return openai({ relevant }, opts);
+function openaiRelevant(exact, partial = [], opts = {}) {
+  return openai({ exact, partial }, opts);
 }
+const ids = (r) => ({ exact: r.exact.map((p) => p.product_id), partial: r.partial.map((p) => p.product_id) });
 
-test("relevance: sends only the request and numbered titles; keeps the chosen products in API order", async () => {
-  const api = openaiRelevant([3, 0]);
-  const filter = createRelevanceFilter({ fetch: api.fetch, env: ENV });
-  const kept = await filter({ he: "משענת לאוטו", en: "car headrest pillow" }, items);
-  assert.deepEqual(kept.map((p) => p.product_id), ["0", "3"]);
+test("relevance: sends only the request and numbered titles; splits exact and partial matches, API order", async () => {
+  const api = openaiRelevant([3, 0], [2]);
+  const out = await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "משענת לאוטו", en: "car headrest pillow" }, items);
+  assert.deepEqual(ids(out), { exact: ["0", "3"], partial: ["2"] });
   const body = api.requests[0].body;
   assert.equal(body.model, "gpt-5.4-nano", "gpt-6-luna timed out too often on 2026-10-23");
   assert.deepEqual(body.reasoning, { effort: "none" });
@@ -165,27 +165,27 @@ test("relevance: sends only the request and numbered titles; keeps the chosen pr
   assert.deepEqual(body.input, [{ role: "user", content: 'Request: "משענת לאוטו" (car headrest pillow)\n0. כרית משענת ראש לרכב\n1. עוגן פחמן למושב\n2. מחזיק טאבלט לרכב\n3. כרית צוואר לרכב' }]);
 });
 
-test("relevance: an empty list means nothing matched; out-of-range numbers are ignored", async () => {
-  assert.deepEqual(await createRelevanceFilter({ fetch: openaiRelevant([]).fetch, env: ENV })({ he: "x", en: "x" }, items), []);
-  const kept = await createRelevanceFilter({ fetch: openaiRelevant([1, 99, -1]).fetch, env: ENV })({ he: "x", en: "x" }, items);
-  assert.deepEqual(kept.map((p) => p.product_id), ["1"]);
+test("relevance: nothing matched -> empty; out-of-range numbers ignored; a product in both lists counts as exact", async () => {
+  assert.deepEqual(ids(await createRelevanceFilter({ fetch: openaiRelevant([]).fetch, env: ENV })({ he: "x", en: "x" }, items)), { exact: [], partial: [] });
+  const out = await createRelevanceFilter({ fetch: openaiRelevant([1, 99, -1], [1, 2]).fetch, env: ENV })({ he: "x", en: "x" }, items);
+  assert.deepEqual(ids(out), { exact: ["1"], partial: ["2"] });
 });
 
-test("relevance fail-open: no key, HTTP error, timeout or bad output keeps every product", async (t) => {
+test("relevance fail-open: no key, HTTP error, timeout or bad output keeps every product as exact", async (t) => {
   t.mock.method(console, "warn", () => {});
-  assert.equal((await createRelevanceFilter({ fetch: async () => assert.fail("no key, no call"), env: {} })({ he: "x", en: "x" }, items)).length, 4);
+  assert.equal((await createRelevanceFilter({ fetch: async () => assert.fail("no key, no call"), env: {} })({ he: "x", en: "x" }, items)).exact.length, 4);
   for (const fetch of [
-    openaiRelevant([0], { status: 500 }).fetch,
+    openaiRelevant([0], [], { status: 500 }).fetch,
     async () => { throw Object.assign(new Error("t"), { name: "TimeoutError" }); },
     openai(null, { text: "nope" }).fetch,
-    openai({ relevant: "0,1" }).fetch,
+    openai({ exact: "0,1", partial: [] }).fetch,
   ]) {
-    assert.equal((await createRelevanceFilter({ fetch, env: ENV })({ he: "x", en: "x" }, items)).length, 4);
+    assert.equal((await createRelevanceFilter({ fetch, env: ENV })({ he: "x", en: "x" }, items)).exact.length, 4);
   }
 });
 
 test("relevance: no products -> no AI call", async () => {
-  assert.deepEqual(await createRelevanceFilter({ fetch: async () => assert.fail("no call"), env: ENV })({ he: "x", en: "x" }, []), []);
+  assert.deepEqual(ids(await createRelevanceFilter({ fetch: async () => assert.fail("no call"), env: ENV })({ he: "x", en: "x" }, [])), { exact: [], partial: [] });
 });
 
 // ---- shopping advisor (multi-step questions) + "why it fits" ----
