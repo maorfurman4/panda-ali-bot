@@ -281,18 +281,18 @@ export function createBot({
     return sendCard(ctx, shown, { header, replyToId, reasons, rest: found.slice(limit) });
   }
 
-  // Photo card (collage) with price buttons, then "לחפש עוד?" (when products are left) and 🎯/🙈, laid out like the price grid.
+  // Photo card (collage), then 🎯/🐼 side by side and "לחפש עוד?" below them (always shown, owner request).
   async function sendCard(ctx, shown, { header, replyToId, reasons = null, rest = [] }) {
     for (const [key, c] of cards) if (now() - c.at > CARD_TTL_MS) cards.delete(key);
     if (cards.size >= CARDS_MAX) cards.delete(cards.keys().next().value);
     const id = (++cardSeq).toString(36);
     cards.set(id, { userId: ctx.from?.id, header, replyToId, rest, voters: new Set(), at: now() });
-    const { caption, buttons } = formatCard(shown, { query: header, demo: isMockMode(), reasons });
-    const actions = [
-      ...(rest.length ? [[{ text: MORE_LABEL, callback_data: `m:${id}` }]] : []),
+    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons });
+    const keyboard = [
       [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
+      [{ text: MORE_LABEL, callback_data: `m:${id}` }], // nothing left -> the press answers "אין עוד תוצאות"
     ];
-    const extra = { parse_mode: "HTML", ...replyParams(replyToId), reply_markup: { inline_keyboard: [...buttons, ...actions] } };
+    const extra = { parse_mode: "HTML", ...replyParams(replyToId), reply_markup: { inline_keyboard: keyboard } };
     const collageImage = await collage(shown.map((p) => p.product_main_image_url)).catch(() => null);
     const image = collageImage ? new InputFile(collageImage, "panda-results.jpg") : shown[0].product_main_image_url;
     if (collageImage || /^https:\/\//i.test(image ?? "")) {
@@ -408,12 +408,12 @@ export function createBot({
       `🏷️ גרסה: ${esc(version)} · ${isMockMode() ? "דמו" : "אמיתי"} · פעיל ${Math.round((now() - startedAt) / 60_000)} דק'`,
       `🔎 חיפושים: ${n("search")} · ללא תוצאות: ${n("noResults")} · שגיאות עלי אקספרס: ${n("fail:aliexpress")}`,
       `🤖 כשלי AI: ${n("fail:ai")} · כשלי טלגרם: ${n("fail:telegram")}`,
-      `🎯 בול: ${n("thumbsUp")} · 🙈 לא זה: ${n("thumbsDown")} · 🔍 לחפש עוד: ${n("more")}`,
+      `🎯 בול: ${n("thumbsUp")} · 🐼 לא זה: ${n("thumbsDown")} · 🔍 לחפש עוד: ${n("more")}`,
       "",
       "<b>בדיקה חיה</b>",
       ...checks.map(esc),
       ...(errors.length ? ["", "<b>שגיאות אחרונות</b>", ...errors.map(esc)] : []),
-      ...(lists.thumbsDown?.length ? ["", "<b>חיפושים שקיבלו 🙈</b>", ...lists.thumbsDown.map((x) => `• ${esc(x.text)}`)] : []),
+      ...(lists.thumbsDown?.length ? ["", "<b>חיפושים שקיבלו 🐼 לא זה</b>", ...lists.thumbsDown.map((x) => `• ${esc(x.text)}`)] : []),
     ];
     return reply(ctx, lines.map((l) => RLM + l).join("\n"));
   });
@@ -457,7 +457,7 @@ export function createBot({
     return withTyping(ctx, () => sendCard(ctx, next, { header: card.header, replyToId: card.replyToId, rest: card.rest }));
   });
 
-  // 🎯/🙈 on a card: anyone, once per card. The 🙈 searches show up in /status so they can become eval cases.
+  // 🎯/🐼 on a card: anyone, once per card. The 🐼 searches show up in /status so they can become eval cases.
   bot.callbackQuery(/^f:([0-9a-z]+):([ud])$/, (ctx) => {
     const [, id, vote] = ctx.match;
     const card = cards.get(id);

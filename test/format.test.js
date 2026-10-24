@@ -162,29 +162,13 @@ test("card: missing details drop their own line; ranks 4–5 use keycaps", () =>
   assert.match(five.caption, /5️⃣ /);
 });
 
-test("card buttons: one per product with medal + price; 3 per row; invalid links skipped", () => {
-  const three = formatCard([full(1), full(2, { target_sale_price: "24.5" }), full(3)], { query: "x" });
-  assert.deepEqual(three.buttons, [[
-    { text: "🥇 ₪39.90", url: "https://s.click.aliexpress.com/e/_1" },
-    { text: "🥈 ₪24.50", url: "https://s.click.aliexpress.com/e/_2" },
-    { text: "🥉 ₪39.90", url: "https://s.click.aliexpress.com/e/_3" },
-  ]]);
-  const four = formatCard([1, 2, 3, 4].map((n) => full(n)), { query: "x" });
-  assert.deepEqual(four.buttons.map((r) => r.length), [2, 2], "4 buttons as a 2×2 grid");
-  const five = formatCard([1, 2, 3, 4, 5].map((n) => full(n)), { query: "x" });
-  assert.deepEqual(five.buttons.map((r) => r.length), [3, 2]);
-  const bad = formatCard([full(1, { promotion_link: "javascript:alert(1)" })], { query: "x" });
-  assert.deepEqual(bad.buttons, []);
-});
-
 test("caption stays ≤ 1024 parsed chars with the longest realistic titles; extra items are dropped", () => {
   const long = (n) => full(n, { product_title: "ש".repeat(200) + " Xiaomi Redmi " + "ב".repeat(200), target_sale_price: "1234.56", target_original_price: "9999.99" });
   const five = formatCard([1, 2, 3, 4, 5].map(long), { query: "ק".repeat(80), demo: true });
   assert.ok(parsedLength(five.caption) <= 1024, `parsed length ${parsedLength(five.caption)}`);
   const many = formatCard(Array.from({ length: 30 }, (_, i) => long(i)), { query: "x" });
   assert.ok(parsedLength(many.caption) <= 1024);
-  const shown = many.caption.split("\n").filter((l) => /^‏(🥇|🥈|🥉|\d️⃣)/u.test(l)).length;
-  assert.equal(many.buttons.flat().length, shown, "one button per shown product");
+  assert.equal(formatCard([full(1)], { query: "x" }).buttons, undefined, "no price buttons: links are in the text");
 });
 
 test("no unsupported claims, no exclamation marks, max 2 emoji per line", () => {

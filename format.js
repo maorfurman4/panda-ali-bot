@@ -116,7 +116,6 @@ export function discountLine(p) {
 
 function buildCard(products, query, demo, reasons) {
   const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`];
-  const buttons = [];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
@@ -132,13 +131,9 @@ function buildCard(products, query, demo, reasons) {
         link && `🔗 ${esc(link)}`,
       ].filter(Boolean),
     );
-    if (link) buttons.push({ text: salePrice(p) ? `${MEDALS[i]} ${salePrice(p)}` : MEDALS[i], url: link });
   });
   lines.push("", "🐼 פנדה אקספרס", esc(GROUP_URL)); // group link at the end (owner request)
-  const rows = [];
-  const perRow = buttons.length === 4 ? 2 : 3; // 4 results -> 2×2, like the collage
-  for (let i = 0; i < buttons.length; i += perRow) rows.push(buttons.slice(i, i + perRow));
-  return { caption: rtl(lines), buttons: rows };
+  return { caption: rtl(lines) }; // links are in the text; the keyboard holds only the bot's own buttons (owner request)
 }
 
 // Result card for up to 5 products; drops trailing products until the caption fits Telegram's limit.
@@ -194,7 +189,7 @@ export const SEARCHING = rtl(["🔎 מחפש לכם… רגע ⏳"]);
 export const SEARCH_NOW = "🔎 תחפש כבר";
 export const MORE_LABEL = "🔍 לחפש עוד?";
 export const GOOD_LABEL = "🎯 בול!";
-export const BAD_LABEL = "🙈 לא זה";
+export const BAD_LABEL = "🐼 לא זה";
 export const NO_MORE = "אין עוד תוצאות לחיפוש הזה";
 export const MORE_NOT_YOURS = "רק מי שחיפש יכול לבקש עוד";
 export const VOTE_THANKS = "תודה על המשוב 🙏";
