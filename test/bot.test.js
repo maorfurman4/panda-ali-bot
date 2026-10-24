@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, SEARCHING } from "../format.js";
+import { parseTrigger, isSoftRequest, isBareName } from "../bot.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, SEARCHING, guideText } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -639,4 +639,34 @@ test("fewer than 4 exact matches -> the broader search runs even if partials fil
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
   assert.deepEqual(queries, ["primary", "broader"]);
   assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.url.at(-1)).slice(0, 2).sort(), ["1", "5"], "both exact matches first");
+});
+
+// ---- bare product names in groups: a hint to write "חפש לי ..." ----
+test("isBareName: short Hebrew text without links or mentions", () => {
+  for (const t of ["שרוול מרינו מחמם", "משקפי תלת מימד"]) assert.ok(isBareName(t), t);
+  for (const t of ["wireless earbuds", "מה קורה איתכם היום חברים יקרים שלי", "תראו t.me/x", "@dan מטען", "א".repeat(41)]) assert.ok(!isBareName(t), t);
+});
+
+test("bare product name in a group: one hint with the corrected name, no search; then silent for 10 minutes", async () => {
+  let t = 0;
+  const seen = [];
+  const ctx = setup({ now: () => t, search: async () => assert.fail("no search"), understand: async (q) => (seen.push(q), intent({ corrected_he: "שרוול מרינו מחמם" })) });
+  await ctx.bot.handleUpdate(textUpdate("שרוול מרינו מחמם"));
+  assert.deepEqual(ctx.sent().map((m) => m.body), [guideText("שרוול מרינו מחמם")]);
+  t += 60_000;
+  await ctx.bot.handleUpdate(textUpdate("משקפי תלת מימד"));
+  assert.equal(ctx.sent().length, 1, "cooldown: no second hint");
+  assert.equal(seen.length, 1, "cooldown is checked before the AI call");
+});
+
+test("bare name: silent when the AI sees chit-chat or fails, in private chats (they search), and for replies", async () => {
+  for (const understand of [async () => intent({ status: "not_product", keywords_en: "" }), async () => null]) {
+    const { sent } = await run("בוקר טוב לכולם", { understand });
+    assert.equal(sent().length, 0);
+  }
+  const reply = setup({ understand: async () => assert.fail("no AI for replies") });
+  const u = textUpdate("משקפי תלת מימד");
+  u.message.reply_to_message = { message_id: 1, date: 0, chat: u.message.chat, text: "x" };
+  await reply.bot.handleUpdate(u);
+  assert.equal(reply.sent().length, 0);
 });

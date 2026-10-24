@@ -121,6 +121,8 @@ test("onUsage receives token counts for each AI call (used by the eval for cost)
 test("validateIntent normalizes and checks each status (nulls from strict mode are fine)", () => {
   assert.deepEqual(validateIntent({ ...STRICT_OK, status: "OK", max_price_ils: 50 }), { ...OK, max_price_ils: 50 });
   assert.equal(validateIntent({ ...STRICT_OK, max_price_ils: -5 }), null);
+  assert.deepEqual(validateIntent({ ...STRICT_OK, min_price_ils: 80, max_price_ils: 150 }), { ...OK, min_price_ils: 80, max_price_ils: 150 });
+  assert.deepEqual(validateIntent({ ...STRICT_OK, min_price_ils: 200, max_price_ils: 150 }), { ...OK, max_price_ils: 150 }, "min above max is dropped");
   assert.deepEqual(validateIntent({ ...STRICT_OK, status: "not_product", corrected_he: "תודה", keywords_en: "" }), {
     status: "not_product",
     corrected_he: "תודה",
@@ -159,7 +161,7 @@ test("relevance: sends only the request, numbered titles and photos; splits exac
   const out = await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "משענת לאוטו", en: "car headrest pillow" }, withPhoto);
   assert.deepEqual(ids(out), { exact: ["0", "3"], partial: ["2"] });
   const body = api.requests[0].body;
-  assert.equal(body.model, "gpt-5.4-mini", "nano let men's shoes and brown rugs through on 2026-10-24");
+  assert.equal(body.model, "gpt-6-luna", "same accuracy as gpt-5.4-mini with photos, 5× cheaper (eval 2026-10-24)");
   assert.deepEqual(body.reasoning, { effort: "none" });
   assert.equal(body.store, false);
   assert.equal(body.text.format.strict, true);
@@ -234,8 +236,8 @@ test("advisor: sends only the request and the answers so far; returns the next q
 
 test("advisor: 'done' carries the final keywords; bad output and failures return null", async (t) => {
   t.mock.method(console, "warn", () => {});
-  const done = await createAdvisor({ fetch: openai({ status: "done", question_he: null, options: null, keywords_en: "silver necklace for women", max_price_ils: 150 }).fetch, env: ENV })({ request: "x", history: [] });
-  assert.deepEqual(done, { status: "done", keywords_en: "silver necklace for women", max_price_ils: 150 });
+  const done = await createAdvisor({ fetch: openai({ status: "done", question_he: null, options: null, keywords_en: "silver necklace for women", min_price_ils: 80, max_price_ils: 150 }).fetch, env: ENV })({ request: "x", history: [] });
+  assert.deepEqual(done, { status: "done", keywords_en: "silver necklace for women", min_price_ils: 80, max_price_ils: 150 });
   for (const fetch of [
     openai({ ...ASK, options: [ASK.options[0]] }).fetch, // one option is not a question
     openai({ status: "done", question_he: null, options: null, keywords_en: "", max_price_ils: null }).fetch,

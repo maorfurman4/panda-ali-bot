@@ -3,8 +3,10 @@
 export const RLM = "‏";
 export const DISCLOSURE = "ℹ️ קישורי שותפים – ייתכן שנקבל עמלה על רכישה. המחירים משוערים."; // private /start only, by owner decision
 const MIN_FEEDBACK = 90;
-const TITLE_MAX = 30; // photo captions are only as wide as the photo
-const QUERY_MAX = 30;
+const TITLE_MAX = 40; // photo captions are only as wide as the photo
+const QUERY_MAX = 45;
+// Seller filler at the start of machine-translated titles ("2022 חדש", "NEW", "1 יחידה").
+const TITLE_JUNK = /^(?:(?:20\d\d|new|חדש(?:ה|ים|ות)?|hot|1\s*(?:יחידה|יחידות|pcs?)|מקורי(?:ת)?|לשנת)[\s,:-]*)+/i;
 const CAPTION_MAX = 1024; // Telegram photo caption limit, counted after HTML parsing
 const MEDALS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
 const GROUP_URL = process.env.GROUP_URL || "https://t.me/panda_deals_il"; // shown under "🐼 פנדה אקספרס" at the end of each result
@@ -34,6 +36,20 @@ export function rankProducts(products) {
   return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
+// The same product from several sellers counts once (the first, i.e. best-ranked, stays). Two keys: brand + model
+// ("BINNUNE BW06", "Lenovo GM2") and the start of the normalized title.
+export function dedupeProducts(products) {
+  const seen = new Set();
+  return products.filter((p) => {
+    const t = oneLine(p.product_title).toLowerCase();
+    const model = t.match(/\b[a-z]{3,}\s+(?:[a-z]+\d|\d+[a-z])[a-z0-9]*\b/)?.[0];
+    const keys = [model && `m:${model}`, `t:${t.replace(/[^\p{L}\p{N}]+/gu, "").slice(0, 24)}`].filter(Boolean);
+    if (keys.some((k) => seen.has(k))) return false;
+    keys.forEach((k) => seen.add(k));
+    return true;
+  });
+}
+
 export function filterProducts(products) {
   return products.filter((p) => {
     const rate = parseEvaluateRate(p.evaluate_rate);
@@ -47,9 +63,11 @@ export function formatPrice(value, currency) {
   return currency === "ILS" ? `₪${n.toFixed(2)}` : `${currency ?? ""} ${n.toFixed(2)}`.trim();
 }
 
-// One line, cut at a word boundary so English brand/model words stay intact.
+// The title's first clause without seller filler, one line, cut at a word boundary so brand/model words stay intact.
 export function shortTitle(title) {
-  const t = oneLine(title);
+  const full = oneLine(title).replace(TITLE_JUNK, "");
+  const first = full.split(/\s*[,،|;]\s*|\s+[-–]\s+/)[0];
+  const t = [...first].length >= 12 ? first : full; // a too-short first clause ("נעלי נשים") says too little
   if ([...t].length <= TITLE_MAX) return t;
   let out = "";
   for (const word of t.split(" ")) {
@@ -60,13 +78,13 @@ export function shortTitle(title) {
   return (out || [...t].slice(0, TITLE_MAX - 1).join("")) + "…";
 }
 
-// Exact below 100; from 100, rounded down to 2 significant digits + "+".
+// Exact below 100; from 100, rounded down to 2 significant digits after "מעל" (a trailing "+" flips to the left in RTL).
 export function soldText(volume) {
   const n = Math.floor(Number(volume));
   if (!Number.isFinite(n) || n <= 0) return null;
   if (n < 100) return String(n);
   const step = 10 ** (String(n).length - 2);
-  return `${(Math.floor(n / step) * step).toLocaleString("en-US")}+`;
+  return `מעל ${(Math.floor(n / step) * step).toLocaleString("en-US")}`;
 }
 
 // Stars + review count (future DS API data) first, else the positive-feedback %, else nothing. Never shows 0.
@@ -93,7 +111,7 @@ export function discountLine(p) {
   if (!(s > 0 && o > s)) return null;
   const discount = Math.round((1 - s / o) * 100);
   if (discount < 5 || discount >= 80) return null;
-  return `🏷️ לפני הנחה: <s>${esc(formatPrice(original, p.target_sale_price_currency ?? p.sale_price_currency))}</s> 🔥 ${discount}%-`;
+  return `🏷️ במקום <s>${esc(formatPrice(original, p.target_sale_price_currency ?? p.sale_price_currency))}</s> · ${discount}% הנחה 🔥`;
 }
 
 function buildCard(products, query, demo, reasons) {
@@ -132,10 +150,14 @@ export function formatCard(products, { query, demo = false, reasons = null }) {
   return card;
 }
 
-// Max-price filter from the AI: applies only to ILS prices; other currencies ignore the cap.
-export function withinPrice(products, maxIls) {
-  if (!maxIls) return products;
-  return products.filter((p) => (p.target_sale_price_currency ?? p.sale_price_currency) !== "ILS" || Number(p.target_sale_price ?? p.sale_price) <= maxIls);
+// Price range from the AI: applies only to ILS prices; other currencies ignore it.
+export function withinPrice(products, maxIls, minIls = null) {
+  if (!maxIls && !minIls) return products;
+  return products.filter((p) => {
+    if ((p.target_sale_price_currency ?? p.sale_price_currency) !== "ILS") return true;
+    const n = Number(p.target_sale_price ?? p.sale_price);
+    return (!maxIls || n <= maxIls) && (!minIls || n >= minIls);
+  });
 }
 
 export const questionText = (question, { inGroup = false } = {}) =>
@@ -175,7 +197,8 @@ export const ADVICE_EMPTY = rtl(["על מה להתייעץ? לדוגמה: /advic
 export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
 export const CLARIFY_EXPIRED = "הבקשה פגה, חפשו שוב";
 export const EMPTY_QUERY = rtl(["מה לחפש? לדוגמה: חפש לי אוזניות אלחוטיות"]);
-export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים שמתאימים בדיוק.", 'נסו לכתוב שוב, במילים פשוטות או קצת יותר כללי, למשל: חפש לי מטען לאייפון']);
+export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים שמתאימים בדיוק למה שביקשתם, אבל אני כאן בשבילכם!", "נסו לנסח את הבקשה קצת אחרת או יותר כללי, למשל: חפש לי מטען לאייפון 🙂"]);
+export const guideText = (name) => rtl(['🙂 כדי שאוכל לעזור בצורה הכי טובה, כתבו "חפש לי" ואחריו שם המוצר.', `למשל: חפש לי ${esc(name)}`]);
 export const SEARCH_ERROR = rtl(["😕 הייתה תקלה בחיבור לעלי אקספרס. נסו שוב בעוד דקה."]);
 export const LINK_ERROR = rtl(["😕 לא הצלחתי ליצור קישור כרגע. נסו שוב בעוד דקה."]);
 export const cooldownMessage = (seconds) => rtl([`⏳ רגע… אפשר לחפש שוב בעוד ${seconds} שניות.`]);

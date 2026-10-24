@@ -1,7 +1,7 @@
 // End-to-end search quality: for each query the real AI + AliExpress pipeline picks 4 products, then a second
 // AI (the judge, gpt-6-luna by default) checks which of them really ARE what was asked. Reports precision@4.
-// Usage: npm run eval:search [-- --judge gpt-6-luna]
-import { createUnderstander, createRelevanceFilter, filterRelevant } from "../query.js";
+// Usage: npm run eval:search [-- --judge gpt-6-luna] [-- --model <relevance model>]
+import { createUnderstander, createRelevanceFilter } from "../query.js";
 import { searchProducts, isMockMode } from "../aliexpress.js";
 import { pickProducts } from "../bot.js";
 
@@ -11,7 +11,17 @@ if (!process.env.OPENAI_API_KEY || isMockMode()) {
 }
 const i = process.argv.indexOf("--judge");
 const judge = createRelevanceFilter({ env: { ...process.env, OPENAI_RELEVANCE_MODEL: i > 0 ? process.argv[i + 1] : "gpt-6-luna" } });
-const understand = createUnderstander();
+// $ per 1M tokens [input, output], read 2026-10-24 from https://developers.openai.com/api/docs/pricing
+const PRICES = { "gpt-5.4-nano": [0.2, 1.25], "gpt-5.4-mini": [0.75, 4.5], "gpt-6-luna": [0.1, 0.5], "gpt-5-nano": [0.05, 0.4], "gpt-5-mini": [0.25, 2] };
+const m = process.argv.indexOf("--model");
+if (m > 0) process.env.OPENAI_RELEVANCE_MODEL = process.argv[m + 1];
+let cost = 0;
+const meter = (model) => ({ input_tokens, output_tokens }) => {
+  const [pin, pout] = PRICES[model] ?? [NaN, NaN];
+  cost += (input_tokens * pin + output_tokens * pout) / 1e6;
+};
+const understand = createUnderstander({ onUsage: meter(process.env.OPENAI_MODEL || "gpt-5.4-nano") });
+const filterRelevant = createRelevanceFilter({ onUsage: meter(process.env.OPENAI_RELEVANCE_MODEL || "gpt-5.4-mini") });
 
 const QUERIES = [
   // earlier weak spots
@@ -70,5 +80,5 @@ const exactRate = judged.reduce((a, r) => a + r.exact / r.shown, 0) / (judged.le
 const latencies = rows.map((r) => Number(r.s)).sort((a, b) => a - b);
 console.log(
   `precision@4: ${(precision * 100).toFixed(0)}% right item · ${(exactRate * 100).toFixed(0)}% with every requested feature (${judged.length} judged) · fewer than 4 results: ${rows.filter((r) => r.shown < 4).length}/${rows.length} · ` +
-    `p50 time: ${latencies[Math.floor((latencies.length - 1) / 2)]} s · max: ${latencies.at(-1)} s`,
+    `p50 time: ${latencies[Math.floor((latencies.length - 1) / 2)]} s · max: ${latencies.at(-1)} s · bot AI cost: $${(cost / rows.length).toFixed(5)} per search (judge not counted)`,
 );

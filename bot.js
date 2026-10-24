@@ -12,6 +12,7 @@ import { createUnderstander } from "./query.js";
 import {
   filterProducts,
   rankProducts,
+  dedupeProducts,
   esc,
   RLM,
   withinPrice,
@@ -26,6 +27,7 @@ import {
   NO_RESULTS,
   NOT_PRODUCT,
   SEARCHING,
+  guideText,
   SEARCH_ERROR,
   LINK_ERROR,
   SEARCH_NOW,
@@ -57,6 +59,14 @@ const SOFT_PHRASES = [
 const SOFT = new RegExp(`(?:^|[\\s,.!?"'(])(?:${SOFT_PHRASES.join("|")})(?=$|[\\s,.!?])`);
 const SOFT_MAX_LENGTH = 200;
 
+// A bare product name in a group ("שרוול מרינו מחמם"): short, Hebrew, no link or mention. The AI confirms before any reply.
+const BARE_MAX_LENGTH = 40;
+export const isBareName = (text) => {
+  const t = text.replace(BIDI_MARKS, "").trim();
+  return t.length <= BARE_MAX_LENGTH && t.split(/\s+/).length <= 5 && /[\u05D0-\u05EA]/.test(t) && !/https?:|www\.|t\.me|@/i.test(t);
+};
+const GUIDE_COOLDOWN_MS = 10 * 60_000;
+
 export const isSoftRequest = (text) => text.length <= SOFT_MAX_LENGTH && SOFT.test(text.replace(BIDI_MARKS, ""));
 
 // Text after a leading "@username", or null when the message doesn't start with the mention.
@@ -75,10 +85,10 @@ export function parseTrigger(text, username) {
 // The result pipeline, shared by the bot and the search-quality eval:
 // search -> quality filter (≥90% feedback, price cap) -> AI relevance on the top 24 (real results only, exact before partial)
 // -> ranking. With fewer than `limit` exact matches a broader fallback search runs (no duplicates). Throws if the first search fails.
-export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, limit = 4 }) {
+export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, limit = 4 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const gather = async (q, seen) => {
-    const fresh = withinPrice(filterProducts(await search(q)), maxPriceIls).filter((p) => !seen.has(keyOf(p)));
+    const fresh = withinPrice(filterProducts(await search(q)), maxPriceIls, minPriceIls).filter((p) => !seen.has(keyOf(p)));
     if (!live) return { exact: fresh, partial: [] };
     const top = rankProducts(fresh).slice(0, RELEVANCE_POOL); // fewer titles = a faster, steadier AI check
     const out = await relevant({ he: context, en: q }, top).catch(() => ({ exact: top, partial: [] }));
@@ -95,7 +105,7 @@ export async function pickProducts({ search, relevant, live }, { keywords, fallb
       console.error(`fallback search failed: ${e.message}`); // the first results still show
     }
   }
-  return [...rankProducts(exact), ...rankProducts(partial)].slice(0, limit);
+  return dedupeProducts([...rankProducts(exact), ...rankProducts(partial)]).slice(0, limit);
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.
@@ -140,6 +150,7 @@ export function createBot({
   bot.on("message:new_chat_members", moderation.onJoin);
   const cooldowns = new Map(); // shortcut: in-memory, resets on restart; fine for a single instance
   const groupHelpAt = new Map();
+  const guidedAt = new Map(); // last "write חפש לי" hint per user (same in-memory shortcut)
   const pending = new Map(); // advisor sessions waiting for a button press, by short id (same shortcut as above)
   let clarifySeq = 0;
 
@@ -196,6 +207,7 @@ export function createBot({
         fallback: intent?.fallback_en,
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
+        minPriceIls: intent?.min_price_ils ?? null,
         replyToId: ctx.msg.message_id,
       });
     });
@@ -209,8 +221,19 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? null, replyToId: ctx.msg.message_id }),
     );
+  }
+
+  // A bare product name: a one-line hint to write "חפש לי ...", at most once per 10 minutes per user, only if the AI sees a product.
+  async function guideBareName(ctx, text) {
+    const last = guidedAt.get(ctx.from.id);
+    if (coolingDown(ctx) || (last !== undefined && now() - last < GUIDE_COOLDOWN_MS)) return; // checked before the AI call: saves cost
+    const intent = await understand(text).catch(() => null);
+    if (intent?.status !== "ok") return;
+    guidedAt.set(ctx.from.id, now());
+    if (guidedAt.size > 1000) for (const [id, at] of guidedAt) if (now() - at > GUIDE_COOLDOWN_MS) guidedAt.delete(id);
+    return reply(ctx, guideText(intent.corrected_he || text));
   }
 
   // Search -> quality filter (≥90% feedback, price cap) -> AI relevance (real results only) -> ranking.
@@ -225,12 +248,12 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, minPriceIls, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let shown;
     try {
-      shown = await pickProducts({ search, relevant, live: live ?? !isMockMode() }, { keywords, fallback, context, maxPriceIls, limit });
+      shown = await pickProducts({ search, relevant, live: live ?? !isMockMode() }, { keywords, fallback, context, maxPriceIls, minPriceIls, limit });
     } catch (e) {
       stats.failure("aliexpress", e.message);
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
@@ -259,10 +282,10 @@ export function createBot({
 
   // ---- Shopping advisor: up to 3 questions with buttons, then a search with "why it fits" lines.
   // In groups only the first question is shown; its options are deep links that continue in private chat.
-  function newSession(ctx, request, maxPriceIls = null) {
+  function newSession(ctx, request, maxPriceIls = null, minPriceIls = null) {
     for (const [key, e] of pending) if (now() - e.at > CLARIFY_TTL_MS) pending.delete(key);
     const id = (++clarifySeq).toString(36);
-    const session = { id, userId: ctx.from?.id, request, history: [], keywords: null, label: null, maxPriceIls, replyToId: ctx.msg?.message_id, at: now() };
+    const session = { id, userId: ctx.from?.id, request, history: [], keywords: null, label: null, maxPriceIls, minPriceIls, replyToId: ctx.msg?.message_id, at: now() };
     pending.set(id, session);
     return session;
   }
@@ -280,7 +303,7 @@ export function createBot({
   }
 
   function askClarify(ctx, query, intent) {
-    return showQuestion(ctx, newSession(ctx, query, intent.max_price_ils), intent.clarify_question_he, intent.options);
+    return showQuestion(ctx, newSession(ctx, query, intent.max_price_ils, intent.min_price_ils), intent.clarify_question_he, intent.options);
   }
 
   // Records the answer, then asks the next question (max 3 in total) or searches.
@@ -288,23 +311,23 @@ export function createBot({
     const option = session.options?.[n];
     if (!option) return;
     session.history.push({ q: session.question, a: option.label_he });
-    Object.assign(session, { keywords: option.keywords_en, label: option.label_he, maxPriceIls: option.max_price_ils ?? session.maxPriceIls });
+    Object.assign(session, { keywords: option.keywords_en, label: option.label_he, maxPriceIls: option.max_price_ils ?? session.maxPriceIls, minPriceIls: option.min_price_ils ?? session.minPriceIls });
     if (session.history.length < MAX_QUESTIONS) {
       const step = await withTyping(ctx, () => advise({ request: session.request, history: session.history }).catch(() => null));
       if (step?.status === "ask") return showQuestion(ctx, session, step.question_he, step.options, { edit });
-      if (step?.status === "done") Object.assign(session, { keywords: step.keywords_en, maxPriceIls: step.max_price_ils ?? session.maxPriceIls });
+      if (step?.status === "done") Object.assign(session, { keywords: step.keywords_en, maxPriceIls: step.max_price_ils ?? session.maxPriceIls, minPriceIls: step.min_price_ils ?? session.minPriceIls });
     }
     return finish(ctx, session, { edit });
   }
 
   async function finish(ctx, session, { edit }) {
     pending.delete(session.id);
-    const header = session.label ?? session.request;
+    const header = session.label ? `${session.request} · ${session.label}` : session.request; // a bare "80–150 ₪" said nothing
     if (edit) await ctx.editMessageText(chosenText(header), { parse_mode: "HTML" }).catch(() => {}); // no reply_markup = buttons removed
     const advice = session.history.length ? { request: session.request, history: session.history } : null;
     const context = advice ? `${session.request} (${session.history.map((h) => h.a).join(", ")})` : session.request;
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: session.keywords ?? session.request, header, context, maxPriceIls: session.maxPriceIls, replyToId: session.replyToId, advice }),
+      showResults(ctx, { keywords: session.keywords ?? session.request, header, context, maxPriceIls: session.maxPriceIls, minPriceIls: session.minPriceIls, replyToId: session.replyToId, advice }),
     );
   }
 
@@ -373,7 +396,7 @@ export function createBot({
     const step = await withTyping(ctx, () => advise({ request, history: [] }).catch(() => null));
     if (step?.status === "ask") return showQuestion(ctx, newSession(ctx, request), step.question_he, step.options);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: step?.keywords_en || request, header: request, maxPriceIls: step?.max_price_ils ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: step?.keywords_en || request, header: request, maxPriceIls: step?.max_price_ils ?? null, minPriceIls: step?.min_price_ils ?? null, replyToId: ctx.msg.message_id }),
     );
   });
 
@@ -411,6 +434,7 @@ export function createBot({
     if (query !== null) return runSearch(ctx, query);
     if (isPrivate) return runSearch(ctx, text);
     if (isSoftRequest(text)) return runSoftSearch(ctx, text);
+    if (!ctx.msg.reply_to_message && isBareName(text)) return guideBareName(ctx, text); // replies are conversation, not requests
   });
 
   bot.catch((err) => console.error(`update ${err.ctx.update.update_id} failed: ${err.error?.message ?? err.error}`));

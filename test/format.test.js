@@ -13,6 +13,7 @@ import {
   formatLinkReply,
   parsedLength,
   withinPrice,
+  dedupeProducts,
   esc,
   RLM,
   DISCLOSURE,
@@ -47,26 +48,29 @@ test("price: ₪ only for ILS, otherwise the currency code; always 2 decimals", 
   assert.equal(formatPrice("abc", "ILS"), null);
 });
 
-test("title: one line, max ~30 chars, cut at a word boundary, brand words intact", () => {
+test("title: first clause without seller filler, max 40 chars, cut at a word boundary, brand words intact", () => {
   assert.equal(
     shortTitle("אוזניות אלחוטיות Baseus Bowie E19 Bluetooth 5.3 עם ביטול רעשים"),
-    "אוזניות אלחוטיות Baseus Bowie…",
+    "אוזניות אלחוטיות Baseus Bowie E19…",
   );
   assert.equal(shortTitle("כבל USB-C"), "כבל USB-C");
   assert.equal(shortTitle("line one\nline   two"), "line one line two");
+  assert.equal(shortTitle("2022 חדש סתיו חורף מגפי נשים חמים, בעבודת יד"), "סתיו חורף מגפי נשים חמים");
+  assert.equal(shortTitle("מנורת קריאה תלויה לצוואר - נטענת USB"), "מנורת קריאה תלויה לצוואר");
+  assert.equal(shortTitle("נעלי נשים, מגפי פליז"), "נעלי נשים, מגפי פליז", "too-short first clause keeps the rest");
   const oneWord = shortTitle("x".repeat(60));
-  assert.equal([...oneWord].length, 30);
+  assert.equal([...oneWord].length, 40);
   assert.ok(oneWord.endsWith("…"));
 });
 
-test("sold: exact under 100, 2 significant digits + '+' from 100", () => {
+test("sold: exact under 100, 2 significant digits after 'מעל' from 100", () => {
   assert.equal(soldText("87"), "87");
   assert.equal(soldText(87), "87");
-  assert.equal(soldText("100"), "100+");
-  assert.equal(soldText("155"), "150+");
-  assert.equal(soldText("1874"), "1,800+");
-  assert.equal(soldText(5230), "5,200+");
-  assert.equal(soldText("987654"), "980,000+");
+  assert.equal(soldText("100"), "מעל 100");
+  assert.equal(soldText("155"), "מעל 150");
+  assert.equal(soldText("1874"), "מעל 1,800");
+  assert.equal(soldText(5230), "מעל 5,200");
+  assert.equal(soldText("987654"), "מעל 980,000");
   for (const bad of ["0", undefined, "x", ""]) assert.equal(soldText(bad), null, String(bad));
 });
 
@@ -89,17 +93,19 @@ test("withinPrice drops ILS products above the cap and ignores the cap for other
   assert.deepEqual(withinPrice([p("40"), p("50"), p("60")], 50).map((x) => x.target_sale_price), ["40", "50"]);
   assert.equal(withinPrice([p("99", "USD")], 50).length, 1);
   assert.equal(withinPrice([p("99")], null).length, 1);
+  assert.deepEqual(withinPrice([p("40"), p("90"), p("160")], 150, 80).map((x) => x.target_sale_price), ["90"], "80–150 range");
+  assert.deepEqual(withinPrice([p("40"), p("90")], null, 80).map((x) => x.target_sale_price), ["90"]);
 });
 
 test("price and discount lines: exact strings, discount only for 5% ≤ discount < 80%", () => {
   const p = (sale, original) => ({ target_sale_price: sale, target_original_price: original, target_sale_price_currency: "ILS" });
   assert.equal(priceLine(p("39.90", "69.90")), "💰 מחיר: <b>₪39.90</b>");
-  assert.equal(discountLine(p("39.90", "69.90")), "🏷️ לפני הנחה: <s>₪69.90</s> 🔥 43%-");
+  assert.equal(discountLine(p("39.90", "69.90")), "🏷️ במקום <s>₪69.90</s> · 43% הנחה 🔥");
   assert.equal(discountLine(p("59.00", "399.00")), null, "≥80% discount: inflated original is not shown");
   assert.equal(discountLine(p("31.70", "33.00")), null, "<5% discount: not shown");
   assert.equal(discountLine(p("24.50", undefined)), null);
   assert.equal(discountLine(p("24.50", "20.00")), null, "original below sale is ignored");
-  assert.equal(discountLine({ sale_price: "9.5", original_price: "19", sale_price_currency: "USD" }), "🏷️ לפני הנחה: <s>USD 19.00</s> 🔥 50%-");
+  assert.equal(discountLine({ sale_price: "9.5", original_price: "19", sale_price_currency: "USD" }), "🏷️ במקום <s>USD 19.00</s> · 50% הנחה 🔥");
   assert.equal(priceLine({}), null);
 });
 
@@ -126,25 +132,25 @@ test("card layout: query header, each detail on its own line, visible link per p
   assert.deepEqual(body.slice(0, 8), [
     "🔎 <b>אוזניות</b>",
     "",
-    "🥇 <b>אוזניות אלחוטיות Baseus Bowie…</b>",
+    "🥇 <b>אוזניות אלחוטיות Baseus Bowie E1…</b>",
     "💰 מחיר: <b>₪39.90</b>",
-    "🏷️ לפני הנחה: <s>₪69.90</s> 🔥 43%-",
+    "🏷️ במקום <s>₪69.90</s> · 43% הנחה 🔥",
     "⭐ דירוג: 4.8 (1,234 ביקורות)",
-    "🛒 נמכרו: 5,200+",
+    "🛒 נמכרו: מעל 5,200",
     "🔗 https://s.click.aliexpress.com/e/_1",
   ]);
   assert.match(body[9], /^🥈 /);
   assert.doesNotMatch(caption, /קישורי שותפים/);
 });
 
-test("card: demo label on the query line only; query escaped and max 30 chars", () => {
-  const { caption } = formatCard([full(1)], { query: "<b>" + "א".repeat(40), demo: true });
+test("card: demo label on the query line only; query escaped and max 45 chars", () => {
+  const { caption } = formatCard([full(1)], { query: "<b>" + "א".repeat(60), demo: true });
   const queryLine = caption.split("\n")[0];
   assert.ok(queryLine.includes("&lt;b&gt;"));
   assert.ok(queryLine.endsWith(" [דמו – תוצאות קבועות]"));
   assert.equal(caption.match(/\[דמו/g).length, 1);
   const shownQuery = queryLine.match(/<b>(.*)<\/b>/)[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-  assert.ok([...shownQuery].length <= 30);
+  assert.ok([...shownQuery].length <= 45);
 });
 
 test("card: missing details drop their own line; ranks 4–5 use keycaps", () => {
@@ -207,4 +213,24 @@ test("help texts: private keeps the full disclosure sentence; group help is one 
   assert.match(HELP, /מצא לי/);
   assert.ok(HELP.includes("מספר המכירות הוא לפי עלי אקספרס, בתקופה האחרונה"));
   assert.equal(GROUP_HELP, `${RLM}🐼 כתבו "חפש לי ..." ואמצא לכם מוצרים. הסבר מלא בפרטי 👈`);
+});
+
+test("dedupe: the same product from several sellers shows once (brand + model, or the same title start)", () => {
+  const t = (product_title) => ({ product_title });
+  const out = dedupeProducts([
+    t("אוזניות גיימינג אלחוטיות BINNUNE BW06 Bluetooth עם מיקרופון"),
+    t("אוזניות משחק אלחוטיות BINNUNE BW06 2.4GHz עם מיקרופון"),
+    t("אוזניות Lenovo XT80 Bluetooth"),
+    t("אוזניות Lenovo XT53 Bluetooth"),
+    t("שטיח אפור כהה מעונב בצביעת טאי דאי, שטיחים שאגי"),
+    t("שטיח אפור כהה מעונב בצביעת טאי דאי, לסלון"),
+    t("אוזניות Bluetooth 5.3 ספורט"),
+  ]).map((p) => p.product_title);
+  assert.deepEqual(out, [
+    "אוזניות גיימינג אלחוטיות BINNUNE BW06 Bluetooth עם מיקרופון",
+    "אוזניות Lenovo XT80 Bluetooth",
+    "אוזניות Lenovo XT53 Bluetooth",
+    "שטיח אפור כהה מעונב בצביעת טאי דאי, שטיחים שאגי",
+    "אוזניות Bluetooth 5.3 ספורט",
+  ]);
 });

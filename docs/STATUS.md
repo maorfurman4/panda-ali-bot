@@ -211,3 +211,13 @@ The owner ran 9 searches in the group. Fixes:
   - eval:search: every requested feature 73% → 84%; right item 89% (the judge now sees photos too); p50 4.1 s → 5.8 s.
 - **Unclear requests:** gibberish gets a clear "לא הבנתי… נסו לכתוב שוב: חפש לי + שם המוצר" reply, and "no results" suggests rewording too. A missing space ("חפש ליהדום") now works, because the AI fixes it to "הדום".
 
+## 3g. Second Telegram round + cost (2026-10-24 afternoon)
+
+- **Cost:** relevance moved to `gpt-6-luna` with photos: $0.0006 per search, was $0.0032 on gpt-5.4-mini, with the same accuracy on the 45-search eval. Understanding stays on `gpt-5.4-nano`, about $0.0002 per new query, cached for 24 h. Most of the spend so far came from eval runs during development.
+- **Clarify/advisor:** named products ("מפיץ ריח איכותי לבית") are searched directly. Options must fit the request. Advisor budgets carry min and max (80–150 ₪ now filters both sides), and the header shows "request · option" instead of a bare "80–150 ₪".
+- **Ages:** "לבנות/לבנים/לילדים" means kids, not babies, in both understanding and relevance.
+- **Bare product names in groups** ("שרוול מרינו מחמם"): if the AI sees a product, the bot replies once with a hint: 'כתבו "חפש לי" ואחריו שם המוצר'. It does this at most once per 10 minutes per user. The cooldown is checked before the AI call, and replies to other messages are ignored.
+- **Card:** titles are the first clause without seller filler ("2022 חדש") and up to 40 characters. "נמכרו: מעל 2,100" replaces "2,100+", which flipped in RTL. Discount reads "במקום ₪x · 50% הנחה 🔥". The same product from several sellers is shown once.
+- **No results:** a warmer message that asks to rephrase.
+- Research and ideas: `docs/IDEAS.md`.
+
