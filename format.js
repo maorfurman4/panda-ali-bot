@@ -185,6 +185,7 @@ export const HELP = rtl([
 
 export const GROUP_HELP = rtl(['🐼 כתבו "חפש לי ..." ואמצא לכם מוצרים. הסבר מלא בפרטי 👈']);
 export const NOT_PRODUCT = rtl(["🤔 לא הבנתי מה לחפש.", 'נסו לכתוב שוב: "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
+export const NOT_ALLOWED = rtl(["🙏 את זה אני לא מחפש בקבוצה.", "אשמח לעזור עם כל מוצר אחר, למשל: חפש לי אוזניות אלחוטיות"]);
 export const SEARCHING = rtl(["🔎 מחפש לכם… רגע ⏳"]);
 export const SEARCH_NOW = "🔎 תחפש כבר";
 export const MORE_LABEL = "🔍 לחפש עוד?";

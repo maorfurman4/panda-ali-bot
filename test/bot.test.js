@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest, isBareName } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, SEARCHING, guideText } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, SEARCHING, guideText } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -48,7 +48,12 @@ test("parseTrigger: start-of-message triggers only", () => {
   assert.equal(parseTrigger("@panda_test_bot", u), "");
   assert.equal(parseTrigger("חפש ליהדום לרגליים", u), "ליהדום לרגליים", "missing space: the AI fixes the rest");
   assert.equal(parseTrigger("חפש לימון", u), "לימון");
-  for (const text of ["תודה @panda_test_bot", "חפש בגוגל", "חפש מטען", "חפש", "חפשתי אתמול", "@panda_test_bot_fake כבל", "מה קורה"]) {
+  assert.equal(parseTrigger("חפשלי מטען", u), "מטען", "no space");
+  assert.equal(parseTrigger("חפס לי מטען", u), "מטען", "ס for ש");
+  assert.equal(parseTrigger("חפש לי, אוזניות", u), "אוזניות");
+  assert.equal(parseTrigger("חפש-לי אוזניות", u), "אוזניות");
+  assert.equal(parseTrigger("חפש לי🎧", u), "🎧");
+  for (const text of ["תודה @panda_test_bot", "חפש בגוגל", "חפש מטען", "חפש", "חפשתי אתמול", "מצאתי לי מטען", "חפשליד", "@panda_test_bot_fake כבל", "מה קורה"]) {
     assert.equal(parseTrigger(text, u), null, text);
   }
 });
@@ -724,4 +729,23 @@ test("🎯/🐼: anyone votes once per card; counts and the 🐼 searches show i
   const report = ctx.sent().at(-1).body;
   assert.match(report, /🎯 בול: 1 · 🐼 לא זה: 1/);
   assert.match(report, /חיפושים שקיבלו 🐼 לא זה[\s\S]*מגפיים לבנות/);
+});
+
+test("not_allowed (weapons, adult, spy cams…): a polite refusal, no search; natural requests and bare names stay silent", async () => {
+  const understand = async () => intent({ status: "not_allowed", keywords_en: "" });
+  const direct = await run("חפש לי מצלמה נסתרת לשירותים", { understand, search: async () => assert.fail("no search") });
+  assert.deepEqual(direct.sent().map((m) => m.body), [NOT_ALLOWED]);
+  for (const text of ["מישהו מכיר סכין קפיצית טובה?", "סכין קפיצית"]) {
+    const { sent } = await run(text, { understand, search: async () => assert.fail("no search") });
+    assert.equal(sent().length, 0, text);
+  }
+});
+
+test("anonymous admin (posts as the group): any member may press their result's buttons", async () => {
+  const ctx = setup({ search: searchSpy([1, 2, 3, 4, 5, 6].map((n) => product(n))).search });
+  const u = textUpdate("חפש לי כבל", { userId: 1087968824 }); // GroupAnonymousBot
+  Object.assign(u.message, { sender_chat: { id: -100123, type: "supergroup", title: "G" }, from: { id: 1087968824, is_bot: true, first_name: "Group", username: "GroupAnonymousBot" } });
+  await ctx.bot.handleUpdate(u);
+  await ctx.bot.handleUpdate(callbackUpdate(button(ctx.sent()[0], "🔍 לחפש עוד?").callback_data, { userId: 55 }));
+  assert.equal(ctx.sent().length, 2);
 });

@@ -20,7 +20,9 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Fix typos and slang. corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות").
 - keywords_en = 2-6 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - fallback_en = a broader English search (drop the least important detail, e.g. pattern or material) used if the first search finds too few, or null.
-- AliExpress does not sell original big-brand products (Zara, H&M, Nike, Adidas, Apple-made devices): for those, search similar unbranded items and leave the brand out of keywords_en ("בגדים של זארה" -> "women fashion clothing"). Compatibility brands stay ("כיסוי לאייפון" -> "iPhone case").
+- AliExpress does not sell original big-brand products (Zara, H&M, Nike, Adidas, Apple-made devices, and perfume, fashion and luxury brands such as Dior, Chanel, Gucci, Louis Vuitton, Rolex): for those, search similar unbranded items and leave the brand out of keywords_en ("בגדים של זארה" -> "women fashion clothing", "בושם של דיור" -> "women perfume long lasting", "שעון רולקס" -> status "ok", "men luxury style watch"). Never search copies or replicas of a brand. Compatibility brands stay ("כיסוי לאייפון" -> "iPhone case").
+- status "not_allowed" for products the group bot must not search: weapons (switchblades "סכין קפיצית", brass knuckles "אגרופן", real or replica guns "אקדח", tasers), drugs, medicines and diet pills ("תרופה להרזיה"), vapes and e-cigarettes, sex and adult products, and hidden cameras or trackers meant to secretly watch or follow a person ("מצלמה נסתרת לשירותים").
+  Allowed (status "ok"): kitchen and chef knives, folding multitools, toy guns ("אקדח מים" -> "water gun toy", "רובה נרף" -> "foam blaster toy"), security and dash cameras, GPS trackers for keys, bags or cars.
 - Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies ("מגפיים לבנות" -> "girls boots kids"); only "לתינוק"/"לתינוקת" means babies.
 - status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"): give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
@@ -35,7 +37,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 const SCHEMA = {
   type: "object",
   properties: {
-    status: { type: "string", enum: ["ok", "clarify", "not_product"] },
+    status: { type: "string", enum: ["ok", "clarify", "not_product", "not_allowed"] },
     corrected_he: { type: "string" },
     keywords_en: { type: "string" },
     min_price_ils: { type: ["number", "null"] },
@@ -68,7 +70,7 @@ export function validateIntent(o) {
   const base = { status, corrected_he: clean(o.corrected_he, 60), keywords_en: clean(o.keywords_en, 100), max_price_ils: max ?? null };
   const min = price(o.min_price_ils);
   if (min && !(max && min >= max)) base.min_price_ils = min; // only when present, so existing callers and tests see the same shape
-  if (status === "not_product") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
+  if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
   if (status === "clarify") {

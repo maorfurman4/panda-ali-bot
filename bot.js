@@ -26,6 +26,7 @@ import {
   EMPTY_QUERY,
   NO_RESULTS,
   NOT_PRODUCT,
+  NOT_ALLOWED,
   SEARCHING,
   guideText,
   SEARCH_ERROR,
@@ -55,9 +56,10 @@ const MORE_TTL_MS = 10 * 60_000;
 const CARD_TTL_MS = 24 * 60 * 60_000; // votes are deduplicated for a day
 const CARDS_MAX = 500;
 const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile text often starts with one
-const TRIGGER = /^\s*(?:ת?חפש|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+לי(?=[\s:]|$)[\s:]*([\s\S]*)$/;
-// A missing space ("חפש ליהדום"): the whole rest goes to the AI, which fixes it (and keeps real words like "לימון").
-const TRIGGER_GLUED = /^\s*(?:ת?חפש|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+(לי[^\s:][\s\S]*)$/;
+// Also common typos: "חפשלי" (no space), "חפס לי" (ס for ש), "חפש לי, ...", "חפש לי🎧".
+const TRIGGER = /^\s*(?:ת?חפ[שס]|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s*-?\s*לי(?![\u05D0-\u05EA])[\s:,]*([\s\S]*)$/;
+// A missing space after "לי" ("חפש ליהדום"): the whole rest goes to the AI, which fixes it (and keeps real words like "לימון").
+const TRIGGER_GLUED = /^\s*(?:ת?חפ[שס]|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+(לי[\u05D0-\u05EA][\s\S]*)$/;
 // Natural shopping phrases that may appear anywhere in a group message. Only these messages are sent to the AI,
 // and the bot answers only if the AI confirms a product request (otherwise it stays silent).
 const SOFT_PHRASES = [
@@ -167,6 +169,10 @@ export function createBot({
   const cards = new Map(); // sent result cards: leftover products for "🔄 עוד" and voters, by short id (same shortcut)
   let cardSeq = 0;
 
+  // Who may press a result's or question's buttons. Anonymous admins post as the group (sender_chat) and press as
+  // themselves, so their requests are open to anyone (null).
+  const requester = (ctx) => (ctx.msg?.sender_chat ? null : ctx.from?.id);
+  const isRequester = (ctx, owner) => owner == null || ctx.from.id === owner;
   const replyParams = (messageId) => ({ reply_parameters: { message_id: messageId, allow_sending_without_reply: true } });
   const replyTo = (ctx) => replyParams(ctx.msg.message_id);
   const reply = (ctx, html, extra = {}) =>
@@ -214,6 +220,7 @@ export function createBot({
     return withTyping(ctx, async () => {
       const intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
       if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
+      if (intent?.status === "not_allowed") return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);
       return showResults(ctx, {
         keywords: intent?.keywords_en || query,
@@ -286,7 +293,7 @@ export function createBot({
     for (const [key, c] of cards) if (now() - c.at > CARD_TTL_MS) cards.delete(key);
     if (cards.size >= CARDS_MAX) cards.delete(cards.keys().next().value);
     const id = (++cardSeq).toString(36);
-    cards.set(id, { userId: ctx.from?.id, header, replyToId, rest, voters: new Set(), at: now() });
+    cards.set(id, { userId: requester(ctx), header, replyToId, rest, voters: new Set(), at: now() });
     const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons });
     const keyboard = [
       [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
@@ -311,7 +318,7 @@ export function createBot({
   function newSession(ctx, request, maxPriceIls = null, minPriceIls = null) {
     for (const [key, e] of pending) if (now() - e.at > CLARIFY_TTL_MS) pending.delete(key);
     const id = (++clarifySeq).toString(36);
-    const session = { id, userId: ctx.from?.id, request, history: [], keywords: null, label: null, maxPriceIls, minPriceIls, replyToId: ctx.msg?.message_id, at: now() };
+    const session = { id, userId: requester(ctx), request, history: [], keywords: null, label: null, maxPriceIls, minPriceIls, replyToId: ctx.msg?.message_id, at: now() };
     pending.set(id, session);
     return session;
   }
@@ -436,7 +443,7 @@ export function createBot({
       pending.delete(id);
       return ctx.answerCallbackQuery({ text: CLARIFY_EXPIRED });
     }
-    if (ctx.from.id !== session.userId) return ctx.answerCallbackQuery({ text: CLARIFY_NOT_YOURS });
+    if (!isRequester(ctx, session.userId)) return ctx.answerCallbackQuery({ text: CLARIFY_NOT_YOURS });
     await ctx.answerCallbackQuery();
     if (session.busy) return; // a double tap while the AI is thinking
     session.busy = true;
@@ -450,7 +457,7 @@ export function createBot({
   bot.callbackQuery(/^m:([0-9a-z]+)$/, async (ctx) => {
     const card = cards.get(ctx.match[1]);
     if (!card || now() - card.at > MORE_TTL_MS || !card.rest.length) return ctx.answerCallbackQuery({ text: NO_MORE });
-    if (ctx.from.id !== card.userId) return ctx.answerCallbackQuery({ text: MORE_NOT_YOURS });
+    if (!isRequester(ctx, card.userId)) return ctx.answerCallbackQuery({ text: MORE_NOT_YOURS });
     await ctx.answerCallbackQuery();
     const next = card.rest.splice(0, ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS); // taken now: a double tap can't resend it
     stats.count("more");

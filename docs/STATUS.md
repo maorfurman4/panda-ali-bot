@@ -228,3 +228,12 @@ The owner ran 9 searches in the group. Fixes:
 - State is in memory (cards map, max 500), like the other shortcuts.
 - **Layout (owner request, same day):** the medal/price buttons are gone, since every product has its visible link. The keyboard is "🎯 בול!" and "🐼 לא זה" side by side, with "🔍 לחפש עוד?" below them on every card. With nothing left, a press answers "אין עוד תוצאות לחיפוש הזה".
 
+## 3i. Edge-case round (2026-10-24 night)
+
+A probe of 38 unusual messages found 4 issues. All fixed:
+- **Trigger typos:** "חפשלי" (no space), "חפס לי", "חפש לי, …", "חפש-לי", "חפש לי🎧" now trigger. "חפשליד" and "מצאתי לי" still don't.
+- **Sensitive items:** new AI status `not_allowed` (owner approved the policy): weapons (switchblade, brass knuckles, guns, tasers), drugs, medicines and diet pills, vapes, adult products, and hidden cameras or trackers for watching people. A direct request gets "🙏 את זה אני לא מחפש בקבוצה". Natural requests and bare names stay silent. Toy guns, chef knives, multitools, security and dash cams, and key trackers are still searched. Limits: if the AI is down, the raw query is searched, and `/advice` doesn't use this check.
+- **Brands:** perfume, fashion and luxury brands (Dior, Chanel, Gucci, LV, Rolex) are searched as similar unbranded items, never copies.
+- **Anonymous admins** (posting as the group): anyone may press their result and advisor buttons, because Telegram hides who wrote the request.
+- eval:query is still 16/16. The understanding prompt is now over 1,024 tokens, so OpenAI's automatic prompt caching applies, and repeated calls cost 10% for that part.
+
