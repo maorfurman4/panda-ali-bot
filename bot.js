@@ -4,7 +4,7 @@ import { Bot, InputFile } from "grammy";
 import { searchProducts, convertToAffiliate, isMockMode } from "./aliexpress.js";
 import { findAliExpressUrl } from "./links.js";
 import { understandQuery, filterRelevant, nextAdvice, explainFit } from "./query.js";
-import { makeCollage } from "./collage.js";
+import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
@@ -114,7 +114,21 @@ export function parseTrigger(text, username) {
 // search -> quality filter (≥90% feedback, price cap) -> AI relevance on the top 24 (real results only, exact before partial)
 // -> ranking (proven sellers first). With fewer than `limit` exact matches a broader fallback search runs (no duplicates).
 // Throws only if both searches fail.
-export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, limit = 4, extra = 0 }) {
+// Same photo (Hamming distance ≤ 6 of 64) = the same product from another seller: keep the first (best-ranked).
+const SAME_PHOTO_MAX_DISTANCE = 6;
+export async function dedupeByPhoto(products, hash) {
+  const hashes = await Promise.all(products.map((p) => hash(p.product_main_image_url).catch(() => null)));
+  const kept = [];
+  return products.filter((_, i) => {
+    const h = hashes[i];
+    const near = (k) => [...h].reduce((d, b, j) => d + (b !== k[j]), 0) <= SAME_PHOTO_MAX_DISTANCE;
+    if (h && kept.some(near)) return false;
+    if (h) kept.push(h);
+    return true;
+  });
+}
+
+export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const find = (q) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls });
   // The broader search starts right away, in parallel (AliExpress calls are free); its AI check runs only if needed. Saves ~2 s.
@@ -146,7 +160,9 @@ export async function pickProducts({ search, relevant, live }, { keywords, fallb
   exact = tag(exact, "exact");
   partial = tag(partial, "partial");
   const tiers = [exact.filter(proven), partial.filter(proven), exact.filter((p) => !proven(p)), partial.filter((p) => !proven(p))];
-  return dedupeProducts(tiers.flatMap(rankProducts)).slice(0, limit + extra);
+  const ranked = dedupeProducts(tiers.flatMap(rankProducts));
+  // Photo check on the candidates that can still be shown (2× the need, so removed repeats get refilled).
+  return (hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : ranked).slice(0, limit + extra);
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.
@@ -176,6 +192,7 @@ export function createBot({
   advise = nextAdvice,
   explain = explainFit,
   collage = makeCollage,
+  hash = photoHash, // tests pass a network-free stub
   stats = defaultStats,
   adminId = process.env.ADMIN_USER_ID, // owner's numeric Telegram id: /status and alerts
   version = process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
@@ -311,7 +328,7 @@ export function createBot({
     stats.count("search");
     let found;
     try {
-      found = await pickProducts({ search, relevant, live: live ?? !isMockMode() }, { keywords, fallback, context, maxPriceIls, minPriceIls, limit, extra: limit * MORE_PAGES });
+      found = await pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, context, maxPriceIls, minPriceIls, limit, extra: limit * MORE_PAGES });
     } catch (e) {
       stats.failure("aliexpress", e.message);
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);

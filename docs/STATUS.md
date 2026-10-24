@@ -291,5 +291,6 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **The AI marks repeats** of the same item from other sellers ("same" groups in the relevance answer); the best-ranked one stays. It works in most runs, not all.
 - **A better broader search:** fallback_en must be a good standalone search ("men casual shirts", never "clothing" alone).
 - **Only what was found:** 3 matching products means exactly 3 on the card, never filled with rejected ones (now locked by a test).
-- **Held for later:** duplicate detection by identical photo (dHash). In a direct test it caught all 4 copies of one UGG boot (distance 0 vs ≥ 24), but one live run still let a copy through. Check once before enabling.
+- **Duplicate detection by identical photo (dHash, on):** sellers of one product reuse the same photo. Distance 0 means the same product; different products measured ≥ 24, and the cutoff is ≤ 6. Focused check on the owner's UGG card: 7 listings -> 4 different ones, and the 3 copies in the screenshot collapsed into one. It runs on the top candidates (2× what can be shown), so the card refills; ~0.5 s, no AI cost.
+- **UGG on AliExpress:** no real UGG-branded boots in the affiliate catalog ("UGG Australia"/"Tasman": 0 results; "Uggs" in titles is mostly cleaning spray, socks and pins). UGG-style boots without the logo are plentiful. Nike, by contrast, has authentic listings.
 

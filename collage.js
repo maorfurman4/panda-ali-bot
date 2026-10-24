@@ -15,6 +15,22 @@ const badge = (n, color) =>
       `</svg>`,
   );
 
+// 64-bit difference hash of a product photo (small 220px thumbnail), or null. Listings of one product by different
+// sellers usually reuse the same photo: distance 0, while different products measured ≥ 24 (UGG boots, 2026-10-25).
+export async function photoHash(url, { fetch = globalThis.fetch } = {}) {
+  if (!/^https:\/\//i.test(url ?? "")) return null;
+  try {
+    const res = await fetch(`${url}_220x220.jpg`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return null;
+    const px = await sharp(Buffer.from(await res.arrayBuffer())).grayscale().resize(9, 8, { fit: "fill" }).raw().toBuffer();
+    let bits = "";
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) bits += px[y * 9 + x] > px[y * 9 + x + 1] ? "1" : "0";
+    return bits;
+  } catch {
+    return null;
+  }
+}
+
 async function loadTile(url, fetch) {
   if (!/^https:\/\//i.test(url ?? "")) return null;
   try {

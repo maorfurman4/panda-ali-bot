@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, isBareName, startsWithSearchVerb } from "../bot.js";
+import { parseTrigger, isSoftRequest, isBareName, startsWithSearchVerb, dedupeByPhoto } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -834,4 +834,14 @@ test("only what was found: 3 matching products -> exactly 3 on the card, never f
   const { sent } = await run("חפש לי משהו", { relevant, live: true });
   assert.equal(shownIds(sent()[0]).length, 3);
   assert.doesNotMatch(sent()[0].caption, /4️⃣/);
+});
+
+test("same photo = same product from another seller: shown once, the best-ranked one, and the card refills", async () => {
+  const bits = (flip) => "0".repeat(64 - flip) + "1".repeat(flip);
+  const photo = { 1: bits(0), 2: bits(3), 3: bits(40), 4: bits(0), 5: bits(20), 6: null };
+  const hash = async (url) => photo[url.match(/img(\d)/)[1]];
+  assert.deepEqual((await dedupeByPhoto(SIX, hash)).map((p) => p.product_title.at(-1)), ["1", "3", "5", "6"], "2 (distance 3) and 4 (0) repeat 1; no photo = kept");
+  const ctx = setup({ search: async () => SIX, hash });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מגפיים"));
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "3", "5", "6"]);
 });
