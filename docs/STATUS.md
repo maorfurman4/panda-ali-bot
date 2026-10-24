@@ -223,7 +223,7 @@ The owner ran 9 searches in the group. Fixes:
 
 ## 3h. More results + votes (2026-10-24)
 
-- **🔄 עוד N תוצאות:** each search keeps up to 8 more checked products (relevance and dedupe already applied). The button sends the next 4 as a new card. No new search and no AI cost. Only the requester can press it, for 10 minutes. The button appears only when products are left.
-- **👍/👎:** anyone can vote, once per card (deduplicated for 24 h). `/status` shows the counts and the last 10 searches that got 👎. Turn those into `eval:search` cases.
+- **🔍 לחפש עוד?** (owner chose the wording): each search keeps up to 8 more checked products (relevance and dedupe already applied). The button sends the next 4 as a new card. No new search and no AI cost. Only the requester can press it, for 10 minutes. The button appears only when products are left.
+- **🎯 בול! / 🙈 לא זה** (our own style instead of thumbs): can vote, once per card (deduplicated for 24 h). `/status` shows the counts and the last 10 searches that got 🙈. Turn those into `eval:search` cases.
 - State is in memory (cards map, max 500), like the other shortcuts.
 

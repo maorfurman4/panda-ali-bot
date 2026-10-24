@@ -31,7 +31,9 @@ import {
   SEARCH_ERROR,
   LINK_ERROR,
   SEARCH_NOW,
-  moreLabel,
+  MORE_LABEL,
+  GOOD_LABEL,
+  BAD_LABEL,
   NO_MORE,
   MORE_NOT_YOURS,
   VOTE_THANKS,
@@ -279,7 +281,7 @@ export function createBot({
     return sendCard(ctx, shown, { header, replyToId, reasons, rest: found.slice(limit) });
   }
 
-  // Photo card (collage) with price buttons, then "🔄 עוד" (when products are left) and 👍/👎.
+  // Photo card (collage) with price buttons, then "לחפש עוד?" (when products are left) and 🎯/🙈, laid out like the price grid.
   async function sendCard(ctx, shown, { header, replyToId, reasons = null, rest = [] }) {
     for (const [key, c] of cards) if (now() - c.at > CARD_TTL_MS) cards.delete(key);
     if (cards.size >= CARDS_MAX) cards.delete(cards.keys().next().value);
@@ -287,11 +289,10 @@ export function createBot({
     cards.set(id, { userId: ctx.from?.id, header, replyToId, rest, voters: new Set(), at: now() });
     const { caption, buttons } = formatCard(shown, { query: header, demo: isMockMode(), reasons });
     const actions = [
-      ...(rest.length ? [{ text: moreLabel(Math.min(rest.length, shown.length)), callback_data: `m:${id}` }] : []),
-      { text: "👍", callback_data: `f:${id}:u` },
-      { text: "👎", callback_data: `f:${id}:d` },
+      ...(rest.length ? [[{ text: MORE_LABEL, callback_data: `m:${id}` }]] : []),
+      [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
     ];
-    const extra = { parse_mode: "HTML", ...replyParams(replyToId), reply_markup: { inline_keyboard: [...buttons, actions] } };
+    const extra = { parse_mode: "HTML", ...replyParams(replyToId), reply_markup: { inline_keyboard: [...buttons, ...actions] } };
     const collageImage = await collage(shown.map((p) => p.product_main_image_url)).catch(() => null);
     const image = collageImage ? new InputFile(collageImage, "panda-results.jpg") : shown[0].product_main_image_url;
     if (collageImage || /^https:\/\//i.test(image ?? "")) {
@@ -407,12 +408,12 @@ export function createBot({
       `🏷️ גרסה: ${esc(version)} · ${isMockMode() ? "דמו" : "אמיתי"} · פעיל ${Math.round((now() - startedAt) / 60_000)} דק'`,
       `🔎 חיפושים: ${n("search")} · ללא תוצאות: ${n("noResults")} · שגיאות עלי אקספרס: ${n("fail:aliexpress")}`,
       `🤖 כשלי AI: ${n("fail:ai")} · כשלי טלגרם: ${n("fail:telegram")}`,
-      `👍 ${n("thumbsUp")} · 👎 ${n("thumbsDown")} · 🔄 עוד תוצאות: ${n("more")}`,
+      `🎯 בול: ${n("thumbsUp")} · 🙈 לא זה: ${n("thumbsDown")} · 🔍 לחפש עוד: ${n("more")}`,
       "",
       "<b>בדיקה חיה</b>",
       ...checks.map(esc),
       ...(errors.length ? ["", "<b>שגיאות אחרונות</b>", ...errors.map(esc)] : []),
-      ...(lists.thumbsDown?.length ? ["", "<b>חיפושים שקיבלו 👎</b>", ...lists.thumbsDown.map((x) => `• ${esc(x.text)}`)] : []),
+      ...(lists.thumbsDown?.length ? ["", "<b>חיפושים שקיבלו 🙈</b>", ...lists.thumbsDown.map((x) => `• ${esc(x.text)}`)] : []),
     ];
     return reply(ctx, lines.map((l) => RLM + l).join("\n"));
   });
@@ -445,7 +446,7 @@ export function createBot({
       session.busy = false;
     }
   });
-  // "🔄 עוד": the next products of the same search, for the requester only.
+  // "לחפש עוד?": the next products of the same search, for the requester only.
   bot.callbackQuery(/^m:([0-9a-z]+)$/, async (ctx) => {
     const card = cards.get(ctx.match[1]);
     if (!card || now() - card.at > MORE_TTL_MS || !card.rest.length) return ctx.answerCallbackQuery({ text: NO_MORE });
@@ -456,7 +457,7 @@ export function createBot({
     return withTyping(ctx, () => sendCard(ctx, next, { header: card.header, replyToId: card.replyToId, rest: card.rest }));
   });
 
-  // 👍/👎 on a card: anyone, once per card. The 👎 searches show up in /status so they can become eval cases.
+  // 🎯/🙈 on a card: anyone, once per card. The 🙈 searches show up in /status so they can become eval cases.
   bot.callbackQuery(/^f:([0-9a-z]+):([ud])$/, (ctx) => {
     const [, id, vote] = ctx.match;
     const card = cards.get(id);

@@ -70,10 +70,10 @@ test("group /search sends ONE photo card: top 4, buttons 2×2, as a reply", asyn
   assert.equal(msg.parse_mode, "HTML");
   assert.ok(msg.reply_parameters.message_id > 0);
   assert.equal(msg.reply_parameters.allow_sending_without_reply, true);
-  const rows = msg.reply_markup.inline_keyboard.slice(0, -1); // the last row is "🔄 עוד" + 👍/👎
+  const rows = msg.reply_markup.inline_keyboard.slice(0, 2); // then "לחפש עוד?" alone, then 🎯/🙈 side by side
   assert.deepEqual(rows.map((r) => r.length), [2, 2]);
   assert.deepEqual(rows.flat().map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00", "4️⃣ ₪14.00"]);
-  assert.deepEqual(msg.reply_markup.inline_keyboard.at(-1).map((b) => b.text).slice(-2), ["👍", "👎"]);
+  assert.deepEqual(msg.reply_markup.inline_keyboard.slice(2).map((r) => r.map((b) => b.text)), [["🔍 לחפש עוד?"], ["🎯 בול!", "🙈 לא זה"]]);
   assert.equal(rows.flat()[0].url, "https://s.click.aliexpress.com/e/_p1");
   assert.match(msg.caption, /4️⃣/);
   assert.doesNotMatch(msg.caption, /5️⃣/);
@@ -85,7 +85,7 @@ test("private search also shows 4 products", async () => {
   const [msg] = sent();
   assert.match(msg.caption, /4️⃣/);
   assert.doesNotMatch(msg.caption, /5️⃣/);
-  assert.deepEqual(msg.reply_markup.inline_keyboard.slice(0, -1).map((r) => r.length), [2, 2]);
+  assert.deepEqual(msg.reply_markup.inline_keyboard.slice(0, 2).map((r) => r.length), [2, 2]);
 });
 
 test("falls back to a text message with the same buttons when sendPhoto fails", async () => {
@@ -672,20 +672,20 @@ test("bare name: silent when the AI sees chit-chat or fails, in private chats (t
   assert.equal(reply.sent().length, 0);
 });
 
-// ---- "🔄 עוד" and 👍/👎 under each card ----
+// ---- "לחפש עוד?" and 🎯/🙈 under each card ----
 import { createStats } from "../stats.js";
 import { NO_MORE, MORE_NOT_YOURS, VOTE_THANKS, VOTED } from "../format.js";
 
-const actionRow = (msg) => msg.reply_markup.inline_keyboard.at(-1);
+const actionRows = (msg) => msg.reply_markup.inline_keyboard.filter((r) => !r[0].url);
 const answers = (calls) => calls.filter((c) => c.method === "answerCallbackQuery").map((c) => c.payload.text);
 
-test('"🔄 עוד" sends the next products of the same search to the requester only, without a new search or AI call', async () => {
+test('"לחפש עוד?" sends the next products of the same search to the requester only, without a new search or AI call', async () => {
   const spy = searchSpy([1, 2, 3, 4, 5, 6, 7].map((n) => product(n)));
   let understood = 0;
   const ctx = setup({ search: spy.search, understand: async () => (understood++, null) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
-  const more = actionRow(ctx.sent()[0])[0];
-  assert.equal(more.text, "🔄 עוד 3 תוצאות");
+  const more = actionRows(ctx.sent()[0])[0][0];
+  assert.equal(more.text, "🔍 לחפש עוד?");
   await ctx.bot.handleUpdate(callbackUpdate(more.callback_data, { userId: 8 }));
   assert.equal(answers(ctx.calls).at(-1), MORE_NOT_YOURS);
   await ctx.bot.handleUpdate(callbackUpdate(more.callback_data, { userId: 7 }));
@@ -694,7 +694,7 @@ test('"🔄 עוד" sends the next products of the same search to the requester 
   assert.match(second.caption, /model 5/);
   assert.match(second.caption, /model 7/);
   assert.doesNotMatch(second.caption, /model 1\b/);
-  assert.deepEqual(actionRow(second).map((b) => b.text), ["👍", "👎"], "nothing left: no more button");
+  assert.deepEqual(actionRows(second).map((r) => r.map((b) => b.text)), [["🎯 בול!", "🙈 לא זה"]], "nothing left: no more button");
   assert.equal(second.reply_parameters.message_id, ctx.sent()[0].reply_parameters.message_id, "replies to the original request");
   assert.deepEqual(spy.queries.length, 1);
   assert.equal(understood, 1);
@@ -705,20 +705,20 @@ test('"🔄 עוד" sends the next products of the same search to the requester 
 
 test("no more button when the search found 4 or fewer products", async () => {
   const { sent } = await run("/search x", { result: [1, 2, 3].map((n) => product(n)) });
-  assert.deepEqual(actionRow(sent()[0]).map((b) => b.text), ["👍", "👎"]);
+  assert.deepEqual(actionRows(sent()[0]).map((r) => r.map((b) => b.text)), [["🎯 בול!", "🙈 לא זה"]]);
 });
 
-test("👍/👎: anyone votes once per card; counts and the 👎 searches show in /status", async () => {
+test("🎯/🙈: anyone votes once per card; counts and the 🙈 searches show in /status", async () => {
   const stats = createStats();
   const ctx = setup({ stats, adminId: "777", healthChecks: async () => [], search: searchSpy().search, understand: async () => ({ status: "ok", corrected_he: "מגפיים לבנות", keywords_en: "girls boots", max_price_ils: null }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מגפיים לבנות"));
-  const [up, down] = actionRow(ctx.sent()[0]).slice(-2).map((b) => b.callback_data);
+  const [up, down] = actionRows(ctx.sent()[0]).at(-1).map((b) => b.callback_data);
   await ctx.bot.handleUpdate(callbackUpdate(up, { userId: 7 }));
   await ctx.bot.handleUpdate(callbackUpdate(down, { userId: 7 }));
   await ctx.bot.handleUpdate(callbackUpdate(down, { userId: 8 }));
   assert.deepEqual(answers(ctx.calls), [VOTE_THANKS, VOTED, VOTE_THANKS]);
   await ctx.bot.handleUpdate(textUpdate("/status", { chat: "private", userId: 777 }));
   const report = ctx.sent().at(-1).body;
-  assert.match(report, /👍 1 · 👎 1/);
-  assert.match(report, /חיפושים שקיבלו 👎[\s\S]*מגפיים לבנות/);
+  assert.match(report, /🎯 בול: 1 · 🙈 לא זה: 1/);
+  assert.match(report, /חיפושים שקיבלו 🙈[\s\S]*מגפיים לבנות/);
 });
