@@ -70,9 +70,10 @@ test("group /search sends ONE photo card: top 4, buttons 2×2, as a reply", asyn
   assert.equal(msg.parse_mode, "HTML");
   assert.ok(msg.reply_parameters.message_id > 0);
   assert.equal(msg.reply_parameters.allow_sending_without_reply, true);
-  const rows = msg.reply_markup.inline_keyboard;
+  const rows = msg.reply_markup.inline_keyboard.slice(0, -1); // the last row is "🔄 עוד" + 👍/👎
   assert.deepEqual(rows.map((r) => r.length), [2, 2]);
   assert.deepEqual(rows.flat().map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00", "4️⃣ ₪14.00"]);
+  assert.deepEqual(msg.reply_markup.inline_keyboard.at(-1).map((b) => b.text).slice(-2), ["👍", "👎"]);
   assert.equal(rows.flat()[0].url, "https://s.click.aliexpress.com/e/_p1");
   assert.match(msg.caption, /4️⃣/);
   assert.doesNotMatch(msg.caption, /5️⃣/);
@@ -84,7 +85,7 @@ test("private search also shows 4 products", async () => {
   const [msg] = sent();
   assert.match(msg.caption, /4️⃣/);
   assert.doesNotMatch(msg.caption, /5️⃣/);
-  assert.deepEqual(msg.reply_markup.inline_keyboard.map((r) => r.length), [2, 2]);
+  assert.deepEqual(msg.reply_markup.inline_keyboard.slice(0, -1).map((r) => r.length), [2, 2]);
 });
 
 test("falls back to a text message with the same buttons when sendPhoto fails", async () => {
@@ -289,7 +290,7 @@ test("not_product: one short reply, no search", async () => {
 
 test("max price: ILS products above the cap are dropped; non-ILS results ignore the cap", async () => {
   const ils = await run("חפש לי אוזניות עד 13 שקל", { understand: async () => intent({ max_price_ils: 13 }) });
-  assert.deepEqual(ils.sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00"]);
+  assert.deepEqual(ils.sent()[0].reply_markup.inline_keyboard.flat().filter((b) => b.url).map((b) => b.text), ["🥇 ₪11.00", "🥈 ₪12.00", "🥉 ₪13.00"]);
   const tooLow = await run("חפש לי אוזניות עד 5 שקל", { understand: async () => intent({ max_price_ils: 5 }) });
   assert.equal(tooLow.sent()[0].body, NO_RESULTS);
   const usd = SIX.map((p) => ({ ...p, target_sale_price_currency: "USD" }));
@@ -484,7 +485,7 @@ test("relevance filter decides which products are shown, using the corrected Heb
   const ctx = setup({ search: async () => SIX, understand: async () => intent(), relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אושניות"));
   assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds" }]);
-  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.text), ["🥇 ₪12.00", "🥈 ₪15.00"]);
+  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard.flat().filter((b) => b.url).map((b) => b.text), ["🥇 ₪12.00", "🥈 ₪15.00"]);
 });
 
 test("relevance filter leaving nothing -> no-results message", async () => {
@@ -580,7 +581,7 @@ test("too few relevant results -> a second, broader search fills up to 4 (no dup
   const ctx = setup({ search, understand: async () => intent({ corrected_he: "כיסוי לאייפד פרחוני", keywords_en: "floral ipad case", fallback_en: "ipad case" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי כיסוי לאייפד פרחוני"));
   assert.deepEqual(queries, ["floral ipad case", "ipad case"]);
-  assert.equal(ctx.sent()[0].reply_markup.inline_keyboard.flat().length, 4);
+  assert.equal(ctx.sent()[0].reply_markup.inline_keyboard.flat().filter((b) => b.url).length, 4);
 });
 
 test("enough relevant results -> no second search", async () => {
@@ -597,8 +598,8 @@ test("results are ranked by sales × positive feedback, best first", async () =>
     product(3, { lastest_volume: "3000", evaluate_rate: "98%" }),
   ];
   const { sent } = await run("/search x", { result: items });
-  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.text.slice(0, 2)), ["🥇", "🥈", "🥉"]);
-  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.url.at(-1)), ["2", "3", "1"]);
+  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().filter((b) => b.url).map((b) => b.text.slice(0, 2)), ["🥇", "🥈", "🥉"]);
+  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().filter((b) => b.url).map((b) => b.url.at(-1)), ["2", "3", "1"]);
 });
 
 test("the relevance check gets the full advisor context, not just the last button", async () => {
@@ -628,7 +629,7 @@ test("exact matches are shown before partial ones, even with fewer sales", async
   const items = [product(1, { lastest_volume: "90000" }), product(2, { lastest_volume: "10" }), product(3, { lastest_volume: "50000" })];
   const relevant = async (_r, p) => ({ exact: [p.find((x) => x.promotion_link.endsWith("_p2"))], partial: p.filter((x) => !x.promotion_link.endsWith("_p2")) });
   const { sent } = await run("/search x", { result: items, relevant, live: true });
-  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.url.at(-1)), ["2", "1", "3"]);
+  assert.deepEqual(sent()[0].reply_markup.inline_keyboard.flat().filter((b) => b.url).map((b) => b.url.at(-1)), ["2", "1", "3"]);
 });
 
 test("fewer than 4 exact matches -> the broader search runs even if partials fill the card", async () => {
@@ -638,7 +639,7 @@ test("fewer than 4 exact matches -> the broader search runs even if partials fil
   const ctx = setup({ search, relevant, live: true, understand: async () => intent({ keywords_en: "primary", fallback_en: "broader" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
   assert.deepEqual(queries, ["primary", "broader"]);
-  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard.flat().map((b) => b.url.at(-1)).slice(0, 2).sort(), ["1", "5"], "both exact matches first");
+  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard.flat().filter((b) => b.url).map((b) => b.url.at(-1)).slice(0, 2).sort(), ["1", "5"], "both exact matches first");
 });
 
 // ---- bare product names in groups: a hint to write "חפש לי ..." ----
@@ -669,4 +670,55 @@ test("bare name: silent when the AI sees chit-chat or fails, in private chats (t
   u.message.reply_to_message = { message_id: 1, date: 0, chat: u.message.chat, text: "x" };
   await reply.bot.handleUpdate(u);
   assert.equal(reply.sent().length, 0);
+});
+
+// ---- "🔄 עוד" and 👍/👎 under each card ----
+import { createStats } from "../stats.js";
+import { NO_MORE, MORE_NOT_YOURS, VOTE_THANKS, VOTED } from "../format.js";
+
+const actionRow = (msg) => msg.reply_markup.inline_keyboard.at(-1);
+const answers = (calls) => calls.filter((c) => c.method === "answerCallbackQuery").map((c) => c.payload.text);
+
+test('"🔄 עוד" sends the next products of the same search to the requester only, without a new search or AI call', async () => {
+  const spy = searchSpy([1, 2, 3, 4, 5, 6, 7].map((n) => product(n)));
+  let understood = 0;
+  const ctx = setup({ search: spy.search, understand: async () => (understood++, null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  const more = actionRow(ctx.sent()[0])[0];
+  assert.equal(more.text, "🔄 עוד 3 תוצאות");
+  await ctx.bot.handleUpdate(callbackUpdate(more.callback_data, { userId: 8 }));
+  assert.equal(answers(ctx.calls).at(-1), MORE_NOT_YOURS);
+  await ctx.bot.handleUpdate(callbackUpdate(more.callback_data, { userId: 7 }));
+  const second = ctx.sent()[1];
+  assert.equal(second.method, "sendPhoto");
+  assert.match(second.caption, /model 5/);
+  assert.match(second.caption, /model 7/);
+  assert.doesNotMatch(second.caption, /model 1\b/);
+  assert.deepEqual(actionRow(second).map((b) => b.text), ["👍", "👎"], "nothing left: no more button");
+  assert.equal(second.reply_parameters.message_id, ctx.sent()[0].reply_parameters.message_id, "replies to the original request");
+  assert.deepEqual(spy.queries.length, 1);
+  assert.equal(understood, 1);
+  await ctx.bot.handleUpdate(callbackUpdate(more.callback_data, { userId: 7 }));
+  assert.equal(answers(ctx.calls).at(-1), NO_MORE);
+  assert.equal(ctx.sent().length, 2);
+});
+
+test("no more button when the search found 4 or fewer products", async () => {
+  const { sent } = await run("/search x", { result: [1, 2, 3].map((n) => product(n)) });
+  assert.deepEqual(actionRow(sent()[0]).map((b) => b.text), ["👍", "👎"]);
+});
+
+test("👍/👎: anyone votes once per card; counts and the 👎 searches show in /status", async () => {
+  const stats = createStats();
+  const ctx = setup({ stats, adminId: "777", healthChecks: async () => [], search: searchSpy().search, understand: async () => ({ status: "ok", corrected_he: "מגפיים לבנות", keywords_en: "girls boots", max_price_ils: null }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מגפיים לבנות"));
+  const [up, down] = actionRow(ctx.sent()[0]).slice(-2).map((b) => b.callback_data);
+  await ctx.bot.handleUpdate(callbackUpdate(up, { userId: 7 }));
+  await ctx.bot.handleUpdate(callbackUpdate(down, { userId: 7 }));
+  await ctx.bot.handleUpdate(callbackUpdate(down, { userId: 8 }));
+  assert.deepEqual(answers(ctx.calls), [VOTE_THANKS, VOTED, VOTE_THANKS]);
+  await ctx.bot.handleUpdate(textUpdate("/status", { chat: "private", userId: 777 }));
+  const report = ctx.sent().at(-1).body;
+  assert.match(report, /👍 1 · 👎 1/);
+  assert.match(report, /חיפושים שקיבלו 👎[\s\S]*מגפיים לבנות/);
 });

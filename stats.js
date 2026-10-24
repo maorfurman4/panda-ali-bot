@@ -10,6 +10,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
   const lastError = {};
   const recent = {};
   const lastAlert = {};
+  const lists = {};
 
   return {
     setNotifier(fn) {
@@ -17,6 +18,10 @@ export function createStats({ now = Date.now, notify = null } = {}) {
     },
     count(name) {
       counters[name] = (counters[name] ?? 0) + 1;
+    },
+    // Keeps the last 10 items of a list (e.g. searches that got 👎), newest first.
+    remember(name, text) {
+      lists[name] = [{ text, at: now() }, ...(lists[name] ?? [])].slice(0, 10);
     },
     // 3 failures of the same kind within 10 minutes alert the owner, at most once an hour per kind.
     failure(kind, detail) {
@@ -29,7 +34,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
         Promise.resolve(notify(`⚠️ תקלה חוזרת בבוט (${kind}): ${detail}\nבדקו /status`)).catch(() => {});
       }
     },
-    snapshot: () => ({ startedAt, counters: { ...counters }, lastError: { ...lastError } }),
+    snapshot: () => ({ startedAt, counters: { ...counters }, lastError: { ...lastError }, lists: structuredClone(lists) }),
   };
 }
 

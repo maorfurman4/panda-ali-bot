@@ -31,6 +31,11 @@ import {
   SEARCH_ERROR,
   LINK_ERROR,
   SEARCH_NOW,
+  moreLabel,
+  NO_MORE,
+  MORE_NOT_YOURS,
+  VOTE_THANKS,
+  VOTED,
   CLARIFY_NOT_YOURS,
   CLARIFY_EXPIRED,
   ADVICE_EXPIRED,
@@ -43,6 +48,10 @@ const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const RELEVANCE_POOL = 24;
+const MORE_PAGES = 2; // up to 2 more cards behind "🔄 עוד", from products already found and checked (no extra AI cost)
+const MORE_TTL_MS = 10 * 60_000;
+const CARD_TTL_MS = 24 * 60 * 60_000; // votes are deduplicated for a day
+const CARDS_MAX = 500;
 const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile text often starts with one
 const TRIGGER = /^\s*(?:ת?חפש|ת?מצא|חפשו|מצאו|חפשי|מצאי)\s+לי(?=[\s:]|$)[\s:]*([\s\S]*)$/;
 // A missing space ("חפש ליהדום"): the whole rest goes to the AI, which fixes it (and keeps real words like "לימון").
@@ -85,7 +94,7 @@ export function parseTrigger(text, username) {
 // The result pipeline, shared by the bot and the search-quality eval:
 // search -> quality filter (≥90% feedback, price cap) -> AI relevance on the top 24 (real results only, exact before partial)
 // -> ranking. With fewer than `limit` exact matches a broader fallback search runs (no duplicates). Throws if the first search fails.
-export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, limit = 4 }) {
+export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const gather = async (q, seen) => {
     const fresh = withinPrice(filterProducts(await search(q)), maxPriceIls, minPriceIls).filter((p) => !seen.has(keyOf(p)));
@@ -105,7 +114,7 @@ export async function pickProducts({ search, relevant, live }, { keywords, fallb
       console.error(`fallback search failed: ${e.message}`); // the first results still show
     }
   }
-  return dedupeProducts([...rankProducts(exact), ...rankProducts(partial)]).slice(0, limit);
+  return dedupeProducts([...rankProducts(exact), ...rankProducts(partial)]).slice(0, limit + extra);
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.
@@ -153,6 +162,8 @@ export function createBot({
   const guidedAt = new Map(); // last "write חפש לי" hint per user (same in-memory shortcut)
   const pending = new Map(); // advisor sessions waiting for a button press, by short id (same shortcut as above)
   let clarifySeq = 0;
+  const cards = new Map(); // sent result cards: leftover products for "🔄 עוד" and voters, by short id (same shortcut)
+  let cardSeq = 0;
 
   const replyParams = (messageId) => ({ reply_parameters: { message_id: messageId, allow_sending_without_reply: true } });
   const replyTo = (ctx) => replyParams(ctx.msg.message_id);
@@ -251,22 +262,36 @@ export function createBot({
   async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, minPriceIls, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
-    let shown;
+    let found;
     try {
-      shown = await pickProducts({ search, relevant, live: live ?? !isMockMode() }, { keywords, fallback, context, maxPriceIls, minPriceIls, limit });
+      found = await pickProducts({ search, relevant, live: live ?? !isMockMode() }, { keywords, fallback, context, maxPriceIls, minPriceIls, limit, extra: limit * MORE_PAGES });
     } catch (e) {
       stats.failure("aliexpress", e.message);
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
       return ctx.reply(SEARCH_ERROR, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
-    if (!shown.length) {
+    if (!found.length) {
       stats.count("noResults");
       return ctx.reply(NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
-
+    const shown = found.slice(0, limit);
     const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice
+    return sendCard(ctx, shown, { header, replyToId, reasons, rest: found.slice(limit) });
+  }
+
+  // Photo card (collage) with price buttons, then "🔄 עוד" (when products are left) and 👍/👎.
+  async function sendCard(ctx, shown, { header, replyToId, reasons = null, rest = [] }) {
+    for (const [key, c] of cards) if (now() - c.at > CARD_TTL_MS) cards.delete(key);
+    if (cards.size >= CARDS_MAX) cards.delete(cards.keys().next().value);
+    const id = (++cardSeq).toString(36);
+    cards.set(id, { userId: ctx.from?.id, header, replyToId, rest, voters: new Set(), at: now() });
     const { caption, buttons } = formatCard(shown, { query: header, demo: isMockMode(), reasons });
-    const extra = { parse_mode: "HTML", ...replyParams(replyToId), ...(buttons.length ? { reply_markup: { inline_keyboard: buttons } } : {}) };
+    const actions = [
+      ...(rest.length ? [{ text: moreLabel(Math.min(rest.length, shown.length)), callback_data: `m:${id}` }] : []),
+      { text: "👍", callback_data: `f:${id}:u` },
+      { text: "👎", callback_data: `f:${id}:d` },
+    ];
+    const extra = { parse_mode: "HTML", ...replyParams(replyToId), reply_markup: { inline_keyboard: [...buttons, actions] } };
     const collageImage = await collage(shown.map((p) => p.product_main_image_url)).catch(() => null);
     const image = collageImage ? new InputFile(collageImage, "panda-results.jpg") : shown[0].product_main_image_url;
     if (collageImage || /^https:\/\//i.test(image ?? "")) {
@@ -373,7 +398,7 @@ export function createBot({
   // Owner-only health report: version, counters, last errors and live checks of the AI and AliExpress.
   bot.command("status", async (ctx) => {
     if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId)) return;
-    const { startedAt, counters, lastError } = stats.snapshot();
+    const { startedAt, counters, lastError, lists } = stats.snapshot();
     const n = (k) => counters[k] ?? 0;
     const errors = Object.entries(lastError).map(([kind, e]) => `• ${kind}: ${e.detail} (לפני ${Math.round((now() - e.at) / 60_000)} דק')`);
     const checks = await withTyping(ctx, () => healthChecks().catch((e) => [`בדיקה חיה נכשלה: ${e.message}`]));
@@ -382,10 +407,12 @@ export function createBot({
       `🏷️ גרסה: ${esc(version)} · ${isMockMode() ? "דמו" : "אמיתי"} · פעיל ${Math.round((now() - startedAt) / 60_000)} דק'`,
       `🔎 חיפושים: ${n("search")} · ללא תוצאות: ${n("noResults")} · שגיאות עלי אקספרס: ${n("fail:aliexpress")}`,
       `🤖 כשלי AI: ${n("fail:ai")} · כשלי טלגרם: ${n("fail:telegram")}`,
+      `👍 ${n("thumbsUp")} · 👎 ${n("thumbsDown")} · 🔄 עוד תוצאות: ${n("more")}`,
       "",
       "<b>בדיקה חיה</b>",
       ...checks.map(esc),
       ...(errors.length ? ["", "<b>שגיאות אחרונות</b>", ...errors.map(esc)] : []),
+      ...(lists.thumbsDown?.length ? ["", "<b>חיפושים שקיבלו 👎</b>", ...lists.thumbsDown.map((x) => `• ${esc(x.text)}`)] : []),
     ];
     return reply(ctx, lines.map((l) => RLM + l).join("\n"));
   });
@@ -417,6 +444,27 @@ export function createBot({
     } finally {
       session.busy = false;
     }
+  });
+  // "🔄 עוד": the next products of the same search, for the requester only.
+  bot.callbackQuery(/^m:([0-9a-z]+)$/, async (ctx) => {
+    const card = cards.get(ctx.match[1]);
+    if (!card || now() - card.at > MORE_TTL_MS || !card.rest.length) return ctx.answerCallbackQuery({ text: NO_MORE });
+    if (ctx.from.id !== card.userId) return ctx.answerCallbackQuery({ text: MORE_NOT_YOURS });
+    await ctx.answerCallbackQuery();
+    const next = card.rest.splice(0, ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS); // taken now: a double tap can't resend it
+    stats.count("more");
+    return withTyping(ctx, () => sendCard(ctx, next, { header: card.header, replyToId: card.replyToId, rest: card.rest }));
+  });
+
+  // 👍/👎 on a card: anyone, once per card. The 👎 searches show up in /status so they can become eval cases.
+  bot.callbackQuery(/^f:([0-9a-z]+):([ud])$/, (ctx) => {
+    const [, id, vote] = ctx.match;
+    const card = cards.get(id);
+    if (card?.voters.has(ctx.from.id)) return ctx.answerCallbackQuery({ text: VOTED });
+    card?.voters.add(ctx.from.id);
+    stats.count(vote === "u" ? "thumbsUp" : "thumbsDown");
+    if (vote === "d" && card) stats.remember("thumbsDown", card.header);
+    return ctx.answerCallbackQuery({ text: VOTE_THANKS });
   });
   bot.on("callback_query:data", (ctx) => ctx.answerCallbackQuery()); // never leave a button spinning
 

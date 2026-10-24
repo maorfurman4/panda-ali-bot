@@ -192,6 +192,11 @@ export const GROUP_HELP = rtl(['🐼 כתבו "חפש לי ..." ואמצא לכ�
 export const NOT_PRODUCT = rtl(["🤔 לא הבנתי מה לחפש.", 'נסו לכתוב שוב: "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
 export const SEARCHING = rtl(["🔎 מחפש לכם… רגע ⏳"]);
 export const SEARCH_NOW = "🔎 תחפש כבר";
+export const moreLabel = (n) => (n === 1 ? "🔄 עוד תוצאה" : `🔄 עוד ${n} תוצאות`);
+export const NO_MORE = "אין עוד תוצאות לחיפוש הזה";
+export const MORE_NOT_YOURS = "רק מי שחיפש יכול לבקש עוד";
+export const VOTE_THANKS = "תודה על המשוב 🙏";
+export const VOTED = "כבר הצבעת, תודה 🙂";
 export const ADVICE_EXPIRED = rtl(["הייעוץ פג. כתבו לי שוב מה אתם מחפשים 🙂"]);
 export const ADVICE_EMPTY = rtl(["על מה להתייעץ? לדוגמה: /advice מתנה לאמא"]);
 export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
