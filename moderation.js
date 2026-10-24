@@ -135,5 +135,5 @@ export function createModeration({ now = Date.now } = {}) {
     if (joins.size > 5000) joins.clear();
   }
 
-  return { middleware, onJoin };
+  return { middleware, onJoin, isAdmin };
 }

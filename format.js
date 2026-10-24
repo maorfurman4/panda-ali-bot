@@ -51,6 +51,11 @@ export function dedupeProducts(products) {
   });
 }
 
+// A spare part / accessory FOR the item rather than the item (robot vacuum bags and brushes), unless parts were asked for.
+const PART_REQUEST = /חלק|חילוף|אביזר|מברש|שקי|מסנן|פילטר|רפיד|מטלי|filter|brush|bag|spare|replacement|accessor/i;
+const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|replacement|אביזר\S*\s+ל|^(?:ל|עבור\s)|^(?:מברשת|מברשות|שקית|שקיות|מסנן|מסננים|פילטר|רפידות|מטלית|מטליות)\s/i;
+export const isPartFor = (title, request = "") => !PART_REQUEST.test(request) && PART_TITLE.test(cleanTitle(title));
+
 export function filterProducts(products) {
   return products.filter((p) => {
     const rate = parseEvaluateRate(p.evaluate_rate);

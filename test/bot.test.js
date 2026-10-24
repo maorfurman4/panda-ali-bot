@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, isBareName, startsWithSearchVerb, dedupeByPhoto } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -669,11 +669,6 @@ test("fewer than 4 exact matches -> the broader search runs even if partials fil
 });
 
 // ---- bare product names in groups: a hint to write "חפש לי ..." ----
-test("isBareName: short Hebrew text without links or mentions", () => {
-  for (const t of ["שרוול מרינו מחמם", "משקפי תלת מימד"]) assert.ok(isBareName(t), t);
-  for (const t of ["wireless earbuds", "מה קורה איתכם היום חברים יקרים שלי", "תראו t.me/x", "@dan מטען", "א".repeat(41)]) assert.ok(!isBareName(t), t);
-});
-
 test("bare product name in a group: one hint with the corrected name, no search; then silent for 10 minutes", async () => {
   let t = 0;
   const seen = [];
@@ -683,19 +678,45 @@ test("bare product name in a group: one hint with the corrected name, no search;
   t += 60_000;
   await ctx.bot.handleUpdate(textUpdate("משקפי תלת מימד"));
   assert.equal(ctx.sent().length, 1, "cooldown: no second hint");
-  assert.equal(seen.length, 1, "cooldown is checked before the AI call");
 });
 
-test("bare name: silent when the AI sees chit-chat or fails, in private chats (they search), and for replies", async () => {
-  for (const understand of [async () => intent({ status: "not_product", keywords_en: "" }), async () => null]) {
-    const { sent } = await run("בוקר טוב לכולם", { understand });
-    assert.equal(sent().length, 0);
-  }
+test("an unrelated group message gets the off-topic warning (owner request: no silence); AI down -> silent", async () => {
+  const chat = await run("בוקר טוב לכולם", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  assert.deepEqual(chat.sent().map((m) => m.body), [OFF_TOPIC]);
+  const down = await run("בוקר טוב לכולם", { understand: async () => null });
+  assert.equal(down.sent().length, 0);
+});
+
+test("no warning for admins (their posts and deals), shared links, or replies; both hint kinds used up -> no AI call", async () => {
+  const notProduct = async () => intent({ status: "not_product", keywords_en: "" });
+  const admin = setup({ admins: [7], understand: notProduct });
+  await admin.bot.handleUpdate(textUpdate("דיל חדש בקבוצה! שווה לבדוק"));
+  assert.equal(admin.sent().length, 0);
+  const link = setup({ understand: async () => assert.fail("no AI for links") });
+  await link.bot.handleUpdate(textUpdate("תראו את זה https://he.aliexpress.com/item/123.html"));
+  assert.equal(link.sent().length, 0);
   const reply = setup({ understand: async () => assert.fail("no AI for replies") });
-  const u = textUpdate("משקפי תלת מימד");
+  const u = textUpdate("כן מסכים איתך");
   u.message.reply_to_message = { message_id: 1, date: 0, chat: u.message.chat, text: "x" };
   await reply.bot.handleUpdate(u);
   assert.equal(reply.sent().length, 0);
+  let t = 0, calls = 0;
+  const both = setup({ now: () => t, understand: async (q) => (calls++, q === "a" ? intent({ corrected_he: "x" }) : notProduct()) });
+  await both.bot.handleUpdate(textUpdate("a"));
+  await both.bot.handleUpdate(textUpdate("בוקר טוב"));
+  t += 60_000;
+  await both.bot.handleUpdate(textUpdate("עוד הודעה"));
+  assert.equal(calls, 2, "both kinds used: the third message costs nothing");
+});
+
+test("a reply that says 'חפש לי' or asks naturally is searched (owner request)", async () => {
+  for (const text of ["חפש לי אוזניות", "מישהו מכיר אוזניות טובות?"]) {
+    const ctx = setup({ search: searchSpy().search, understand: async () => intent() });
+    const u = textUpdate(text);
+    u.message.reply_to_message = { message_id: 1, date: 0, chat: u.message.chat, text: "x" };
+    await ctx.bot.handleUpdate(u);
+    assert.equal(ctx.sent()[0].method, "sendPhoto", text);
+  }
 });
 
 // ---- 🎯/🐼 and "לחפש עוד?" under each card ----
@@ -844,4 +865,14 @@ test("same photo = same product from another seller: shown once, the best-ranked
   const ctx = setup({ search: async () => SIX, hash });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מגפיים"));
   assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "3", "5", "6"]);
+});
+
+test("hint limits are per kind: a bare-name hint doesn't block an off-topic warning a minute later", async () => {
+  let t = 0;
+  const understand = async (q) => (q.includes("עבודה") ? intent({ status: "not_product", keywords_en: "" }) : intent({ corrected_he: "משקפי שמש" }));
+  const ctx = setup({ now: () => t, understand, search: async () => assert.fail("no search") });
+  await ctx.bot.handleUpdate(textUpdate("משקפי שמש מקוטבים"));
+  t += 60_000;
+  await ctx.bot.handleUpdate(textUpdate("מחפש עבודה בתל אביב"));
+  assert.deepEqual(ctx.sent().map((m) => m.body), [guideText("משקפי שמש"), OFF_TOPIC]);
 });

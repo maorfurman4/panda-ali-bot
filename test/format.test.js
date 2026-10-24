@@ -14,6 +14,7 @@ import {
   parsedLength,
   withinPrice,
   dedupeProducts,
+  isPartFor,
   esc,
   RLM,
   DISCLOSURE,
@@ -221,4 +222,14 @@ test("dedupe: the same product from several sellers shows once (brand + model, o
     "אוזניות Bluetooth 5.3 ספורט",
     "2025 – מגפי פלטפורמה קלאסיות חדשות לנשים",
   ]);
+});
+
+test("isPartFor: spare parts for the item are spotted, unless the shopper asked for parts; the item itself and cases are fine", () => {
+  const req = "שואב אבק רובוטי";
+  for (const t of ["חלקי חילוף לשואב אבק רובוטי Dreame X40", "אביזרים לשואב אבק רובוטי JONR P20", "אביזרים לשקי אבק רובוטיים Roborock",
+    "שקיות חלופיות לשואב אבק רובוטי Dreame", "לרובוט השואב אבק Xiaomi X20 תיק אבק", "עבור xiaomi רובוט ואקום s20 חלקים",
+    "מברשת צדית ראשית, מטלית, מסנן Hepa"]) assert.ok(isPartFor(t, req), t);
+  for (const t of ["רובוט שואב אבק wd8, תרסיס מים כפול", "רובוט ניקוי חכם לשאיבה וסטאטוס"]) assert.ok(!isPartFor(t, req), t);
+  assert.ok(!isPartFor("חלקי חילוף למברשות גליליות", "מברשות לשואב אבק רובוטי"), "parts were asked for");
+  assert.ok(!isPartFor("כיסוי שקוף לאייפון 15 פרו", "כיסוי לאייפון 15"));
 });

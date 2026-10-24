@@ -288,9 +288,20 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 ## 3m. Honest cards (2026-10-25, owner approved)
 
 - **"לא מצאתי התאמה מדויקת, אלה הכי קרובים 👇"** under the header when no shown product is an exact match (e.g. Zara, which AliExpress doesn't carry).
-- **The AI marks repeats** of the same item from other sellers ("same" groups in the relevance answer); the best-ranked one stays. It works in most runs, not all.
+- ~~AI-marked repeats ("same" groups)~~ removed the same night: the model merged different products that merely look alike (smartwatches, robot vacuums), and a robot-vacuum search came out empty. The deterministic photo check covers repeats.
 - **A better broader search:** fallback_en must be a good standalone search ("men casual shirts", never "clothing" alone).
 - **Only what was found:** 3 matching products means exactly 3 on the card, never filled with rejected ones (now locked by a test).
 - **Duplicate detection by identical photo (dHash, on):** sellers of one product reuse the same photo. Distance 0 means the same product; different products measured ≥ 24, and the cutoff is ≤ 6. Focused check on the owner's UGG card: 7 listings -> 4 different ones, and the 3 copies in the screenshot collapsed into one. It runs on the top candidates (2× what can be shown), so the card refills; ~0.5 s, no AI cost.
 - **UGG on AliExpress:** no real UGG-branded boots in the affiliate catalog ("UGG Australia"/"Tasman": 0 results; "Uggs" in titles is mostly cleaning spray, socks and pins). UGG-style boots without the logo are plentiful. Nike, by contrast, has authentic listings.
+
+## 3n. Step 3 fixes (2026-10-25, ~01:00)
+
+- **Spare parts:** a robot-vacuum search showed bags and brushes. The model kept them as "partial" despite the rule, and also when asked as a separate question. Now a deterministic title check (`isPartFor`) drops parts for the item, unless the shopper asked for parts: "חלקי חילוף", "חלופי", "אביזרים ל…", titles starting with "ל…"/"עבור…" or with a part noun (brush/bag/filter/pads/mop cloth). Phone cases are unaffected. Limit: AliExpress's top robot-vacuum results are mostly parts, so only 1-2 real robots may show (only what was found).
+- **No silence on unrelated messages (owner request):** any other group message is classified by the AI. A product gets the "write חפש לי" hint (or a search if the AI fixed a mistyped command). Something unrelated gets the off-topic warning. Exempt:
+  - Admins (their posts and deals).
+  - Messages with links (shared deals).
+  - Replies.
+  - The AI being down.
+
+  Each hint kind is limited to once per 10 minutes per user, checked before the AI call. A reply that says "חפש לי" or asks naturally is still searched (locked by a test).
 

@@ -84,12 +84,6 @@ const SOFT_PHRASES = [
 const SOFT = new RegExp(`(?:^|[\\s,.!?"'(])(?:${SOFT_PHRASES.join("|")})(?=$|[\\s,.!?])`);
 const SOFT_MAX_LENGTH = 200;
 
-// A bare product name in a group ("שרוול מרינו מחמם"): short, Hebrew, no link or mention. The AI confirms before any reply.
-const BARE_MAX_LENGTH = 40;
-export const isBareName = (text) => {
-  const t = text.replace(BIDI_MARKS, "").trim();
-  return t.length <= BARE_MAX_LENGTH && t.split(/\s+/).length <= 5 && /[\u05D0-\u05EA]/.test(t) && !/https?:|www\.|t\.me|@/i.test(t);
-};
 const GUIDE_COOLDOWN_MS = 10 * 60_000;
 // Backup for the AI's "not_allowed" when the AI is unavailable: the most obvious Hebrew/English words only.
 const BLOCKED_WORDS = /סכין קפיצית|אגרופן|טייזר|ויברטור|דילדו|סיגרי(?:ה|ות) אלקטרוני|וייפ|מצלמ(?:ה|ת) (?:נסתרת|ריגול)|switchblade|brass knuckles|taser|vibrator|dildo|\bvape\b|hidden camera|spy cam/i;
@@ -278,10 +272,10 @@ export function createBot({
     });
   }
 
-  // At most one hint (bare name / off-topic) per user per 10 minutes. Checked before any AI call: saves cost.
-  const hintAllowed = (ctx) => !coolingDown(ctx) && !(now() - (guidedAt.get(ctx.from.id) ?? -Infinity) < GUIDE_COOLDOWN_MS);
-  function hint(ctx, html) {
-    guidedAt.set(ctx.from.id, now());
+  // At most one hint of each kind (bare name / off-topic) per user per 10 minutes. Checked before any AI call: saves cost.
+  const hintAllowed = (ctx, kind) => !coolingDown(ctx) && !(now() - (guidedAt.get(`${kind}:${ctx.from.id}`) ?? -Infinity) < GUIDE_COOLDOWN_MS);
+  function hint(ctx, kind, html) {
+    guidedAt.set(`${kind}:${ctx.from.id}`, now());
     if (guidedAt.size > 1000) for (const [id, at] of guidedAt) if (now() - at > GUIDE_COOLDOWN_MS) guidedAt.delete(id);
     return reply(ctx, html);
   }
@@ -291,7 +285,7 @@ export function createBot({
   async function runSoftSearch(ctx, text, { warn = true } = {}) {
     if (coolingDown(ctx)) return;
     const intent = await understand(text).catch(() => null);
-    if (warn && intent?.status === "not_product" && hintAllowed(ctx)) return hint(ctx, OFF_TOPIC);
+    if (warn && intent?.status === "not_product" && hintAllowed(ctx, "offTopic")) return hint(ctx, "offTopic", OFF_TOPIC);
     if (intent?.status !== "ok" && intent?.status !== "clarify") return;
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
@@ -300,15 +294,22 @@ export function createBot({
     );
   }
 
-  // A bare product name: a one-line hint to write "חפש לי ...", at most once per 10 minutes per user, only if the AI sees a product.
-  async function guideBareName(ctx, text) {
-    if (!hintAllowed(ctx)) return;
+  // Any other group message (owner request: no silence). A product -> the hint to write "חפש לי ..." (or a search when the
+  // AI fixed a mistyped command); something unrelated -> the off-topic warning, except from admins (their posts and deals).
+  // Each kind at most once per 10 minutes per user, checked before the AI call.
+  async function guideOrWarn(ctx, text) {
+    if (!hintAllowed(ctx, "bare") && !hintAllowed(ctx, "offTopic")) return;
     const intent = await understand(text).catch(() => null);
-    if (intent?.status !== "ok") return;
+    if (intent?.status === "not_product") {
+      if (!hintAllowed(ctx, "offTopic") || (await moderation.isAdmin(ctx, ctx.from.id))) return;
+      return hint(ctx, "offTopic", OFF_TOPIC);
+    }
+    if (intent?.status !== "ok" && intent?.status !== "clarify") return; // AI down or not_allowed: silent
+    if (!hintAllowed(ctx, "bare")) return;
     // The AI fixed a mistyped command ("החפש לי אוזניות" -> "חפש לי אוזניות"): search it instead of hinting.
     const fixed = parseTrigger(intent.corrected_he ?? "", ctx.me.username);
     if (fixed) return runSearch(ctx, fixed);
-    return hint(ctx, guideText(intent.corrected_he || text));
+    return hint(ctx, "bare", guideText(intent.corrected_he || text));
   }
 
   // Search -> quality filter (≥90% feedback, price cap) -> AI relevance (real results only) -> ranking.
@@ -549,7 +550,9 @@ export function createBot({
     if (isPrivate) return runSearch(ctx, text);
     if (isSoftRequest(text)) return runSoftSearch(ctx, text);
     if (startsWithSearchVerb(text)) return runSoftSearch(ctx, text, { warn: false }); // "חפש מטען": searched if the AI sees a product
-    if (!ctx.msg.reply_to_message && isBareName(text)) return guideBareName(ctx, text); // replies are conversation, not requests
+    // Replies are conversation (a reply with "חפש לי" or a natural request was already handled above); shared links are deals.
+    if (ctx.msg.reply_to_message || /https?:\/\/|www\.|t\.me\//i.test(text) || text.length > SOFT_MAX_LENGTH) return;
+    return guideOrWarn(ctx, text);
   });
 
   bot.catch((err) => console.error(`update ${err.ctx.update.update_id} failed: ${err.error?.message ?? err.error}`));
