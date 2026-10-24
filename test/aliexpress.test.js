@@ -70,6 +70,10 @@ test("apiCall throws (never returns empty) when the retry also fails or on other
   await assert.rejects(apiCall("m", {}, { fetch: invalid, env: LIVE_ENV, sleep: noSleep }), /invalid-parameter/);
   assert.equal(m, 1, "no retry for non-transient errors");
 
+  let k = 0;
+  const glitch = async () => (++k === 1 ? json({ resp_result: { resp_code: "404", resp_msg: "System Error" } }) : json({ resp_result: { resp_code: "200", result: { ok: 1 } } }));
+  assert.deepEqual(await apiCall("m", {}, { fetch: glitch, env: LIVE_ENV, sleep: noSleep }), { ok: 1 }, "a 'System Error' is retried once");
+
   const badResp = async () => json({ resp_result: { resp_code: "405", resp_msg: "TrackingId input parameter error" } });
   await assert.rejects(apiCall("m", {}, { fetch: badResp, env: LIVE_ENV, sleep: noSleep }), /TrackingId/);
 });

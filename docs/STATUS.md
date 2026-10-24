@@ -270,3 +270,18 @@ A probe of 38 unusual messages found 4 issues. All fixed:
   - Titles lose a leading "–".
   - The dedupe key ignores seller filler, so "2025 – מגפי…" and "2026 – מגפי…" are the same product.
 
+## 3l. Max-accuracy round (2026-10-24/25 night): measured, not guessed
+
+- **English vs Hebrew titles for the AI check:** same 15 hard searches, same products, same judge. Hebrew 53/55, English 52/55, so no gain: the photos carry the signal. Kept Hebrew, and removed the experiment.
+- **Chinese keywords:** the affiliate search returns unrelated items (a medicine bag for "星巴克杯子"). English keywords stay.
+- **The "lottery" in results:** the same request + the same 24 products, 4 runs each.
+  - gpt-6-luna averaged 4.4 s and often hit the 5 s timeout, and a timeout shows UNFILTERED results. That was the junk (pajamas for Zara, slippers for UGG).
+  - With low reasoning effort, both luna and mini got slower still and timed out.
+  - **gpt-5.4-mini (no reasoning): 1.5 s, no timeouts, the most consistent. Now the relevance model** (~$0.003 per search).
+- **Short searches:** AliExpress returns 0 for long queries ("merino arm warmers thumb holes"). keywords_en is now 2-4 words, and fallback_en is the core item ("arm warmers"). Examples were fixed: "שרוול מחמם" means arm warmers, "נעליים של UGG" means UGG boots.
+- **Brands:** never drop an item for lacking the brand, and merchandise of a namesake person ("Zara Larsson" tees) isn't the brand.
+- **Proven first:** products with ≥10 sales lead the card (exact, then partial), and unknown listings only fill in after them.
+- **AliExpress glitches:** "resp_code 404: System Error" (seen once, gone on retry) and 5xx are retried once. If the main search still fails, the broader search's results are shown instead of an error.
+- Dry run of 8 hard group messages after this round: 31/32 right item (was 10/20 in the luna run).
+- Full eval:search with an independent, stricter judge (gpt-5.4): 87% right item, **81% every feature** (best so far), 0/45 with fewer than 4 results, p50 6.2 s, $0.003 per search.
+

@@ -162,7 +162,7 @@ test("relevance: sends only the request, numbered titles and photos; splits exac
   const out = await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "משענת לאוטו", en: "car headrest pillow" }, withPhoto);
   assert.deepEqual(ids(out), { exact: ["0", "3"], partial: ["2"] });
   const body = api.requests[0].body;
-  assert.equal(body.model, "gpt-6-luna", "same accuracy as gpt-5.4-mini with photos, 5× cheaper (eval 2026-10-24)");
+  assert.equal(body.model, "gpt-5.4-mini", "gpt-6-luna timed out often (unfiltered results) on 2026-10-24 night; mini was fastest and most consistent");
   assert.deepEqual(body.reasoning, { effort: "none" });
   assert.equal(body.store, false);
   assert.equal(body.text.format.strict, true);

@@ -798,3 +798,24 @@ test("a short message the AI corrects into a command ('החפש לי…' typos) 
   assert.ok(!sent().some((m) => /כתבו "חפש לי"/.test(m.body ?? "")));
   assert.deepEqual(seen, ["חהפש ךי אוזניות אלחוטיות", "אוזניות אלחוטיות"]);
 });
+
+test("the main search failing still shows the broader search's results; both failing shows the error", async () => {
+  const search = async (q) => (q === "primary" ? Promise.reject(new Error("AliExpress glitch")) : SIX);
+  const ok = setup({ search, understand: async () => intent({ keywords_en: "primary", fallback_en: "broader" }) });
+  await ok.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  assert.equal(ok.sent()[0].method, "sendPhoto");
+  const both = setup({ search: async () => Promise.reject(new Error("down")), understand: async () => intent({ keywords_en: "primary", fallback_en: "broader" }) });
+  const err = console.error;
+  console.error = () => {}; // the expected failure log
+  await both.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  console.error = err;
+  assert.equal(both.sent()[0].body, SEARCH_ERROR);
+});
+
+test("proven products (≥10 sold) lead the card; unknown listings only fill in after them", async () => {
+  const items = [product(1, { lastest_volume: "0" }), product(2, { lastest_volume: "3" }), product(3, { lastest_volume: "500" }), product(4, { lastest_volume: "40" }), product(5, { lastest_volume: "12" })];
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => /_p(1|2|3)$/.test(x.promotion_link)), partial: p.filter((x) => /_p(4|5)$/.test(x.promotion_link)) });
+  const ctx = setup({ search: async () => items, relevant, live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "4", "5", "2"], "proven exact, proven partial, then the best unknown exact");
+});

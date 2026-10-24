@@ -20,7 +20,8 @@ export function sign(params, secret) {
 }
 
 const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const isTransient = (status, err) => status === 401 || /ApiCallLimit|frequency exceeds/i.test(`${err.code} ${err.msg ?? err.message}`);
+// Retried once: rate limit, a stale signature (401), server errors, and "resp_code 404: System Error" (seen live 2026-10-24, gone on retry).
+const isTransient = (status, err) => status === 401 || status >= 500 || /ApiCallLimit|frequency exceeds|System Error/i.test(`${err.code} ${err.msg ?? err.message}`);
 
 async function callOnce(method, params, { fetch, env, now }) {
   const all = { app_key: env.ALI_APP_KEY, method, timestamp: String(now()), sign_method: "sha256", simplify: "true", ...params };

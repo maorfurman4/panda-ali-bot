@@ -52,6 +52,7 @@ const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const RELEVANCE_POOL = 24;
+const PROVEN_SALES = 10;
 const MORE_PAGES = 2; // up to 2 more cards behind "🔄 עוד", from products already found and checked (no extra AI cost)
 const MORE_TTL_MS = 10 * 60_000;
 const CARD_TTL_MS = 24 * 60 * 60_000; // votes are deduplicated for a day
@@ -111,7 +112,8 @@ export function parseTrigger(text, username) {
 
 // The result pipeline, shared by the bot and the search-quality eval:
 // search -> quality filter (≥90% feedback, price cap) -> AI relevance on the top 24 (real results only, exact before partial)
-// -> ranking. With fewer than `limit` exact matches a broader fallback search runs (no duplicates). Throws if the first search fails.
+// -> ranking (proven sellers first). With fewer than `limit` exact matches a broader fallback search runs (no duplicates).
+// Throws only if both searches fail.
 export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const find = (q) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls });
@@ -126,7 +128,8 @@ export async function pickProducts({ search, relevant, live }, { keywords, fallb
     const out = await relevant({ he: context, en: keywords }, top).catch(() => ({ exact: top, partial: [] }));
     return Array.isArray(out) ? { exact: out, partial: [] } : out;
   };
-  let { exact, partial } = await gather(first, new Set());
+  // The main search failing (an AliExpress glitch) doesn't fail the request while the broader one works.
+  let { exact, partial } = await gather(early ? first.catch((e) => early.then(() => [], () => Promise.reject(e))) : first, new Set());
   // Fewer than `limit` exact matches: a broader search may find more, before partial matches fill the card.
   if (exact.length < limit && early) {
     try {
@@ -137,7 +140,10 @@ export async function pickProducts({ search, relevant, live }, { keywords, fallb
       console.error(`fallback search failed: ${e.message}`); // the first results still show
     }
   }
-  return dedupeProducts([...rankProducts(exact), ...rankProducts(partial)]).slice(0, limit + extra);
+  // Proven products (≥10 sold) first, so a card isn't led by unknown listings; within each, exact before partial.
+  const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES;
+  const tiers = [exact.filter(proven), partial.filter(proven), exact.filter((p) => !proven(p)), partial.filter((p) => !proven(p))];
+  return dedupeProducts(tiers.flatMap(rankProducts)).slice(0, limit + extra);
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.
