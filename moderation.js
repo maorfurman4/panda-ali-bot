@@ -73,7 +73,7 @@ export function createModeration({ now = Date.now } = {}) {
     return null;
   }
 
-  async function punish(ctx, key, reason) {
+  async function punish(ctx, key, reason, channel = null) {
     try {
       await ctx.deleteMessage();
     } catch (e) {
@@ -82,7 +82,7 @@ export function createModeration({ now = Date.now } = {}) {
     recent.delete(key);
     const prev = strikes.get(key);
     const count = (prev && now() - prev.at < STRIKE_TTL_MS ? prev.count : 0) + 1;
-    const name = esc(ctx.from.first_name || "משתמש");
+    const name = esc(channel?.title || ctx.from.first_name || "משתמש");
     console.log(`chat ${ctx.chat.id}: moderation deleted a message (strike ${count})`);
     if (count <= 2) {
       strikes.set(key, { count, at: now() });
@@ -90,6 +90,10 @@ export function createModeration({ now = Date.now } = {}) {
     }
     strikes.delete(key);
     try {
+      if (channel) {
+        await ctx.banChatSenderChat(channel.id); // that channel identity can't post here anymore; the person still can
+        return say(ctx, `🚫 ${name} נחסם/ה בקבוצה אחרי 2 אזהרות.`);
+      }
       await ctx.banChatMember(ctx.from.id);
       await ctx.unbanChatMember(ctx.from.id, { only_if_banned: true }); // kick, not a permanent ban
     } catch (e) {
@@ -101,13 +105,15 @@ export function createModeration({ now = Date.now } = {}) {
   async function middleware(ctx, next) {
     const msg = ctx.message;
     const type = ctx.chat?.type;
-    if (!msg || (type !== "group" && type !== "supergroup") || msg.new_chat_members || msg.sender_chat || !ctx.from || ctx.from.is_bot) return next();
-    const key = `${ctx.chat.id}:${ctx.from.id}`;
+    // A member posting as one of their channels (not the group's own anonymous admins, not the linked channel's posts).
+    const channel = msg?.sender_chat?.type === "channel" && !msg.is_automatic_forward ? msg.sender_chat : null;
+    if (!msg || (type !== "group" && type !== "supergroup") || msg.new_chat_members || (msg.sender_chat && !channel) || !ctx.from || (ctx.from.is_bot && !channel)) return next();
+    const key = channel ? `${ctx.chat.id}:c${channel.id}` : `${ctx.chat.id}:${ctx.from.id}`;
     const t = now();
-    const newMember = joins.has(key) && t - joins.get(key) < NEW_MEMBER_MS;
+    const newMember = Boolean(channel) || (joins.has(key) && t - joins.get(key) < NEW_MEMBER_MS); // a channel identity gets the new-member link rules
     const reason = spamReason(msg, { newMember }) ?? burstReason(key, msg, t);
-    if (!reason || (await isAdmin(ctx, ctx.from.id))) return next();
-    return punish(ctx, key, reason);
+    if (!reason || (!channel && (await isAdmin(ctx, ctx.from.id)))) return next();
+    return punish(ctx, key, reason, channel);
   }
 
   async function onJoin(ctx) {

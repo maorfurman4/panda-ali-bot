@@ -111,6 +111,11 @@ test("searchProducts live: requests IL/ILS/HE sorted by orders and reads both pr
   assert.equal(sent.target_language, "HE");
   assert.equal(sent.sort, "LAST_VOLUME_DESC");
   assert.equal(sent.tracking_id, "panda_bot");
+  assert.equal(sent.min_sale_price, undefined, "no range: no price params");
+
+  await searchProducts("earbuds", { fetch, env: LIVE_ENV, minIls: 80, maxIls: 150.5 });
+  assert.equal(sent.min_sale_price, "8000", "shekels -> agorot");
+  assert.equal(sent.max_sale_price, "15050");
 
   const wrapped = async () => json({ resp_result: { resp_code: 200, result: { products: { product: [{ product_id: "2" }] } } } });
   assert.deepEqual(await searchProducts("x", { fetch: wrapped, env: LIVE_ENV }), [{ product_id: "2" }]);

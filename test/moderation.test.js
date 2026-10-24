@@ -93,3 +93,29 @@ test("short repeated chatter (חחח, תודה, 👍) is never treated as spam",
   for (const text of ["חחח", "חחח", "חחח", "תודה", "תודה", "תודה"]) { t += 3000; await ctx.bot.handleUpdate(textUpdate(text, { userId: 9 })); }
   assert.equal(ctx.calls.filter((c) => c.method === "deleteMessage").length, 0);
 });
+
+const asChannel = (text, channelId = -1009) => {
+  const u = textUpdate(text);
+  Object.assign(u.message, { sender_chat: { id: channelId, type: "channel", title: "Deals Spam" }, from: { id: 136817688, is_bot: true, first_name: "Channel" } });
+  return u;
+};
+
+test("posting as a channel doesn't bypass spam rules: delete + warnings, then that channel identity is blocked", async () => {
+  const ctx = setup({ admins: [] });
+  for (let i = 0; i < 3; i++) await ctx.bot.handleUpdate(asChannel(`מבצע ${i} www.cheap-deals.xyz`));
+  assert.equal(ctx.calls.filter((c) => c.method === "deleteMessage").length, 3);
+  assert.equal(ctx.calls.find((c) => c.method === "banChatSenderChat").payload.sender_chat_id, -1009);
+  assert.ok(!ctx.calls.some((c) => c.method === "banChatMember"), "the person behind it isn't kicked");
+  assert.match(ctx.sent()[0].body, /Deals Spam/);
+});
+
+test("the group's anonymous admins and the linked channel's posts are not moderated", async () => {
+  const ctx = setup({ admins: [] });
+  const anon = textUpdate("t.me/some_channel");
+  Object.assign(anon.message, { sender_chat: { id: -100123, type: "supergroup", title: "G" }, from: { id: 1087968824, is_bot: true, first_name: "Group" } });
+  await ctx.bot.handleUpdate(anon);
+  const linked = asChannel("t.me/some_channel");
+  linked.message.is_automatic_forward = true;
+  await ctx.bot.handleUpdate(linked);
+  assert.equal(ctx.calls.filter((c) => c.method === "deleteMessage").length, 0);
+});

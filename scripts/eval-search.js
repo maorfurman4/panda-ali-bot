@@ -21,7 +21,7 @@ const meter = (model) => ({ input_tokens, output_tokens }) => {
   cost += (input_tokens * pin + output_tokens * pout) / 1e6;
 };
 const understand = createUnderstander({ onUsage: meter(process.env.OPENAI_MODEL || "gpt-5.4-nano") });
-const filterRelevant = createRelevanceFilter({ onUsage: meter(process.env.OPENAI_RELEVANCE_MODEL || "gpt-5.4-mini") });
+const filterRelevant = createRelevanceFilter({ onUsage: meter(process.env.OPENAI_RELEVANCE_MODEL || "gpt-6-luna") });
 
 const QUERIES = [
   // earlier weak spots

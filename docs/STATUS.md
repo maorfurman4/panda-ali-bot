@@ -237,3 +237,20 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Anonymous admins** (posting as the group): anyone may press their result and advisor buttons, because Telegram hides who wrote the request.
 - eval:query is still 16/16. The understanding prompt is now over 1,024 tokens, so OpenAI's automatic prompt caching applies, and repeated calls cost 10% for that part.
 
+## 3j. Brands, off-topic, advisor accuracy, limitations (2026-10-24 late)
+
+- **Brands (owner decision):** a requested brand stays in the search ("נייקי אייר מקס" -> "Nike Air Max"; AliExpress has real Nike listings). Items showing the brand are exact, others partial. fallback_en = the same item without the brand (Dior returns nothing, so the fallback fills in).
+- **Off-topic natural requests** ("מחפש עבודה", "יש המלצה על רופא?"): a warning-style hint, "🐼 שימו לב: הקבוצה מיועדת למוצרים ודילים מעלי אקספרס…". It shares a once-per-10-minutes-per-user limit with the bare-name hint. Plain chat stays silent, and the AI is called only for messages that were already sent to it.
+- **Advisor accuracy:** new `npm run eval:advice` plays out 10 advisor conversations. Before: 4/10 ended with no results. After: 0/10, and the price range was kept in 10/10. Fixes:
+  - The price range is passed to AliExpress itself (`min_sale_price`/`max_sale_price` in agorot; verified live: 40/50 in range vs 0).
+  - Advisor keywords are shorter (2-4 words, no budget words).
+  - The first answer's search is the broader fallback.
+- **Limitations closed:**
+  - Members posting as their own channel are now moderated: the message is deleted with warnings, and the third time that channel identity is blocked (`banChatSenderChat`).
+  - Sensitive items are refused through `/advice`, and through a backup word list when the AI is down.
+- **Still open (owner decisions):**
+  - Cold start and memory reset when the free server sleeps.
+  - The `a.aliexpress.com` short link (to test with a real link from the app).
+- **Speed:** the broader (fallback) search now starts in parallel with the first search. Only its AI check waits. This saves ~2 s whenever the fallback is needed, at no AI cost. Stage timings measured: understanding ~1.2 s, AliExpress ~2.2 s, relevance ~2 s.
+- eval:search after this round (judge gpt-5.4-mini): 95% right item, 77% every feature (was 94% / 75%). The eval's cost label was fixed: it had priced luna calls at mini rates.
+

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest, isBareName } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, SEARCHING, guideText } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -364,7 +364,7 @@ test("advisor (private): a choice asks the next question in the same message, th
 
   await press(ctx, next[1]);
   assert.deepEqual(ctx.sessions[1].history.map((h) => h.a), ["תכשיט", "עד 150 ₪"]);
-  assert.deepEqual(ctx.spy.queries, ["silver necklace"]);
+  assert.deepEqual(ctx.spy.queries, ["silver necklace", "women necklace"], "the first answer's search is the broader fallback");
   const card = ctx.sent().at(-1);
   assert.equal(card.method, "sendPhoto");
   assert.match(card.caption, /💡 סיבה 1/);
@@ -526,8 +526,19 @@ test("natural request in a group: the AI reads the sentence, keywords are search
   assert.equal(sent()[0].method, "sendPhoto");
 });
 
-test("natural request the AI rejects (not a product, or AI unavailable) stays silent", async () => {
-  for (const understand of [async () => intent({ status: "not_product", keywords_en: "" }), async () => null, async () => { throw new Error("x"); }]) {
+test("natural request for something that isn't a product: one warning-style hint per 10 minutes, no search", async () => {
+  let t = 0;
+  const spy = searchSpy();
+  const ctx = setup({ now: () => t, search: spy.search, understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  await ctx.bot.handleUpdate(textUpdate("אני מחפש עבודה בתל אביב"));
+  t += 60_000;
+  await ctx.bot.handleUpdate(textUpdate("יש המלצה על רופא שיניים?"));
+  assert.deepEqual(ctx.sent().map((m) => m.body), [OFF_TOPIC]);
+  assert.deepEqual(spy.queries, []);
+});
+
+test("natural request when the AI is unavailable stays silent", async () => {
+  for (const understand of [async () => null, async () => { throw new Error("x"); }]) {
     const { calls, queries } = await run("אני מחפש עבודה בתל אביב", { understand });
     assert.deepEqual(queries, []);
     assert.equal(calls.filter((c) => c.method.startsWith("send")).length, 0);
@@ -551,7 +562,7 @@ test("a rejected natural request does not start a cooldown", async () => {
   const ctx = setup({ search: searchSpy().search, understand });
   await ctx.bot.handleUpdate(textUpdate("אני מחפש עבודה", { userId: 1 }));
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 1 }));
-  assert.equal(ctx.sent()[0].method, "sendPhoto", "the explicit search right after still runs");
+  assert.equal(ctx.sent().at(-1).method, "sendPhoto", "the explicit search right after still runs");
 });
 
 test("natural request that needs clarifying shows the question", async () => {
@@ -567,7 +578,7 @@ test("private chat and help text are unaffected / mention natural phrases", asyn
 
 
 test("'typing…' is refreshed while a slow search runs, and stops after the reply", async () => {
-  const slow = async () => (await new Promise((r) => setTimeout(r, 250)), SIX);
+  const slow = async () => (await new Promise((r) => setTimeout(r, 400)), SIX); // generous: the suite runs files in parallel
   const ctx = setup({ search: slow, typingEveryMs: 20 });
   await ctx.bot.handleUpdate(textUpdate("/search x"));
   const typing = () => ctx.calls.filter((c) => c.method === "sendChatAction" && c.payload.action === "typing").length;
@@ -589,11 +600,15 @@ test("too few relevant results -> a second, broader search fills up to 4 (no dup
   assert.equal(shownIds(ctx.sent()[0]).length, 4);
 });
 
-test("enough relevant results -> no second search", async () => {
+test("enough relevant results -> the early broader search is never AI-checked or shown", async () => {
   const queries = [];
-  const ctx = setup({ search: async (q) => (queries.push(q), SIX), understand: async () => intent({ fallback_en: "earphones" }) });
+  const checked = [];
+  const relevant = async (r, p) => (checked.push(r.en), { exact: p, partial: [] });
+  const ctx = setup({ search: async (q) => (queries.push(q), q === "earphones" ? [product(9)] : SIX), relevant, live: true, understand: async () => intent({ fallback_en: "earphones" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
-  assert.deepEqual(queries, ["wireless earbuds"]);
+  assert.deepEqual(queries, ["wireless earbuds", "earphones"], "both start together (saves ~2 s when the fallback is needed)");
+  assert.deepEqual(checked, ["wireless earbuds"], "one AI check only");
+  assert.ok(!shownIds(ctx.sent()[0]).includes("9"));
 });
 
 test("results are ranked by sales × positive feedback, best first", async () => {
@@ -748,4 +763,13 @@ test("anonymous admin (posts as the group): any member may press their result's 
   await ctx.bot.handleUpdate(u);
   await ctx.bot.handleUpdate(callbackUpdate(button(ctx.sent()[0], "🔍 לחפש עוד?").callback_data, { userId: 55 }));
   assert.equal(ctx.sent().length, 2);
+});
+
+test("sensitive items are refused even when the AI is down, and through /advice too", async () => {
+  const down = await run("חפש לי סכין קפיצית", { understand: async () => null, search: async () => assert.fail("no search") });
+  assert.deepEqual(down.sent().map((m) => m.body), [NOT_ALLOWED]);
+  const fine = await run("חפש לי סכין שף", { understand: async () => null });
+  assert.equal(fine.sent()[0].method, "sendPhoto", "ordinary items still search when the AI is down");
+  const advice = await run("/advice מצלמה נסתרת", { understand: async () => intent({ status: "not_allowed", keywords_en: "" }), advise: async () => assert.fail("no advisor") }, { chat: "private" });
+  assert.deepEqual(advice.sent().map((m) => m.body), [NOT_ALLOWED]);
 });

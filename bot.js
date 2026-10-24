@@ -27,6 +27,7 @@ import {
   NO_RESULTS,
   NOT_PRODUCT,
   NOT_ALLOWED,
+  OFF_TOPIC,
   SEARCHING,
   guideText,
   SEARCH_ERROR,
@@ -79,6 +80,9 @@ export const isBareName = (text) => {
   return t.length <= BARE_MAX_LENGTH && t.split(/\s+/).length <= 5 && /[\u05D0-\u05EA]/.test(t) && !/https?:|www\.|t\.me|@/i.test(t);
 };
 const GUIDE_COOLDOWN_MS = 10 * 60_000;
+// Backup for the AI's "not_allowed" when the AI is unavailable: the most obvious Hebrew/English words only.
+const BLOCKED_WORDS = /סכין קפיצית|אגרופן|טייזר|ויברטור|דילדו|סיגרי(?:ה|ות) אלקטרוני|וייפ|מצלמ(?:ה|ת) (?:נסתרת|ריגול)|switchblade|brass knuckles|taser|vibrator|dildo|\bvape\b|hidden camera|spy cam/i;
+const isBlocked = (intent, text) => intent?.status === "not_allowed" || (!intent && BLOCKED_WORDS.test(text));
 
 export const isSoftRequest = (text) => text.length <= SOFT_MAX_LENGTH && SOFT.test(text.replace(BIDI_MARKS, ""));
 
@@ -100,18 +104,23 @@ export function parseTrigger(text, username) {
 // -> ranking. With fewer than `limit` exact matches a broader fallback search runs (no duplicates). Throws if the first search fails.
 export async function pickProducts({ search, relevant, live }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
-  const gather = async (q, seen) => {
-    const fresh = withinPrice(filterProducts(await search(q)), maxPriceIls, minPriceIls).filter((p) => !seen.has(keyOf(p)));
+  const find = (q) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls });
+  // The broader search starts right away, in parallel (AliExpress calls are free); its AI check runs only if needed. Saves ~2 s.
+  const first = find(keywords);
+  const early = fallback && fallback !== keywords ? find(fallback) : null;
+  early?.catch(() => {}); // handled below; never an unhandled rejection
+  const gather = async (found, seen) => {
+    const fresh = withinPrice(filterProducts(await found), maxPriceIls, minPriceIls).filter((p) => !seen.has(keyOf(p)));
     if (!live) return { exact: fresh, partial: [] };
     const top = rankProducts(fresh).slice(0, RELEVANCE_POOL); // fewer titles = a faster, steadier AI check
-    const out = await relevant({ he: context, en: q }, top).catch(() => ({ exact: top, partial: [] }));
+    const out = await relevant({ he: context, en: keywords }, top).catch(() => ({ exact: top, partial: [] }));
     return Array.isArray(out) ? { exact: out, partial: [] } : out;
   };
-  let { exact, partial } = await gather(keywords, new Set());
+  let { exact, partial } = await gather(first, new Set());
   // Fewer than `limit` exact matches: a broader search may find more, before partial matches fill the card.
-  if (exact.length < limit && fallback && fallback !== keywords) {
+  if (exact.length < limit && early) {
     try {
-      const more = await gather(fallback, new Set([...exact, ...partial].map(keyOf)));
+      const more = await gather(early, new Set([...exact, ...partial].map(keyOf)));
       exact = exact.concat(more.exact);
       partial = partial.concat(more.partial);
     } catch (e) {
@@ -220,7 +229,7 @@ export function createBot({
     return withTyping(ctx, async () => {
       const intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
       if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
-      if (intent?.status === "not_allowed") return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
+      if (isBlocked(intent, query)) return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);
       return showResults(ctx, {
         keywords: intent?.keywords_en || query,
@@ -233,10 +242,20 @@ export function createBot({
     });
   }
 
-  // A natural group request ("מישהו מכיר מטען טוב?"): silent unless the AI confirms a product request.
+  // At most one hint (bare name / off-topic) per user per 10 minutes. Checked before any AI call: saves cost.
+  const hintAllowed = (ctx) => !coolingDown(ctx) && !(now() - (guidedAt.get(ctx.from.id) ?? -Infinity) < GUIDE_COOLDOWN_MS);
+  function hint(ctx, html) {
+    guidedAt.set(ctx.from.id, now());
+    if (guidedAt.size > 1000) for (const [id, at] of guidedAt) if (now() - at > GUIDE_COOLDOWN_MS) guidedAt.delete(id);
+    return reply(ctx, html);
+  }
+
+  // A natural group request ("מישהו מכיר מטען טוב?"): searched when the AI confirms a product request. A request for
+  // something that isn't a product ("מחפש עבודה", "יש המלצה על רופא?") gets a warning-style hint; other cases stay silent.
   async function runSoftSearch(ctx, text) {
     if (coolingDown(ctx)) return;
     const intent = await understand(text).catch(() => null);
+    if (intent?.status === "not_product" && hintAllowed(ctx)) return hint(ctx, OFF_TOPIC);
     if (intent?.status !== "ok" && intent?.status !== "clarify") return;
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
@@ -247,13 +266,9 @@ export function createBot({
 
   // A bare product name: a one-line hint to write "חפש לי ...", at most once per 10 minutes per user, only if the AI sees a product.
   async function guideBareName(ctx, text) {
-    const last = guidedAt.get(ctx.from.id);
-    if (coolingDown(ctx) || (last !== undefined && now() - last < GUIDE_COOLDOWN_MS)) return; // checked before the AI call: saves cost
+    if (!hintAllowed(ctx)) return;
     const intent = await understand(text).catch(() => null);
-    if (intent?.status !== "ok") return;
-    guidedAt.set(ctx.from.id, now());
-    if (guidedAt.size > 1000) for (const [id, at] of guidedAt) if (now() - at > GUIDE_COOLDOWN_MS) guidedAt.delete(id);
-    return reply(ctx, guideText(intent.corrected_he || text));
+    if (intent?.status === "ok") return hint(ctx, guideText(intent.corrected_he || text));
   }
 
   // Search -> quality filter (≥90% feedback, price cap) -> AI relevance (real results only) -> ranking.
@@ -344,6 +359,7 @@ export function createBot({
     const option = session.options?.[n];
     if (!option) return;
     session.history.push({ q: session.question, a: option.label_he });
+    session.broad ??= option.keywords_en; // the first answer's search: the broader fallback if the final one finds too few
     Object.assign(session, { keywords: option.keywords_en, label: option.label_he, maxPriceIls: option.max_price_ils ?? session.maxPriceIls, minPriceIls: option.min_price_ils ?? session.minPriceIls });
     if (session.history.length < MAX_QUESTIONS) {
       const step = await withTyping(ctx, () => advise({ request: session.request, history: session.history }).catch(() => null));
@@ -360,7 +376,7 @@ export function createBot({
     const advice = session.history.length ? { request: session.request, history: session.history } : null;
     const context = advice ? `${session.request} (${session.history.map((h) => h.a).join(", ")})` : session.request;
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: session.keywords ?? session.request, header, context, maxPriceIls: session.maxPriceIls, minPriceIls: session.minPriceIls, replyToId: session.replyToId, advice }),
+      showResults(ctx, { keywords: session.keywords ?? session.request, fallback: session.broad, header, context, maxPriceIls: session.maxPriceIls, minPriceIls: session.minPriceIls, replyToId: session.replyToId, advice }),
     );
   }
 
@@ -428,6 +444,7 @@ export function createBot({
     const request = ctx.match.trim();
     if (!request) return reply(ctx, ADVICE_EMPTY);
     if (!(await allow(ctx))) return;
+    if (isBlocked(await understand(request).catch(() => null), request)) return reply(ctx, NOT_ALLOWED); // cached; same policy as searches
     const step = await withTyping(ctx, () => advise({ request, history: [] }).catch(() => null));
     if (step?.status === "ask") return showQuestion(ctx, newSession(ctx, request), step.question_he, step.options);
     return withTyping(ctx, () =>
