@@ -285,3 +285,11 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - Dry run of 8 hard group messages after this round: 31/32 right item (was 10/20 in the luna run).
 - Full eval:search with an independent, stricter judge (gpt-5.4): 87% right item, **81% every feature** (best so far), 0/45 with fewer than 4 results, p50 6.2 s, $0.003 per search.
 
+## 3m. Honest cards (2026-10-25, owner approved)
+
+- **"לא מצאתי התאמה מדויקת, אלה הכי קרובים 👇"** under the header when no shown product is an exact match (e.g. Zara, which AliExpress doesn't carry).
+- **The AI marks repeats** of the same item from other sellers ("same" groups in the relevance answer); the best-ranked one stays. It works in most runs, not all.
+- **A better broader search:** fallback_en must be a good standalone search ("men casual shirts", never "clothing" alone).
+- **Only what was found:** 3 matching products means exactly 3 on the card, never filled with rejected ones (now locked by a test).
+- **Held for later:** duplicate detection by identical photo (dHash). In a direct test it caught all 4 copies of one UGG boot (distance 0 vs ≥ 24), but one live run still let a copy through. Check once before enabling.
+

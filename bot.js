@@ -142,6 +142,9 @@ export async function pickProducts({ search, relevant, live }, { keywords, fallb
   }
   // Proven products (≥10 sold) first, so a card isn't led by unknown listings; within each, exact before partial.
   const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES;
+  const tag = (list, match) => list.map((p) => ({ ...p, match })); // the card says so when nothing shown is an exact match
+  exact = tag(exact, "exact");
+  partial = tag(partial, "partial");
   const tiers = [exact.filter(proven), partial.filter(proven), exact.filter((p) => !proven(p)), partial.filter((p) => !proven(p))];
   return dedupeProducts(tiers.flatMap(rankProducts)).slice(0, limit + extra);
 }
@@ -329,7 +332,8 @@ export function createBot({
     if (cards.size >= CARDS_MAX) cards.delete(cards.keys().next().value);
     const id = (++cardSeq).toString(36);
     cards.set(id, { userId: requester(ctx), header, replyToId, rest, voters: new Set(), at: now() });
-    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons });
+    const closest = !shown.some((p) => p.match !== "partial"); // e.g. a brand AliExpress doesn't carry
+    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest });
     const keyboard = [
       [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
       [{ text: MORE_LABEL, callback_data: `m:${id}` }], // nothing left -> the press answers "אין עוד תוצאות"

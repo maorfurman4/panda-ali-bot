@@ -115,8 +115,10 @@ export function discountLine(p) {
   return `🏷️ במקום <s>${esc(formatPrice(original, p.target_sale_price_currency ?? p.sale_price_currency))}</s> · ${discount}% הנחה 🔥`;
 }
 
-function buildCard(products, query, demo, reasons) {
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`];
+export const CLOSEST_NOTE = "לא מצאתי התאמה מדויקת, אלה הכי קרובים 👇";
+
+function buildCard(products, query, demo, reasons, closest) {
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [CLOSEST_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
@@ -138,10 +140,10 @@ function buildCard(products, query, demo, reasons) {
 }
 
 // Result card for up to 5 products; drops trailing products until the caption fits Telegram's limit.
-export function formatCard(products, { query, demo = false, reasons = null }) {
+export function formatCard(products, { query, demo = false, reasons = null, closest = false }) {
   let n = Math.min(products.length, MEDALS.length);
   let card;
-  do card = buildCard(products.slice(0, n--), query, demo, reasons);
+  do card = buildCard(products.slice(0, n--), query, demo, reasons, closest);
   while (n > 0 && parsedLength(card.caption) > CAPTION_MAX);
   return card;
 }

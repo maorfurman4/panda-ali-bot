@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest, isBareName, startsWithSearchVerb } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -818,4 +818,20 @@ test("proven products (≥10 sold) lead the card; unknown listings only fill in 
   const ctx = setup({ search: async () => items, relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
   assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "4", "5", "2"], "proven exact, proven partial, then the best unknown exact");
+});
+
+test("only close (partial) matches -> the card says so under the header; any exact match -> no note", async () => {
+  const partialOnly = setup({ search: async () => SIX, relevant: async (_r, p) => ({ exact: [], partial: p }), live: true });
+  await partialOnly.bot.handleUpdate(textUpdate("חפש לי בגדים של זארה"));
+  assert.equal(partialOnly.sent()[0].caption.split("\n")[1], RLM + CLOSEST_NOTE);
+  const mixed = setup({ search: async () => SIX, relevant: async (_r, p) => ({ exact: p.slice(0, 1), partial: p.slice(1) }), live: true });
+  await mixed.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  assert.ok(!mixed.sent()[0].caption.includes(CLOSEST_NOTE));
+});
+
+test("only what was found: 3 matching products -> exactly 3 on the card, never filled with rejected ones", async () => {
+  const relevant = async (_r, p) => ({ exact: p.slice(0, 2), partial: p.slice(2, 3) });
+  const { sent } = await run("חפש לי משהו", { relevant, live: true });
+  assert.equal(shownIds(sent()[0]).length, 3);
+  assert.doesNotMatch(sent()[0].caption, /4️⃣/);
 });

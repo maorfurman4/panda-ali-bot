@@ -177,6 +177,12 @@ test("relevance: sends only the request, numbered titles and photos; splits exac
   ] }]);
 });
 
+test("relevance: the same item from several sellers ('same' groups) is kept once, the best-ranked (first) one", async () => {
+  const api = openai({ exact: [0, 1, 3], partial: [2], same: [[3, 1], [2]] });
+  const out = await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "x", en: "y" }, items);
+  assert.deepEqual(ids(out), { exact: ["0", "1"], partial: ["2"] });
+});
+
 test("relevance: a failed photo call retries once with titles only", async () => {
   const good = openaiRelevant([1]);
   const requests = [];
