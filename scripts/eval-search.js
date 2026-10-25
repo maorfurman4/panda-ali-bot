@@ -56,7 +56,7 @@ for (const q of QUERIES) {
   }
   const shown = await pickProducts(
     { search: searchProducts, relevant: filterRelevant, live: true },
-    { keywords: intent.keywords_en, fallback: intent.fallback_en, context: intent.corrected_he, maxPriceIls: intent.max_price_ils, limit: 4 },
+    { keywords: intent.keywords_en, fallback: intent.fallback_en, context: intent.corrected_he, maxPriceIls: intent.max_price_ils, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils, limit: 4 },
   ).catch(() => []);
   const s = ((Date.now() - t) / 1000).toFixed(1);
   judgeFailed = false;

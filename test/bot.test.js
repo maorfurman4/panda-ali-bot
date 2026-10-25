@@ -876,3 +876,12 @@ test("hint limits are per kind: a bare-name hint doesn't block an off-topic warn
   await ctx.bot.handleUpdate(textUpdate("מחפש עבודה בתל אביב"));
   assert.deepEqual(ctx.sent().map((m) => m.body), [guideText("משקפי שמש"), OFF_TOPIC]);
 });
+
+test("the AI's price floor (big-ticket items) filters the search; if it finds nothing, the search reruns without it", async () => {
+  const seen = [];
+  const search = async (q, o) => (seen.push(o.minIls ?? null), o.minIls ? [] : SIX);
+  const ctx = setup({ search, understand: async () => intent({ keywords_en: "robot vacuum", floor_price_ils: 200 }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שואב אבק רובוטי"));
+  assert.deepEqual(seen, [200, null]);
+  assert.equal(ctx.sent()[0].method, "sendPhoto");
+});

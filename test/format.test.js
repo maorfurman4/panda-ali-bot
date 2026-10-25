@@ -60,6 +60,7 @@ test("title: first clause without seller filler, max 40 chars, cut at a word bou
   assert.equal(shortTitle("מנורת קריאה תלויה לצוואר - נטענת USB"), "מנורת קריאה תלויה לצוואר");
   assert.equal(shortTitle("נעלי נשים, מגפי פליז"), "נעלי נשים, מגפי פליז", "too-short first clause keeps the rest");
   assert.equal(shortTitle("2026 – מגפי פלטפורמה קלאסיות חדשות לנשים"), "מגפי פלטפורמה קלאסיות חדשות לנשים", "no leading dash");
+  assert.equal(shortTitle("(קוד קופון:  HOT888) רובוט שואב אבק wd8, תרסיס מים"), "רובוט שואב אבק wd8", "no unverifiable coupon codes");
   const oneWord = shortTitle("x".repeat(60));
   assert.equal([...oneWord].length, 40);
   assert.ok(oneWord.endsWith("…"));

@@ -7,7 +7,9 @@ const TITLE_MAX = 40; // photo captions are only as wide as the photo
 const QUERY_MAX = 45;
 // Seller filler at the start of machine-translated titles ("2022 חדש", "NEW", "1 יחידה").
 const TITLE_JUNK = /^(?:(?:20\d\d|new|חדש(?:ה|ים|ות)?|hot|1\s*(?:יחידה|יחידות|pcs?)|מקורי(?:ת)?|לשנת)[\s,:-]*)+/i;
-const cleanTitle = (title) => oneLine(title).replace(TITLE_JUNK, "").replace(/^[\s\-–—|,.:;*•]+/, ""); // also a leading "–"
+// Also drops a leading "–" and seller coupon codes ("(קוד קופון: HOT888)"), which we can't verify.
+const cleanTitle = (title) =>
+  oneLine(title).replace(/\([^)]*(?:קופון|coupon|code)[^)]*\)/gi, "").trim().replace(TITLE_JUNK, "").replace(/^[\s\-–—|,.:;*•]+/, "");
 const CAPTION_MAX = 1024; // Telegram photo caption limit, counted after HTML parsing
 const MEDALS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
 const GROUP_URL = process.env.GROUP_URL || "https://t.me/panda_deals_il"; // shown under "🐼 פנדה אקספרס" at the end of each result

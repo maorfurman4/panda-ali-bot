@@ -27,6 +27,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies ("מגפיים לבנות" -> "girls boots kids"); only "לתינוק"/"לתינוקת" means babies.
 - status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"): give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
+- floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "סלסלה לפיקניק" -> 60); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
 - min_price_ils / max_price_ils = numbers only when the request states a shekel range or limit ("עד 50 שקל" -> max 50, "בין 80 ל-150" -> min 80, max 150), otherwise null.
 - The request may be a whole chat sentence (e.g. "מישהו מכיר מטען טוב לרכב?"): extract only the product into corrected_he/keywords_en.
 - If the text starts with a mistyped search command ("החפש לי", "חהפש ךי", "מצה לי"), start corrected_he with the fixed command "חפש לי" followed by the product.
@@ -45,6 +46,7 @@ const SCHEMA = {
     keywords_en: { type: "string" },
     min_price_ils: { type: ["number", "null"] },
     max_price_ils: { type: ["number", "null"] },
+    floor_price_ils: { type: ["number", "null"] },
     fallback_en: { type: ["string", "null"] },
     clarify_question_he: { type: ["string", "null"] },
     options: {
@@ -57,7 +59,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "fallback_en", "clarify_question_he", "options"],
+  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "fallback_en", "clarify_question_he", "options"],
   additionalProperties: false,
 };
 
@@ -73,6 +75,8 @@ export function validateIntent(o) {
   const base = { status, corrected_he: clean(o.corrected_he, 60), keywords_en: clean(o.keywords_en, 100), max_price_ils: max ?? null };
   const min = price(o.min_price_ils);
   if (min && !(max && min >= max)) base.min_price_ils = min; // only when present, so existing callers and tests see the same shape
+  const floor = price(o.floor_price_ils);
+  if (floor && !min && !(max && floor >= max)) base.floor_price_ils = floor; // the shopper's own price always wins
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
@@ -157,7 +161,8 @@ const RELEVANCE_MODEL = "gpt-5.4-mini";
 
 const RELEVANCE_SYSTEM = `You check AliExpress search results for an Israeli shopper.
 You get the request (Hebrew, with English search keywords) and numbered products: a title (often machine-translated Hebrew)
-and, usually, the product photo. Use both; the photo shows the item type, color, pattern and who it is for.
+and, usually, the product photo. Use both; the photo shows the item type, color, pattern and who it is for. When the photo shows a different item than the
+title claims (a window-cleaning robot titled "robot vacuum"), trust the photo.
 Sort the products into two lists:
 - exact: it IS the requested item type AND matches every feature the request names: color, size or weight, material,
   pattern, gender, use ("for work", "for kids", "gaming"), "with microphone", "wireless", "waterproof", "thick", "windproof", "silent".

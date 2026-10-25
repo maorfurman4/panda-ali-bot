@@ -305,3 +305,12 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 
   Each hint kind is limited to once per 10 minutes per user, checked before the AI call. A reply that says "חפש לי" or asks naturally is still searched (locked by a test).
 
+## 3o. Catalog bias fixes (2026-10-25 morning, owner approved)
+
+- **Diagnosis:** the server was awake (/health 0.5 s); the 6-9 s wait is the search itself. Typos: 20/20 right on 5 misspelled searches. The real problem is that AliExpress's best-sellers skew cheap: 42/49 "robot vacuum" results are spare parts, and "picnic basket" returns mostly flower baskets. Sellers also mislabel (a WD8 window robot titled "robot vacuum") and put coupon codes in titles.
+- **A: AI price floor** (`floor_price_ils`) for big-ticket items whose cheap listings are parts or toys (robot vacuum -> 200 ₪, e-scooter -> 500 ₪), null for ordinary items. Used only when the shopper gave no price, and passed to AliExpress as the minimum. If it finds nothing, the search reruns without it. Live: robot vacuum went from 1 window robot to 4 real robot vacuums (₪646-901); earbuds get no floor.
+- **B: Photo beats title** in the relevance prompt (the window robot titled "vacuum").
+- **C: Coupon codes stripped from titles** ("(קוד קופון: HOT888)"), since we can't verify them.
+- **Known left:** the same model with different photos and titles (ABIR K30 ×3 in the robot-vacuum card) isn't merged; the photo check only catches identical photos.
+- **Pinned group message:** written for the owner (how to search, prices, /advice, buttons, group rules; no affiliate wording).
+

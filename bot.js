@@ -266,7 +266,8 @@ export function createBot({
         fallback: intent?.fallback_en,
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
-        minPriceIls: intent?.min_price_ils ?? null,
+        minPriceIls: intent?.min_price_ils ?? intent?.floor_price_ils ?? null,
+        floorOnly: Boolean(!intent?.min_price_ils && intent?.floor_price_ils),
         replyToId: ctx.msg.message_id,
       });
     });
@@ -290,7 +291,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -324,12 +325,14 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, minPriceIls, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let found;
     try {
-      found = await pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, context, maxPriceIls, minPriceIls, limit, extra: limit * MORE_PAGES });
+      const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, context, maxPriceIls, minPriceIls: min, limit, extra: limit * MORE_PAGES });
+      found = await pick(minPriceIls);
+      if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
     } catch (e) {
       stats.failure("aliexpress", e.message);
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
