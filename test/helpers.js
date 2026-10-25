@@ -20,7 +20,7 @@ export const BOT_INFO = {
 // admins: user ids returned by getChatAdministrators.
 export function setup({ failMethods = [], admins = [], understand = async () => null, collage = async () => null, hash = async () => null, relevant = async (_r, p) => ({ exact: p, partial: [] }), advise = async () => null, explain = async () => null, ...opts } = {}) {
   const calls = [];
-  const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, understand, collage, hash, relevant, advise, explain, doubleTapMs: 0, adminId: "7", ...opts }); // user 7 (the default sender) is the owner, so private-chat tests run
+  const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, understand, collage, hash, relevant, advise, explain, doubleTapMs: 0, adminId: "7", groupId: null, privateChat: true, ...opts }); // tests may use any group and private chats
   bot.api.config.use(async (_prev, method, payload) => {
     calls.push({ method, payload });
     if (failMethods.includes(method)) return { ok: false, error_code: 400, description: "Bad Request: wrong file identifier/HTTP URL specified" };

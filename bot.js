@@ -36,6 +36,7 @@ import {
   SEARCH_ERROR,
   LINK_ERROR,
   SEARCH_NOW,
+  BACK_LABEL,
   MORE_LABEL,
   GOOD_LABEL,
   BAD_LABEL,
@@ -53,6 +54,7 @@ const PRIVATE_RESULTS = 4;
 const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
+const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
 const RELEVANCE_POOL = 24;
 const PROVEN_SALES = 10;
 const RESULTS_TTL_MS = 6 * 60 * 60_000; // shortcut: prices may drift a little within 6 h; shorten if that matters
@@ -89,6 +91,8 @@ const SOFT = new RegExp(`(?:^|[\\s,.!?"'(])(?:${SOFT_PHRASES.join("|")})(?=$|[\\
 const SOFT_MAX_LENGTH = 200;
 
 const GUIDE_COOLDOWN_MS = 10 * 60_000;
+// Asking for the help in Hebrew (the whole message), like /help.
+const HELP_WORDS = /^(?:עזרה|הסבר|הוראות|מדריך|איך (?:זה עובד|הבוט עובד|מחפשים|משתמשים(?: בבוט)?|עובדים עם הבוט)|מה (?:הבוט|אתה) (?:יודע|עושה)(?: לעשות)?|help)\s*[?!.]*$/i;
 // A link or a bare web address ("google.com", "s.click.aliexpress.com"): never searched as a product.
 const LINKISH = /https?:\/\/|www\.|t\.me\/|(?:^|\s)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|il|co|io|me|app|ly|ru|cn|info|biz|us)(?:\/\S*)?(?=\s|$)/i;
 // Backup for the AI's "not_allowed" when the AI is unavailable: the most obvious Hebrew/English words only.
@@ -198,18 +202,22 @@ export function createBot({
   now = Date.now,
   cooldownMs = 10_000,
   doubleTapMs = 1500, // a second tap right after a question changed in place lands on the new question's button
+  groupId = process.env.GROUP_CHAT_ID ?? OUR_GROUP_ID, // null = any group (tests)
+  privateChat = false, // tests only: serve private chats like the group
 }) {
   const bot = new Bot(token, botInfo ? { botInfo } : {});
   const moderation = createModeration({ now });
-  bot.use(moderation.middleware); // runs first: spam is removed before any search logic sees it
-  // The bot works in the group (owner request). In private only the owner is served (/status, tests); everyone else gets
-  // an invitation to the group. /myid stays open so the owner can find their id.
+  // The bot lives in OUR group only (owner request). Other groups are ignored completely. In private nobody is served,
+  // the owner included, except /status (owner) and /myid; everyone gets an invitation to the group.
   bot.use(async (ctx, next) => {
-    if (ctx.chat?.type !== "private" || (adminId && String(ctx.from?.id) === String(adminId))) return next();
+    const type = ctx.chat?.type;
+    if (type === "group" || type === "supergroup") return groupId == null || String(ctx.chat.id) === String(groupId) ? next() : undefined;
+    if (type !== "private" || privateChat) return next();
     if (ctx.callbackQuery) return ctx.answerCallbackQuery({ text: PRIVATE_BUTTON });
-    if (/^\/myid\b/.test(ctx.message?.text ?? "")) return next();
+    if (/^\/(?:myid|status)\b/.test(ctx.message?.text ?? "")) return next();
     if (ctx.message) return reply(ctx, PRIVATE_INVITE, { reply_markup: { inline_keyboard: [[{ text: "🐼 להצטרפות לקבוצה", url: GROUP_LINK }]] } });
   });
+  bot.use(moderation.middleware); // spam is removed before any search logic sees it
   bot.on("message:new_chat_members", moderation.onJoin);
   const cooldowns = new Map(); // shortcut: in-memory, resets on restart; fine for a single instance
   const groupHelpAt = new Map();
@@ -408,7 +416,10 @@ export function createBot({
   function showQuestion(ctx, session, question, options, { edit = false } = {}) {
     Object.assign(session, { question, options, at: now() });
     const rows = options.map((o, n) => [{ text: o.label_he, callback_data: `q:${session.id}:${n}` }]); // in the group too (owner request)
-    rows.push([{ text: SEARCH_NOW, callback_data: `q:${session.id}:go` }]);
+    rows.push([
+      ...(session.stack?.length ? [{ text: BACK_LABEL, callback_data: `q:${session.id}:back` }] : []),
+      { text: SEARCH_NOW, callback_data: `q:${session.id}:go` },
+    ]);
     const extra = { parse_mode: "HTML", reply_markup: { inline_keyboard: rows } };
     const text = questionText(question);
     return edit ? ctx.editMessageText(text, extra).catch(() => {}) : reply(ctx, text, extra);
@@ -422,6 +433,9 @@ export function createBot({
   async function answer(ctx, session, n, { edit }) {
     const option = session.options?.[n];
     if (!option) return;
+    // A snapshot for "⬅️ חזרה": back restores the question and everything chosen before this answer.
+    const { question, options, keywords, label, maxPriceIls, minPriceIls, broad } = session;
+    (session.stack ??= []).push({ question, options, keywords, label, maxPriceIls, minPriceIls, broad, history: [...session.history] });
     session.history.push({ q: session.question, a: option.label_he });
     session.broad ??= option.keywords_en; // the first answer's search: the broader fallback if the final one finds too few
     Object.assign(session, { keywords: option.keywords_en, label: option.label_he, maxPriceIls: option.max_price_ils ?? session.maxPriceIls, minPriceIls: option.min_price_ils ?? session.minPriceIls });
@@ -435,7 +449,7 @@ export function createBot({
 
   async function finish(ctx, session, { edit }) {
     pending.delete(session.id);
-    const header = session.label ? `${session.request} · ${session.label}` : session.request; // a bare "80–150 ₪" said nothing
+    const header = [session.request, ...session.history.map((h) => h.a)].join(" · "); // every choice, e.g. "מתנה לאמא · עגילים · מעל 400 ₪"
     if (edit) await ctx.editMessageText(chosenText(header), { parse_mode: "HTML" }).catch(() => {}); // no reply_markup = buttons removed
     const advice = session.history.length ? { request: session.request, history: session.history } : null;
     const context = advice ? `${session.request} (${session.history.map((h) => h.a).join(", ")})` : session.request;
@@ -456,14 +470,16 @@ export function createBot({
     if (link) return reply(ctx, formatLinkReply(link, { demo: isMockMode() }));
   }
 
-  // The full help, in the group itself (owner request: the bot lives in the group), at most once per 10 minutes per chat.
-  bot.command(["start", "help"], (ctx) => {
-    if (ctx.chat.type === "private") return reply(ctx, HELP); // only the owner gets here (see the private-chat gate)
-    const last = groupHelpAt.get(ctx.chat.id);
-    if (last !== undefined && now() - last < HELP_COOLDOWN_MS) return;
-    groupHelpAt.set(ctx.chat.id, now());
+  // The help, in the group itself (owner request: the bot lives in the group), at most once per 10 minutes per chat.
+  function sendHelp(ctx) {
+    if (ctx.chat.type !== "private") {
+      const last = groupHelpAt.get(ctx.chat.id);
+      if (last !== undefined && now() - last < HELP_COOLDOWN_MS) return;
+      groupHelpAt.set(ctx.chat.id, now());
+    }
     return reply(ctx, HELP);
-  });
+  }
+  bot.command(["start", "help"], sendHelp);
   bot.command("search", (ctx) => runSearch(ctx, ctx.match));
   bot.command("myid", (ctx) => ctx.chat.type === "private" && reply(ctx, `🆔 ${ctx.from.id}`));
   // Owner-only health report: version, counters, last errors and live checks of the AI and AliExpress.
@@ -500,7 +516,7 @@ export function createBot({
   });
 
   // Advisor buttons. Only the requester may press; the search cooldown was already counted for the request.
-  bot.callbackQuery(/^q:([0-9a-z]+):(\d|go)$/, async (ctx) => {
+  bot.callbackQuery(/^q:([0-9a-z]+):(\d|go|back)$/, async (ctx) => {
     const [, id, choice] = ctx.match;
     const session = pending.get(id);
     if (!session || now() - session.at > CLARIFY_TTL_MS) {
@@ -513,6 +529,12 @@ export function createBot({
     if (now() - session.at < doubleTapMs) return; // the accidental second tap of a double tap (see doubleTapMs)
     session.busy = true;
     try {
+      if (choice === "back") {
+        const prev = session.stack?.pop();
+        if (!prev) return;
+        Object.assign(session, prev);
+        return await showQuestion(ctx, session, prev.question, prev.options, { edit: true });
+      }
       return await (choice === "go" ? finish(ctx, session, { edit: true }) : answer(ctx, session, Number(choice), { edit: true }));
     } finally {
       session.busy = false;
@@ -554,6 +576,7 @@ export function createBot({
       const words = text.replace(new RegExp(LINKISH.source, "gi"), " ").replace(/@\w+/g, " ").trim().split(/\s+/).filter(Boolean);
       if (LINKISH.test(text) && words.length <= 1) return reply(ctx, LINK_HELP);
     }
+    if (HELP_WORDS.test(text.replace(BIDI_MARKS, "").trim())) return sendHelp(ctx); // "עזרה", "איך זה עובד?"…
     const query = parseTrigger(text, username);
     if (query !== null) return runSearch(ctx, query);
     if (isPrivate) return runSearch(ctx, text);

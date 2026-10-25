@@ -352,4 +352,7 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Private chat:** only the owner (`ADMIN_USER_ID`) is served (/status, tests). Anyone else gets an invitation to the group with a join button. `/myid` stays open, and old private buttons answer "החיפוש עובד בקבוצת פנדה אקספרס".
 - **Advisor fully in the group:** callback buttons in the group, requester only, with no deep links and no "continue in private". `continueInPrivate`, `GROUP_HELP` and `ADVICE_EXPIRED` were removed.
 - **/start and /help in the group** show the full help (10-minute cooldown per chat). The help text has no private-chat or affiliate wording (the DISCLOSURE line was removed, by owner decision).
+- **Same day, stricter (owner):** the bot serves ONLY our group (`OUR_GROUP_ID` -1004397097299 = @panda_deals_il, from getChat; override with `GROUP_CHAT_ID`). Other groups are ignored completely, moderation included. In private nobody is served, the owner included, except `/status` (owner) and `/myid`. Tests run with `groupId: null, privateChat: true`.
+- **Advisor:** a "⬅️ חזרה" button goes one question back (a snapshot per answer). The result header lists every choice ("מתנה לאמא · תכשיט · עד 50 ₪"; QUERY_MAX 80). Only the requester can press, as before.
+- **Help:** "עזרה", "הסבר", "איך זה עובד?", "איך מחפשים", "מה הבוט יודע לעשות" show the help, with the same 10-minute group limit. The help text is short: the slogan, how to search with one example, "the more details, the more accurate", the gift advisor, the buttons. The link-conversion line was removed.
 

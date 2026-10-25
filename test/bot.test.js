@@ -249,7 +249,6 @@ test("/start and /help in private show the full help", async () => {
     const { sent } = await run(cmd, {}, { chat: "private" });
     assert.equal(sent()[0].body, HELP);
   }
-  assert.match(HELP, /מצא לי/);
 });
 
 test("logs never contain message text", async (t) => {
@@ -360,7 +359,7 @@ test("advisor (private): a choice asks the next question in the same message, th
   const edit = ctx.calls.find((c) => c.method === "editMessageText");
   assert.match(edit.payload.text, /מה התקציב\?/);
   const next = edit.payload.reply_markup.inline_keyboard.flat();
-  assert.deepEqual(next.map((b) => b.text), ["עד 50 ₪", "עד 150 ₪", "🔎 תחפש כבר"]);
+  assert.deepEqual(next.map((b) => b.text), ["עד 50 ₪", "עד 150 ₪", "⬅️ חזרה", "🔎 תחפש כבר"]);
   assert.deepEqual(ctx.spy.queries, []);
 
   await press(ctx, next[1]);
@@ -542,9 +541,8 @@ test("natural request that needs clarifying shows the question", async () => {
   assert.match(ctx.sent()[0].body, /איזו מתנה\?/);
 });
 
-test("private chat and help text are unaffected / mention natural phrases", async () => {
+test("natural phrases in a served private chat are searched as-is", async () => {
   assert.deepEqual((await run("מישהו מכיר אוזניות?", {}, { chat: "private" })).queries, ["מישהו מכיר אוזניות?"]);
-  assert.match(HELP, /מישהו מכיר/);
 });
 
 
@@ -917,8 +915,13 @@ test("links that aren't AliExpress products: a short help in private (or after a
   assert.equal(words.sent()[0].method, "sendPhoto", "a real request that mentions a site is still searched");
 });
 
-test("private chat: only the owner is served; anyone else gets an invitation to the group (and /myid still works)", async () => {
-  const ctx = setup({ adminId: "1", search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+test("private chat: nobody is served, the owner included; an invitation to the group (/myid and the owner's /status still work)", async () => {
+  const owner = setup({ adminId: "5", privateChat: false, healthChecks: async () => [], search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+  await owner.bot.handleUpdate(textUpdate("חפש לי אוזניות", { chat: "private", userId: 5 }));
+  assert.equal(owner.sent()[0].body, PRIVATE_INVITE, "the owner too");
+  await owner.bot.handleUpdate(textUpdate("/status", { chat: "private", userId: 5 }));
+  assert.match(owner.sent().at(-1).body, /מצב הבוט/);
+  const ctx = setup({ adminId: "1", privateChat: false, search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
   await ctx.bot.handleUpdate(textUpdate("אוזניות", { chat: "private", userId: 5 }));
   const [invite] = ctx.sent();
   assert.equal(invite.body, PRIVATE_INVITE);
@@ -937,4 +940,44 @@ test("advisor in the group: the options are buttons in the group (no move to pri
   assert.doesNotMatch(ctx.sent()[0].body, /פרטי/);
   await ctx.bot.handleUpdate(callbackUpdate(buttons[0].callback_data, { userId: 8 }));
   assert.equal(ctx.calls.at(-1).payload.text, "רק מי שביקש יכול לבחור");
+});
+
+test("only our group: in any other group the bot does nothing at all", async () => {
+  const ctx = setup({ groupId: "-100999", search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { chatId: -100123 }));
+  await ctx.bot.handleUpdate(textUpdate("t.me/spam_channel", { chatId: -100123 }));
+  assert.equal(ctx.calls.length, 0);
+  const ours = setup({ groupId: "-100123", search: searchSpy().search });
+  await ours.bot.handleUpdate(textUpdate("חפש לי אוזניות", { chatId: -100123 }));
+  assert.equal(ours.sent()[0].method, "sendPhoto");
+});
+
+test("advisor: '⬅️ חזרה' goes one question back; the header lists every choice", async () => {
+  const BUDGET_Q = { status: "ask", question_he: "מה התקציב?", options: [{ label_he: "עד 50 ₪", keywords_en: "earrings", max_price_ils: 50 }, { label_he: "מעל 400 ₪", keywords_en: "earrings", min_price_ils: 400, max_price_ils: null }] };
+  const ctx = setup({ search: searchSpy().search, understand: async () => CLARIFY, advise: async (s) => (s.history.length === 1 ? BUDGET_Q : null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מתנה לאמא"));
+  const first = ctx.sent()[0].reply_markup.inline_keyboard.flat();
+  assert.ok(!first.some((b) => b.text === "⬅️ חזרה"), "no back on the first question");
+  await ctx.bot.handleUpdate(callbackUpdate(first[0].callback_data));
+  const edits = () => ctx.calls.filter((c) => c.method === "editMessageText").map((c) => c.payload);
+  const back = edits().at(-1).reply_markup.inline_keyboard.flat().find((b) => b.text === "⬅️ חזרה");
+  await ctx.bot.handleUpdate(callbackUpdate(back.callback_data));
+  assert.match(edits().at(-1).text, /איזו מתנה\?/, "the first question again");
+  const again = edits().at(-1).reply_markup.inline_keyboard.flat();
+  await ctx.bot.handleUpdate(callbackUpdate(again[0].callback_data));
+  const budget = edits().at(-1).reply_markup.inline_keyboard.flat();
+  await ctx.bot.handleUpdate(callbackUpdate(budget[0].callback_data));
+  const card = ctx.sent().at(-1);
+  assert.match(card.caption.split("\n")[0], /מתנה לאמא · תכשיט · עד 50 ₪/);
+});
+
+test("help in Hebrew: 'עזרה', 'איך זה עובד?' and the like show the help (same 10-minute group limit); other text doesn't", async () => {
+  for (const text of ["עזרה", "איך זה עובד?", "איך מחפשים", "הסבר", "מה הבוט יודע לעשות"]) {
+    const ctx = setup({ search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+    await ctx.bot.handleUpdate(textUpdate(text));
+    assert.equal(ctx.sent()[0].body, HELP, text);
+  }
+  const chat = setup({ understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  await chat.bot.handleUpdate(textUpdate("צריך עזרה עם המחשב"));
+  assert.notEqual(chat.sent()[0]?.body, HELP);
 });

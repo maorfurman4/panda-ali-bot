@@ -144,14 +144,14 @@ test("card layout: query header, each detail on its own line, visible link per p
   assert.doesNotMatch(caption, /קישורי שותפים/);
 });
 
-test("card: demo label on the query line only; query escaped and max 45 chars", () => {
-  const { caption } = formatCard([full(1)], { query: "<b>" + "א".repeat(60), demo: true });
+test("card: demo label on the query line only; query escaped and max 80 chars", () => {
+  const { caption } = formatCard([full(1)], { query: "<b>" + "א".repeat(100), demo: true });
   const queryLine = caption.split("\n")[0];
   assert.ok(queryLine.includes("&lt;b&gt;"));
   assert.ok(queryLine.endsWith(" [דמו – תוצאות קבועות]"));
   assert.equal(caption.match(/\[דמו/g).length, 1);
   const shownQuery = queryLine.match(/<b>(.*)<\/b>/)[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-  assert.ok([...shownQuery].length <= 45);
+  assert.ok([...shownQuery].length <= 80);
 });
 
 test("card: missing details drop their own line; ranks 4–5 use keycaps", () => {
@@ -194,9 +194,8 @@ test("link reply: link only, demo label, no disclosure, RLM on each line", () =>
 
 test("help text: for the group, how to search, no private-chat or affiliate wording", () => {
   assert.match(HELP, /חפש לי/);
-  assert.match(HELP, /מצא לי/);
-  assert.ok(HELP.includes("מספר המכירות הוא לפי עלי אקספרס, בתקופה האחרונה"));
-  assert.doesNotMatch(HELP, /בפרטי|שותפים|עמלה/);
+  assert.match(HELP, /מתנה לאמא/);
+  assert.doesNotMatch(HELP, /בפרטי|שותפים|עמלה|תייגו/);
 });
 
 test("dedupe: the same product from several sellers shows once (brand + model, or the same title start)", () => {

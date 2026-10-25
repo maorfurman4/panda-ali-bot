@@ -3,7 +3,7 @@
 export const RLM = "‏";
 const MIN_FEEDBACK = 90;
 const TITLE_MAX = 40; // photo captions are only as wide as the photo
-const QUERY_MAX = 45;
+const QUERY_MAX = 80; // the header lists every advisor choice
 // Seller filler at the start of machine-translated titles ("2022 חדש", "NEW", "1 יחידה").
 const TITLE_JUNK = /^(?:(?:20\d\d|new|חדש(?:ה|ים|ות)?|hot|1\s*(?:יחידה|יחידות|pcs?)|מקורי(?:ת)?|לשנת)[\s,:-]*)+/i;
 // Also drops a leading "–" and seller coupon codes ("(קוד קופון: HOT888)"), which we can't verify.
@@ -183,19 +183,14 @@ export function formatLinkReply(link, { demo = false } = {}) {
 
 export const GROUP_LINK = GROUP_URL;
 export const HELP = rtl([
-  "🐼 <b>היי, אני הבוט של פנדה אקספרס</b>",
-  "אני מחפש בשבילכם מוצרים שווים בעלי אקספרס, כאן בקבוצה.",
+  "🐼 <b>פנדה אקספרס: אתם אומרים מה צריך, אני מוצא את הכי שווה בעלי אקספרס</b>",
   "",
-  "🔎 <b>איך מחפשים?</b>",
-  "• כתבו בתחילת ההודעה: חפש לי אוזניות אלחוטיות",
-  "• או: מצא לי מטען לרכב עד 50 ש\"ח",
-  "• או שאלו: מישהו מכיר שואב אבק טוב?",
-  "• לא צריך לכתוב מושלם, אני מבין גם שגיאות כתיב 😉",
-  "🧭 לא בטוחים מה לקנות? /advice מתנה לאמא, ואשאל כמה שאלות קצרות",
+  '🔎 כתבו בקבוצה "חפש לי" ואחריו מה שאתם מחפשים:',
+  'חפש לי אוזניות אלחוטיות עד 100 ש"ח',
   "",
-  "🔗 קישור למוצר מעלי אקספרס: תייגו אותי ואחריו הקישור, ואחזיר קישור מסודר.",
+  "💡 ככל שתפרטו יותר (סוג, צבע, מידה, תקציב), התוצאות מדויקות יותר.",
+  "🎁 לא בטוחים מה לקנות? כתבו: חפש לי מתנה לאמא, ואשאל כמה שאלות קצרות.",
   "👇 מתחת לכל תוצאה: 🎯 בול! / 🐼 לא זה, ו-🔍 לחפש עוד?",
-  "📊 מספר המכירות הוא לפי עלי אקספרס, בתקופה האחרונה.",
 ]);
 
 export const PRIVATE_INVITE = rtl([
@@ -211,6 +206,7 @@ export const LINK_HELP = rtl(["🔗 אני ממיר רק קישורים של מ�
 export const NOT_ALLOWED = rtl(["🙏 את זה אני לא מחפש בקבוצה.", "אשמח לעזור עם כל מוצר אחר, למשל: חפש לי אוזניות אלחוטיות"]);
 export const SEARCHING = rtl(["🔎 מחפש לכם… רגע ⏳"]);
 export const SEARCH_NOW = "🔎 תחפש כבר";
+export const BACK_LABEL = "⬅️ חזרה";
 export const MORE_LABEL = "🔍 לחפש עוד?";
 export const GOOD_LABEL = "🎯 בול!";
 export const BAD_LABEL = "🐼 לא זה";
