@@ -193,6 +193,7 @@ export function createBot({
   typingEveryMs = 4000,
   now = Date.now,
   cooldownMs = 10_000,
+  doubleTapMs = 1500, // a second tap right after a question changed in place lands on the new question's button
 }) {
   const bot = new Bot(token, botInfo ? { botInfo } : {});
   const moderation = createModeration({ now });
@@ -517,6 +518,7 @@ export function createBot({
     if (!isRequester(ctx, session.userId)) return ctx.answerCallbackQuery({ text: CLARIFY_NOT_YOURS });
     await ctx.answerCallbackQuery();
     if (session.busy) return; // a double tap while the AI is thinking
+    if (now() - session.at < doubleTapMs) return; // the accidental second tap of a double tap (see doubleTapMs)
     session.busy = true;
     try {
       return await (choice === "go" ? finish(ctx, session, { edit: true }) : answer(ctx, session, Number(choice), { edit: true }));

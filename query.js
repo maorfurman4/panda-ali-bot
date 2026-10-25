@@ -27,7 +27,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
   Allowed (status "ok"): kitchen and chef knives, folding multitools, toy guns ("אקדח מים" -> "water gun toy", "רובה נרף" -> "foam blaster toy"), security and dash cameras, GPS trackers for keys, bags or cars.
 - Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies ("מגפיים לבנות" -> "girls boots kids"); only "לתינוק"/"לתינוקת" means babies.
-- status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"): give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
+- status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"). For a gift, one of the options or questions should be the budget: give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
 - floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "סלסלה לפיקניק" -> 60); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
 - min_price_ils / max_price_ils = numbers only when the request states a shekel range or limit ("עד 50 שקל" -> max 50, "בין 80 ל-150" -> min 80, max 150, "עד 20 דולר" -> max 74), otherwise null.
 - The request may be a whole chat sentence (e.g. "מישהו מכיר מטען טוב לרכב?"): extract only the product into corrected_he/keywords_en.
@@ -104,6 +104,13 @@ export function validateIntent(o) {
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
+  // A named product the model still asks about ("כבל" -> "which cable?", 4/4 on 2026-10-25) is searched directly with the
+  // English keywords it already gave; vague requests (gifts, "something for…") keep their question.
+  const vague = /מתנה|משהו|דבר|רעיון|הפתעה/.test(base.corrected_he);
+  if (status === "clarify" && !vague && /[a-z]/i.test(base.keywords_en) && /^[\x20-\x7E]+$/.test(base.keywords_en)) {
+    const fallback = clean(o.fallback_en, 100);
+    return { ...base, status: "ok", ...(fallback && fallback !== base.keywords_en ? { fallback_en: fallback } : {}) };
+  }
   if (status === "clarify") {
     const options = (Array.isArray(o.options) ? o.options : [])
       .map((x) => ({ label_he: clean(x?.label_he, 30), keywords_en: clean(x?.keywords_en, 100) }))
@@ -265,6 +272,7 @@ export const filterRelevant = createRelevanceFilter();
 
 const ADVISOR_SYSTEM = `You are a friendly Hebrew shopping advisor for AliExpress, helping an Israeli shopper narrow a general request.
 Ask ONE short question at a time (max 8 words) with 3-4 short Hebrew options (max 3 words each): e.g. kind of item, use, style, budget.
+For a gift, ask the budget within the questions (a too-cheap item can feel like a poor gift).
 Every option must fit the request and everything it already says (for "מפיץ ריח לבית" offer kinds of home diffusers, not car scents or sprays).
 Every option must include keywords_en: 2-4 English words a shopper would type on AliExpress if they picked it now: the item plus
 its most important detail from ALL previous answers (e.g. "reed diffuser", "hoop earrings gold"). No commas, no question marks,

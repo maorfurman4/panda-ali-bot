@@ -69,7 +69,7 @@ test("fail-open: returns null on missing key, HTTP error, timeout, bad JSON, sch
     async () => { throw Object.assign(new Error("timed out"), { name: "TimeoutError" }); },
     openai(null, { text: "not json {" }).fetch,
     openai({ ...STRICT_OK, keywords_en: "" }).fetch,
-    openai({ ...STRICT_OK, status: "clarify", clarify_question_he: "למי?", options: [{ label_he: "א", keywords_en: "a" }] }).fetch,
+    openai({ ...STRICT_OK, status: "clarify", keywords_en: "", clarify_question_he: "למי?", options: [{ label_he: "א", keywords_en: "a" }] }).fetch,
     openai({ ...STRICT_OK, status: "maybe" }).fetch,
     openai(STRICT_OK, { responseStatus: "incomplete" }).fetch,
     openai(null, { part: { type: "refusal", refusal: "no" } }).fetch,
@@ -288,4 +288,11 @@ test("understand: a price the AI missed is filled in from the text, and price wo
   const out = await createUnderstander({ fetch: api.fetch, env: ENV })("מקלדת עד 20 דולר");
   assert.equal(out.max_price_ils, 74);
   assert.equal(out.keywords_en, "keyboard");
+});
+
+test("validateIntent: a named product the model still asks about is searched directly; vague requests keep their question", () => {
+  const ask = { ...STRICT_OK, status: "clarify", clarify_question_he: "איזה כבל?", options: [{ label_he: "USB", keywords_en: "usb cable" }, { label_he: "HDMI", keywords_en: "hdmi cable" }] };
+  assert.equal(validateIntent({ ...ask, corrected_he: "כבל", keywords_en: "cable" }).status, "ok");
+  assert.equal(validateIntent({ ...ask, corrected_he: "מתנה לאמא", keywords_en: "gift for mom" }).status, "clarify", "gifts keep the advisor");
+  assert.equal(validateIntent({ ...ask, corrected_he: "כבל", keywords_en: "" }).status, "clarify", "no keywords: ask");
 });

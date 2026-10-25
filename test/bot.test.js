@@ -917,3 +917,22 @@ test("the same search within 6 hours reuses the products: no new AliExpress or A
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 3 }));
   assert.deepEqual([searches, checks], [2, 2], "expired after 6 hours");
 });
+
+test("advisor: a tap within 1.5 s of the question changing is ignored (the second tap of a double tap)", async () => {
+  let t = 0;
+  const advise = async () => ({ status: "ask", question_he: "באיזה אורך?", options: [{ label_he: "1 מטר", keywords_en: "cable 1m", max_price_ils: null }, { label_he: "3 מטר", keywords_en: "cable 3m", max_price_ils: null }] });
+  const ctx = setup({ now: () => t, doubleTapMs: 1500, search: searchSpy().search, advise, understand: async () => CLARIFY });
+  await ctx.bot.handleUpdate(textUpdate("מתנה", { chat: "private" }));
+  const first = ctx.sent()[0].reply_markup.inline_keyboard.flat()[0].callback_data;
+  t += 5000;
+  await ctx.bot.handleUpdate(callbackUpdate(first, { chat: "private" })); // a real choice: next question shows
+  const edits = () => ctx.calls.filter((c) => c.method === "editMessageText").length;
+  assert.equal(edits(), 1);
+  const second = ctx.calls.find((c) => c.method === "editMessageText").payload.reply_markup.inline_keyboard.flat()[1].callback_data;
+  t += 300;
+  await ctx.bot.handleUpdate(callbackUpdate(second, { chat: "private" })); // the accidental second tap
+  assert.equal(edits(), 1, "ignored");
+  t += 2000;
+  await ctx.bot.handleUpdate(callbackUpdate(second, { chat: "private" })); // a deliberate tap later works
+  assert.ok(edits() >= 2);
+});

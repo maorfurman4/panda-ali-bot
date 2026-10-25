@@ -330,3 +330,10 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Evals:** the default judge is gpt-5.5 (stronger than the bot's gpt-5.4, so the score isn't self-graded). eval-search prices include gpt-5.4/5.5.
 - **Eval after this round (45 searches, independent gpt-5.5 judge): 97% right item (best so far), 82% every feature.** 5/45 had fewer than 4 results (honest: only real matches), p50 5.7 s, $0.0054/search with no cache. One 58 s outlier didn't repeat (8.5 s on rerun).
 
+## 3r. Full test steps 5-7 (2026-10-25 afternoon)
+
+- Step 5 (sensitive) and step 6 (advisor) passed. Step 7 buttons passed ("לחפש עוד?", "אין עוד תוצאות", the memory).
+- **"חפש לי כבל" asked "which cable?"** 4/4 times, despite the prompt. A named product the model asks about is now searched directly with the English keywords it already gave. Vague requests (gift/"משהו…"/no keywords) keep the question.
+- **Double tap:** the second tap landed on the next question's button ("3 מטר" seemed chosen by itself). A tap within 1.5 s of a question changing is ignored (`doubleTapMs`; tests use 0).
+- **Gifts:** the advisor asks the budget within its questions (₪5 necklaces felt like a poor gift for mom).
+
