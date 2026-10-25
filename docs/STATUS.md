@@ -371,4 +371,8 @@ A probe of 38 unusual messages found 4 issues. All fixed:
   - The part check's stem is 4 letters ("כיסוי" ≠ "כיסא").
   - The understanding step retries once on failure (2/66 had failed).
 - **Keep-awake:** the owner extends it to `*/10 0-2,5-23 * * *` (awake 05:00-03:00 ≈ 682 of 750 h; 24/7 would exceed the shared 750 h and stop every free service until month end).
+- **Group check (owner, 20:35):** robot vacuum shows real robots with the VAT note, gaming chairs are real, "עזרה" works, and the advisor shows "⬅️ חזרה" and a full header. Fixed afterwards:
+  - "חפש לי מוצר למטבח" searched right away; "מוצר/ציוד/אביזרים" now count as vague, so the bot asks.
+  - "מבטח" was read as security; the AI now considers two swapped letters ("מבטח" -> "מטבח").
+- **Known:** the same model with different photos and titles (ABIR K30 ×2) isn't merged. Merging by model code alone would join different products (IP68, USB3…).
 

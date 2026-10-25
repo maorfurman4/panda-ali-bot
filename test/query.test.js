@@ -304,4 +304,5 @@ test("validateIntent: a named product the model still asks about is searched dir
   assert.equal(validateIntent({ ...ask, corrected_he: "כבל", keywords_en: "cable" }).status, "ok");
   assert.equal(validateIntent({ ...ask, corrected_he: "מתנה לאמא", keywords_en: "gift for mom" }).status, "clarify", "gifts keep the advisor");
   assert.equal(validateIntent({ ...ask, corrected_he: "כבל", keywords_en: "" }).status, "clarify", "no keywords: ask");
+  assert.equal(validateIntent({ ...ask, corrected_he: "מוצר למטבח", keywords_en: "kitchen gadgets" }).status, "clarify", "'a product for the kitchen' is vague");
 });

@@ -18,7 +18,7 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60_000;
 
 const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebrew, sometimes mixed with English) into an AliExpress search.
-- Fix typos and slang. corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות").
+- Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות").
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - fallback_en = the core item as a good standalone AliExpress search, 2-3 English words ("merino arm warmers thumb holes" -> "arm warmers", "Zara men clothing" -> "men casual shirts"; never a vague word like "clothing" or "shoes" alone), used if the first search finds too few, or null when keywords_en is already that.
 - brand = the brand the shopper asked for ("אוזניות של שיאומי" -> "Xiaomi"), or null. A device something is FOR is not a requested brand ("כיסוי לאייפון", "מטען לגלקסי" -> null).
@@ -106,7 +106,7 @@ export function validateIntent(o) {
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
   // A named product the model still asks about ("כבל" -> "which cable?", 4/4 on 2026-10-25) is searched directly with the
   // English keywords it already gave; vague requests (gifts, "something for…") keep their question.
-  const vague = /מתנה|משהו|דבר|רעיון|הפתעה/.test(base.corrected_he);
+  const vague = /מתנה|משהו|דבר|רעיון|הפתעה|מוצר|ציוד|אביזרים/.test(base.corrected_he); // "מוצר למטבח" is as vague as "משהו למטבח"
   if (status === "clarify" && !vague && /[a-z]/i.test(base.keywords_en) && /^[\x20-\x7E]+$/.test(base.keywords_en)) {
     const fallback = clean(o.fallback_en, 100);
     return { ...base, status: "ok", ...(fallback && fallback !== base.keywords_en ? { fallback_en: fallback } : {}) };
