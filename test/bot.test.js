@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -935,4 +935,20 @@ test("advisor: a tap within 1.5 s of the question changing is ignored (the secon
   t += 2000;
   await ctx.bot.handleUpdate(callbackUpdate(second, { chat: "private" })); // a deliberate tap later works
   assert.ok(edits() >= 2);
+});
+
+test("links that aren't AliExpress products: a short help in private (or after a mention), silence in the group, never a search", async () => {
+  for (const text of ["https://www.google.com", "s.click.aliexpress.com", "google.com"]) {
+    const ctx = setup({ search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+    await ctx.bot.handleUpdate(textUpdate(text, { chat: "private" }));
+    assert.deepEqual(ctx.sent().map((m) => m.body), [LINK_HELP], text);
+  }
+  const group = setup({ search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+  await group.bot.handleUpdate(textUpdate("s.click.aliexpress.com"));
+  assert.equal(group.sent().length, 0);
+  const mention = setup({ search: async () => assert.fail("no search") });
+  await mention.bot.handleUpdate(textUpdate("@panda_test_bot www.google.com"));
+  assert.deepEqual(mention.sent().map((m) => m.body), [LINK_HELP]);
+  const words = await run("חפש לי אוזניות כמו ב-aliexpress.com", {}, { chat: "private" });
+  assert.equal(words.sent()[0].method, "sendPhoto", "a real request that mentions a site is still searched");
 });

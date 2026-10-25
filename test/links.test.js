@@ -75,3 +75,8 @@ test("rejects short links with no product, redirect loops, or network errors", a
   assert.ok(loop.requested.length <= 5);
   assert.equal(await resolveProductUrl("https://a.aliexpress.com/_x", { fetch: async () => { throw new Error("timeout"); } }), null);
 });
+
+test("findAliExpressUrl: a link pasted without https:// is found when it has a path; a bare domain is not", () => {
+  assert.equal(findAliExpressUrl("a.aliexpress.com/_mKJ8x1"), "https://a.aliexpress.com/_mKJ8x1");
+  assert.equal(findAliExpressUrl("s.click.aliexpress.com"), null);
+});

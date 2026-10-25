@@ -28,6 +28,7 @@ import {
   NOT_PRODUCT,
   NOT_ALLOWED,
   OFF_TOPIC,
+  LINK_HELP,
   SEARCHING,
   guideText,
   SEARCH_ERROR,
@@ -87,6 +88,8 @@ const SOFT = new RegExp(`(?:^|[\\s,.!?"'(])(?:${SOFT_PHRASES.join("|")})(?=$|[\\
 const SOFT_MAX_LENGTH = 200;
 
 const GUIDE_COOLDOWN_MS = 10 * 60_000;
+// A link or a bare web address ("google.com", "s.click.aliexpress.com"): never searched as a product.
+const LINKISH = /https?:\/\/|www\.|t\.me\/|(?:^|\s)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|il|co|io|me|app|ly|ru|cn|info|biz|us)(?:\/\S*)?(?=\s|$)/i;
 // Backup for the AI's "not_allowed" when the AI is unavailable: the most obvious Hebrew/English words only.
 const BLOCKED_WORDS = /סכין קפיצית|אגרופן|טייזר|ויברטור|דילדו|סיגרי(?:ה|ות) אלקטרוני|וייפ|מצלמ(?:ה|ת) (?:נסתרת|ריגול)|switchblade|brass knuckles|taser|vibrator|dildo|\bvape\b|hidden camera|spy cam/i;
 const isBlocked = (intent, text) => intent?.status === "not_allowed" || (!intent && BLOCKED_WORDS.test(text));
@@ -558,6 +561,9 @@ export function createBot({
     if (isPrivate || mentionRest(text, username) !== null) {
       const url = findAliExpressUrl(text);
       if (url) return runConvert(ctx, url);
+      // Basically just a link to another site (or an AliExpress address without a product): explain, don't search it.
+      const words = text.replace(new RegExp(LINKISH.source, "gi"), " ").replace(/@\w+/g, " ").trim().split(/\s+/).filter(Boolean);
+      if (LINKISH.test(text) && words.length <= 1) return reply(ctx, LINK_HELP);
     }
     const query = parseTrigger(text, username);
     if (query !== null) return runSearch(ctx, query);
@@ -565,7 +571,7 @@ export function createBot({
     if (isSoftRequest(text)) return runSoftSearch(ctx, text);
     if (startsWithSearchVerb(text)) return runSoftSearch(ctx, text, { warn: false }); // "חפש מטען": searched if the AI sees a product
     // Replies are conversation (a reply with "חפש לי" or a natural request was already handled above); shared links are deals.
-    if (ctx.msg.reply_to_message || /https?:\/\/|www\.|t\.me\//i.test(text) || text.length > SOFT_MAX_LENGTH) return;
+    if (ctx.msg.reply_to_message || LINKISH.test(text) || text.length > SOFT_MAX_LENGTH) return;
     return guideOrWarn(ctx, text);
   });
 

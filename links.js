@@ -17,7 +17,9 @@ function parseUrl(s) {
 }
 
 export function findAliExpressUrl(text) {
-  for (const raw of text.match(/https?:\/\/[^\s<>"']+/gi) ?? []) {
+  // Also a link pasted without "https://" ("a.aliexpress.com/_mKJ…"), as long as it has a path.
+  const bare = (text.match(/(?:^|\s)((?:[a-z0-9-]+\.)*aliexpress\.[a-z.]+\/[^\s<>"']+)/gi) ?? []).map((m) => `https://${m.trim()}`);
+  for (const raw of [...(text.match(/https?:\/\/[^\s<>"']+/gi) ?? []), ...bare]) {
     const candidate = raw.replace(/[).,!?;:\]]+$/, "");
     const url = parseUrl(candidate);
     if (url && isAliExpressHost(url.hostname)) return candidate;

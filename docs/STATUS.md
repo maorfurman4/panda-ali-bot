@@ -337,3 +337,13 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Double tap:** the second tap landed on the next question's button ("3 מטר" seemed chosen by itself). A tap within 1.5 s of a question changing is ignored (`doubleTapMs`; tests use 0).
 - **Gifts:** the advisor asks the budget within its questions (₪5 necklaces felt like a poor gift for mom).
 
+## 3s. Full test step 8: links (2026-10-25)
+
+- Passed:
+  - An s.click link in private, and in the group after a mention, converts to our affiliate link.
+  - A plain link in the group gets silence.
+- Fixed:
+  - A bare web address ("s.click.aliexpress.com", "google.com") was searched as a product, and in the group it got "write חפש לי s.click…". Bare domains now count as links: silence in the group, and in private (or after a mention) a short help, "אני ממיר רק קישורים של מוצרים מעלי אקספרס…", only when the message is basically just a link.
+  - AliExpress links pasted without "https://" (with a path) are converted.
+- Still untested: an `a.aliexpress.com` link shared from the app.
+
