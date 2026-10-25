@@ -885,3 +885,13 @@ test("the AI's price floor (big-ticket items) filters the search; if it finds no
   assert.deepEqual(seen, [200, null]);
   assert.equal(ctx.sent()[0].method, "sendPhoto");
 });
+
+test("a brand was asked for and found: only that brand is shown (even 2), no other brands as 'close'", async () => {
+  const relevant = async (_r, p) => ({ exact: p.slice(0, 2), partial: p.slice(2) });
+  const brand = setup({ search: async () => SIX, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
+  await brand.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
+  assert.equal(shownIds(brand.sent()[0]).length, 2);
+  const plain = setup({ search: async () => SIX, relevant, live: true, understand: async () => intent() });
+  await plain.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  assert.equal(shownIds(plain.sent()[0]).length, 4, "without a brand, close matches still fill the card");
+});

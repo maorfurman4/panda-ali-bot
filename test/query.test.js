@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnderstander, validateIntent } from "../query.js";
+import { createUnderstander, validateIntent, statedPrice } from "../query.js";
 
 const ENV = { OPENAI_API_KEY: "sk-test" };
 const OK = { status: "ok", corrected_he: "אוזניות", keywords_en: "wireless earbuds", max_price_ils: null };
@@ -124,6 +124,7 @@ test("validateIntent normalizes and checks each status (nulls from strict mode a
   assert.deepEqual(validateIntent({ ...STRICT_OK, min_price_ils: 80, max_price_ils: 150 }), { ...OK, min_price_ils: 80, max_price_ils: 150 });
   assert.deepEqual(validateIntent({ ...STRICT_OK, min_price_ils: 200, max_price_ils: 150 }), { ...OK, max_price_ils: 150 }, "min above max is dropped");
   assert.deepEqual(validateIntent({ ...STRICT_OK, floor_price_ils: 200 }), { ...OK, floor_price_ils: 200 }, "AI price floor for big-ticket items");
+  assert.deepEqual(validateIntent({ ...STRICT_OK, brand: "Xiaomi" }), { ...OK, brand: "Xiaomi" });
   assert.deepEqual(validateIntent({ ...STRICT_OK, min_price_ils: 80, floor_price_ils: 200 }), { ...OK, min_price_ils: 80 }, "the shopper's own price wins");
   assert.deepEqual(validateIntent({ ...STRICT_OK, status: "not_allowed", corrected_he: "אקדח", keywords_en: "gun" }), { status: "not_allowed", corrected_he: "אקדח", keywords_en: "", max_price_ils: null });
   assert.deepEqual(validateIntent({ ...STRICT_OK, status: "not_product", corrected_he: "תודה", keywords_en: "" }), {
@@ -271,4 +272,21 @@ test("explainer: one short reason per product, same order; anything else is null
 test("validateIntent keeps an optional broader fallback search", () => {
   assert.equal(validateIntent({ ...STRICT_OK, fallback_en: "ipad case" }).fallback_en, "ipad case");
   assert.equal(validateIntent({ ...STRICT_OK, fallback_en: null }).fallback_en, undefined);
+});
+
+test("statedPrice: prices written in the request are read by code (shekels, dollars, ranges); units like kg or meters are not prices", () => {
+  assert.deepEqual(statedPrice("מקלדת עד 20 דולר"), { max: 74 });
+  assert.deepEqual(statedPrice("אוזניות עד $25"), { max: 93 });
+  assert.deepEqual(statedPrice('אוזניות עד 30 ש"ח'), { max: 30 });
+  assert.deepEqual(statedPrice("שעון חכם בין 80 ל-150"), { min: 80, max: 150 });
+  assert.deepEqual(statedPrice("מטען מתחת ל-50"), { max: 50 });
+  assert.deepEqual(statedPrice("בושם מעל 100 שקל"), { min: 100 });
+  for (const t of ["משקולות יד עד 5 קילו", "כבל באורך עד 2 מטר", "כוס תרמית 500 מל", "מטען 65W"]) assert.deepEqual(statedPrice(t), {}, t);
+});
+
+test("understand: a price the AI missed is filled in from the text, and price words leave the search words", async () => {
+  const api = openai({ ...STRICT_OK, keywords_en: "keyboard 20dollar", max_price_ils: null });
+  const out = await createUnderstander({ fetch: api.fetch, env: ENV })("מקלדת עד 20 דולר");
+  assert.equal(out.max_price_ils, 74);
+  assert.equal(out.keywords_en, "keyboard");
 });

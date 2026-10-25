@@ -56,7 +56,17 @@ export function dedupeProducts(products) {
 // A spare part / accessory FOR the item rather than the item (robot vacuum bags and brushes), unless parts were asked for.
 const PART_REQUEST = /חלק|חילוף|אביזר|מברש|שקי|מסנן|פילטר|רפיד|מטלי|filter|brush|bag|spare|replacement|accessor/i;
 const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|replacement|אביזר\S*\s+ל|^(?:ל|עבור\s)|^(?:מברשת|מברשות|שקית|שקיות|מסנן|מסננים|פילטר|רפידות|מטלית|מטליות)\s/i;
-export const isPartFor = (title, request = "") => !PART_REQUEST.test(request) && PART_TITLE.test(cleanTitle(title));
+// A title that STARTS with a part/accessory word ("כבל מקלדת", "סוללת קטנוע", "משענות יד") is a part, unless the request
+// itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
+const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;
+const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
+export function isPartFor(title, request = "") {
+  if (PART_REQUEST.test(request)) return false;
+  const t = cleanTitle(title);
+  if (PART_TITLE.test(t)) return true;
+  const first = t.replace(BUNDLE_PREFIX, "").split(/[\s,]/)[0];
+  return PART_FIRST_WORDS.test(first) && !request.includes(first.slice(0, 3));
+}
 
 export function filterProducts(products) {
   return products.filter((p) => {

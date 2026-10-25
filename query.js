@@ -21,6 +21,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Fix typos and slang. corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות").
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - fallback_en = the core item as a good standalone AliExpress search, 2-3 English words ("merino arm warmers thumb holes" -> "arm warmers", "Zara men clothing" -> "men casual shirts"; never a vague word like "clothing" or "shoes" alone), used if the first search finds too few, or null when keywords_en is already that.
+- brand = the brand the shopper asked for ("אוזניות של שיאומי" -> "Xiaomi"), or null. A device something is FOR is not a requested brand ("כיסוי לאייפון", "מטען לגלקסי" -> null).
 - Brands: when the shopper names a brand (Nike, Zara, Dior, Rolex, Xiaomi, Lenovo, Apple…), keep it in keywords_en, as shoppers do on AliExpress ("נייקי אייר מקס" -> "Nike Air Max", "נעליים של UGG" -> "UGG boots", "בושם של דיור" -> "Dior perfume", "שעון רולקס" -> "Rolex watch", "בגדים של זארה" -> "Zara women clothing"). fallback_en = the same item WITHOUT the brand name, always ("Zara men clothing" -> fallback "men casual shirts"; "Dior perfume" -> "women perfume long lasting"), because AliExpress often has few or no items of a big brand. Compatibility brands stay too ("כיסוי לאייפון" -> "iPhone case").
 - status "not_allowed" for products the group bot must not search: weapons (switchblades "סכין קפיצית", brass knuckles "אגרופן", real or replica guns "אקדח", tasers), drugs, medicines and diet pills ("תרופה להרזיה"), vapes and e-cigarettes, sex and adult products, and hidden cameras or trackers meant to secretly watch or follow a person ("מצלמה נסתרת לשירותים").
   Allowed (status "ok"): kitchen and chef knives, folding multitools, toy guns ("אקדח מים" -> "water gun toy", "רובה נרף" -> "foam blaster toy"), security and dash cameras, GPS trackers for keys, bags or cars.
@@ -28,7 +29,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies ("מגפיים לבנות" -> "girls boots kids"); only "לתינוק"/"לתינוקת" means babies.
 - status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"): give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
 - floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "סלסלה לפיקניק" -> 60); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
-- min_price_ils / max_price_ils = numbers only when the request states a shekel range or limit ("עד 50 שקל" -> max 50, "בין 80 ל-150" -> min 80, max 150), otherwise null.
+- min_price_ils / max_price_ils = numbers only when the request states a shekel range or limit ("עד 50 שקל" -> max 50, "בין 80 ל-150" -> min 80, max 150, "עד 20 דולר" -> max 74), otherwise null.
 - The request may be a whole chat sentence (e.g. "מישהו מכיר מטען טוב לרכב?"): extract only the product into corrected_he/keywords_en.
 - If the text starts with a mistyped search command ("החפש לי", "חהפש ךי", "מצה לי"), start corrected_he with the fixed command "חפש לי" followed by the product.
 - A word glued to a leading "לי" is a missing space: "ליהדום לרגליים" -> "הדום לרגליים" (but real words stay: "לימון").
@@ -47,6 +48,7 @@ const SCHEMA = {
     min_price_ils: { type: ["number", "null"] },
     max_price_ils: { type: ["number", "null"] },
     floor_price_ils: { type: ["number", "null"] },
+    brand: { type: ["string", "null"] },
     fallback_en: { type: ["string", "null"] },
     clarify_question_he: { type: ["string", "null"] },
     options: {
@@ -59,7 +61,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "fallback_en", "clarify_question_he", "options"],
+  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "fallback_en", "clarify_question_he", "options"],
   additionalProperties: false,
 };
 
@@ -67,6 +69,26 @@ const price = (v) => (typeof v === "number" && v > 0 && Number.isFinite(v) ? v :
 const clean = (s, max) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 // Validates the model's JSON in code before anything uses it; returns null when it can't be trusted.
+// Prices written in the request, read by code so they never depend on the AI ("עד 30 ש"ח", "עד 20 דולר", "בין 80 ל-150").
+// shortcut: dollars use a fixed rate; fine for a price cap, update USD_ILS if the shekel moves a lot.
+const USD_ILS = 3.7;
+const CURRENCY = String.raw`(ש"ח|ש״ח|שח|שקלים|שקל|₪|nis|ils|דולרים|דולר|\$|usd)`;
+const NUM = String.raw`(\d+(?:\.\d+)?)`;
+const UNIT_AFTER = /^\s*(?:ק"ג|קג|קילו|גרם|ס"מ|סמ|מ"מ|מטר|מ"ל|מל|ליטר|אינץ|ואט|וואט|וולט|שעות|ימים|יום|אחוז|%|[a-z])/i;
+export function statedPrice(text) {
+  const t = text.replace(/\$\s*(\d+(?:\.\d+)?)/g, "$1 $$").replace(/-/g, " "); // "$25" -> "25 $"
+  const ils = (n, cur) => Math.round(Number(n) * (/דולר|\$|usd/i.test(cur ?? "") ? USD_ILS : 1));
+  const hasUnit = (rest) => UNIT_AFTER.test(rest) && !new RegExp(`^\\s*${CURRENCY}`, "i").test(rest);
+  let m = t.match(new RegExp(String.raw`בין\s*${NUM}\s*(?:ל|עד)\s*${NUM}\s*${CURRENCY}?`, "i"));
+  if (m && !hasUnit(t.slice(m.index + m[0].length - (m[3]?.length ?? 0)))) return { min: ils(m[1], m[3]), max: ils(m[2], m[3]) };
+  const out = {};
+  m = t.match(new RegExp(String.raw`(?:עד|מתחת ל|פחות מ|מקסימום|לא יותר מ)\s*${NUM}\s*${CURRENCY}?`, "i"));
+  if (m && (m[2] || !hasUnit(t.slice(m.index + m[0].length)))) out.max = ils(m[1], m[2]);
+  m = t.match(new RegExp(String.raw`(?:מעל|יותר מ|לפחות|החל מ)\s*${NUM}\s*${CURRENCY}`, "i")); // a floor needs a currency word
+  if (m) out.min = ils(m[1], m[2]);
+  return out;
+}
+
 export function validateIntent(o) {
   if (!o || typeof o !== "object") return null;
   const status = String(o.status).toLowerCase();
@@ -77,6 +99,8 @@ export function validateIntent(o) {
   if (min && !(max && min >= max)) base.min_price_ils = min; // only when present, so existing callers and tests see the same shape
   const floor = price(o.floor_price_ils);
   if (floor && !min && !(max && floor >= max)) base.floor_price_ils = floor; // the shopper's own price always wins
+  const brand = clean(o.brand, 40);
+  if (brand) base.brand = brand;
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
@@ -142,6 +166,14 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
     try {
       const value = validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM, content: text, name: "search_intent", schema: SCHEMA, onUsage }));
       if (!value) return warn("response failed validation"), null;
+      if (value.status === "ok" || value.status === "clarify") {
+        const { min, max } = statedPrice(text);
+        if (max && !value.max_price_ils) value.max_price_ils = max;
+        if (min && !value.min_price_ils && !(value.max_price_ils && min >= value.max_price_ils)) value.min_price_ils = min;
+        if (value.min_price_ils) delete value.floor_price_ils; // the shopper's own price wins
+        // A price never belongs in the search words ("keyboard 20dollar" found nothing).
+        value.keywords_en = value.keywords_en.replace(/\$?\s*\d+\s*(?:dollars?|usd|nis|ils|shekels?|\$)|\$\s*\d+/gi, "").replace(/\s+/g, " ").trim() || value.keywords_en;
+      }
       cache.delete(key);
       cache.set(key, { value, at: now() });
       if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);

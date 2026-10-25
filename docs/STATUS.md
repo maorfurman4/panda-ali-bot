@@ -314,3 +314,10 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Known left:** the same model with different photos and titles (ABIR K30 ×3 in the robot-vacuum card) isn't merged; the photo check only catches identical photos.
 - **Pinned group message:** written for the owner (how to search, prices, /advice, buttons, group rules; no affiliate wording).
 
+## 3p. Step 4 fixes (2026-10-25 morning, owner approved)
+
+- **Prices read by code** (`statedPrice`): "עד 30 ש"ח", "עד 20 דולר" (×3.7), "$25", "מתחת ל-50", "בין 80 ל-150", "מעל 100 שקל". Units like kg, m and ml aren't prices. This fills in what the AI missed ("keyboard 20dollar" with no cap), and price words are stripped from keywords_en.
+- **Part detection by first word:** a title starting with a part or accessory word (battery, cable, stand, wrist rest, wheel, tire, charger, cover, guard, strap, mount, riser, adapter) is dropped, unless the request names that word (3-letter stem). "סט של 2"/"N יחידות" prefixes are ignored.
+- **Brand only:** the AI returns `brand` (a device something is FOR isn't a brand). When a brand is requested and ≥1 exact match is found, partials (other brands) are dropped, even if that leaves 1-2 products.
+- **Root cause found:** the in-bot relevance model (gpt-5.4-mini) accepts look-alikes: keyboard-shaped keychains for "keyboard", scooter batteries for "electric scooter", flower baskets for "picnic basket", a window robot titled "vacuum". gpt-5.4 rejected all of them in one test (and was faster: 1.7 s vs 2.0 s), but costs ~$0.008/search vs ~$0.0025. Waiting on the owner's decision.
+

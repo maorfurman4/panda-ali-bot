@@ -233,4 +233,9 @@ test("isPartFor: spare parts for the item are spotted, unless the shopper asked 
   for (const t of ["רובוט שואב אבק wd8, תרסיס מים כפול", "רובוט ניקוי חכם לשאיבה וסטאטוס"]) assert.ok(!isPartFor(t, req), t);
   assert.ok(!isPartFor("חלקי חילוף למברשות גליליות", "מברשות לשואב אבק רובוטי"), "parts were asked for");
   assert.ok(!isPartFor("כיסוי שקוף לאייפון 15 פרו", "כיסוי לאייפון 15"));
+  // titles that start with the accessory's name (step 4: keyboard accessories, scooter batteries)
+  for (const [t, req] of [["כבל מקלדת מכנית מסוג USB Type C", "מקלדת"], ["סט של 2 משענות יד בעיצוב כנפי מלאך", "מקלדת"], ["מעמד מיני מתקפל למחשב נייד", "מקלדת"],
+    ["הרמת מקלדת 2 חלקים מעמד תמיכה", "מקלדת"], ["סוללת קטנוע חשמלי 48V 13S6P 20Ah", "קורקינט חשמלי"], ["רצועה לשעון חכם", "שעון חכם"]]) assert.ok(isPartFor(t, req), t);
+  for (const [t, req] of [["מטען מהיר 65W GaN", "מטען 65W לגלקסי"], ["כבל טעינה מהירה לאייפון", "כבל לאייפון"], ["מקלדת אלחוטית מיני", "מקלדת"],
+    ["מגן מסך לאייפון 15", "מגן מסך לאייפון"]]) assert.ok(!isPartFor(t, req), t);
 });

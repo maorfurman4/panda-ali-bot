@@ -122,7 +122,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const find = (q) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls });
   // The broader search starts right away, in parallel (AliExpress calls are free); its AI check runs only if needed. Saves ~2 s.
@@ -150,6 +150,7 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   }
   // Proven products (≥10 sold) first, so a card isn't led by unknown listings; within each, exact before partial.
   const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES;
+  if (brandOnly && exact.length) partial = []; // a brand was asked for and found: another brand isn't "close"
   const tag = (list, match) => list.map((p) => ({ ...p, match })); // the card says so when nothing shown is an exact match
   exact = tag(exact, "exact");
   partial = tag(partial, "partial");
@@ -268,6 +269,7 @@ export function createBot({
         maxPriceIls: intent?.max_price_ils ?? null,
         minPriceIls: intent?.min_price_ils ?? intent?.floor_price_ils ?? null,
         floorOnly: Boolean(!intent?.min_price_ils && intent?.floor_price_ils),
+        brandOnly: Boolean(intent?.brand),
         replyToId: ctx.msg.message_id,
       });
     });
@@ -291,7 +293,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: Boolean(intent.brand), replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -325,12 +327,12 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let found;
     try {
-      const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, context, maxPriceIls, minPriceIls: min, limit, extra: limit * MORE_PAGES });
+      const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, context, maxPriceIls, minPriceIls: min, brandOnly, limit, extra: limit * MORE_PAGES });
       found = await pick(minPriceIls);
       if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
     } catch (e) {
