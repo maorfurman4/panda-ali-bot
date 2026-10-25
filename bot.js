@@ -53,6 +53,8 @@ const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const RELEVANCE_POOL = 24;
 const PROVEN_SALES = 10;
+const RESULTS_TTL_MS = 6 * 60 * 60_000; // shortcut: prices may drift a little within 6 h; shorten if that matters
+const RESULTS_MAX = 300;
 const MORE_PAGES = 2; // up to 2 more cards behind "🔄 עוד", from products already found and checked (no extra AI cost)
 const MORE_TTL_MS = 10 * 60_000;
 const CARD_TTL_MS = 24 * 60 * 60_000; // votes are deduplicated for a day
@@ -105,8 +107,8 @@ export function parseTrigger(text, username) {
 }
 
 // The result pipeline, shared by the bot and the search-quality eval:
-// search -> quality filter (≥90% feedback, price cap) -> AI relevance on the top 24 (real results only, exact before partial)
-// -> ranking (proven sellers first). With fewer than `limit` exact matches a broader fallback search runs (no duplicates).
+// main + broader search together -> quality filter (≥90% feedback, price range) -> ONE AI relevance call on the best 24 of
+// both (real results only, exact before partial) -> ranking (proven sellers first) -> one listing per photo.
 // Throws only if both searches fail.
 // Same photo (Hamming distance ≤ 6 of 64) = the same product from another seller: keep the first (best-ranked).
 const SAME_PHOTO_MAX_DISTANCE = 6;
@@ -125,28 +127,23 @@ export async function dedupeByPhoto(products, hash) {
 export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const find = (q) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls });
-  // The broader search starts right away, in parallel (AliExpress calls are free); its AI check runs only if needed. Saves ~2 s.
-  const first = find(keywords);
-  const early = fallback && fallback !== keywords ? find(fallback) : null;
-  early?.catch(() => {}); // handled below; never an unhandled rejection
-  const gather = async (found, seen) => {
-    const fresh = withinPrice(filterProducts(await found), maxPriceIls, minPriceIls).filter((p) => !seen.has(keyOf(p)));
-    if (!live) return { exact: fresh, partial: [] };
-    const top = rankProducts(fresh).slice(0, RELEVANCE_POOL); // fewer titles = a faster, steadier AI check
-    const out = await relevant({ he: context, en: keywords }, top).catch(() => ({ exact: top, partial: [] }));
-    return Array.isArray(out) ? { exact: out, partial: [] } : out;
-  };
-  // The main search failing (an AliExpress glitch) doesn't fail the request while the broader one works.
-  let { exact, partial } = await gather(early ? first.catch((e) => early.then(() => [], () => Promise.reject(e))) : first, new Set());
-  // Fewer than `limit` exact matches: a broader search may find more, before partial matches fill the card.
-  if (exact.length < limit && early) {
-    try {
-      const more = await gather(early, new Set([...exact, ...partial].map(keyOf)));
-      exact = exact.concat(more.exact);
-      partial = partial.concat(more.partial);
-    } catch (e) {
-      console.error(`fallback search failed: ${e.message}`); // the first results still show
-    }
+  const broader = Boolean(fallback && fallback !== keywords);
+  // Both searches run together (AliExpress calls are free) and ONE AI call judges both pools: no second check, ~1.5 s less.
+  const [main, wide] = await Promise.allSettled([find(keywords), broader ? find(fallback) : Promise.resolve([])]);
+  if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
+  if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
+  const usable = (r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []);
+  const first = usable(main);
+  const seen = new Set(first.map(keyOf));
+  const more = usable(wide).filter((p) => !seen.has(keyOf(p)));
+  let exact = first.length >= limit ? first : first.concat(more); // demo mode (no AI): the broader search only tops up
+  let partial = [];
+  if (live) {
+    // The main search's best fill the pool; the broader one gets at least a third, or whatever room is left.
+    const fromMore = Math.min(more.length, Math.max(RELEVANCE_POOL - first.length, Math.round(RELEVANCE_POOL / 3)));
+    const pool = first.slice(0, RELEVANCE_POOL - fromMore).concat(more.slice(0, fromMore));
+    const out = await relevant({ he: context, en: keywords }, pool).catch(() => ({ exact: [], partial: pool }));
+    ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
   }
   // Proven products (≥10 sold) first, so a card isn't led by unknown listings; within each, exact before partial.
   const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES;
@@ -206,6 +203,7 @@ export function createBot({
   const guidedAt = new Map(); // last "write חפש לי" hint per user (same in-memory shortcut)
   const pending = new Map(); // advisor sessions waiting for a button press, by short id (same shortcut as above)
   let clarifySeq = 0;
+  const resultsCache = new Map(); // same search within 6 h -> same products, no AI or AliExpress cost (same in-memory shortcut)
   const cards = new Map(); // sent result cards: leftover products for "🔄 עוד" and voters, by short id (same shortcut)
   let cardSeq = 0;
 
@@ -332,9 +330,18 @@ export function createBot({
     stats.count("search");
     let found;
     try {
-      const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, context, maxPriceIls, minPriceIls: min, brandOnly, limit, extra: limit * MORE_PAGES });
-      found = await pick(minPriceIls);
-      if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
+      const key = JSON.stringify([keywords, fallback, maxPriceIls, minPriceIls, brandOnly, limit]);
+      const hit = resultsCache.get(key);
+      if (hit && now() - hit.at < RESULTS_TTL_MS) {
+        found = hit.found;
+        stats.count("cached");
+      } else {
+        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, context, maxPriceIls, minPriceIls: min, brandOnly, limit, extra: limit * MORE_PAGES });
+        found = await pick(minPriceIls);
+        if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
+        if (found.length) resultsCache.set(key, { found, at: now() });
+        if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
+      }
     } catch (e) {
       stats.failure("aliexpress", e.message);
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
@@ -478,7 +485,7 @@ export function createBot({
       `🏷️ גרסה: ${esc(version)} · ${isMockMode() ? "דמו" : "אמיתי"} · פעיל ${Math.round((now() - startedAt) / 60_000)} דק'`,
       `🔎 חיפושים: ${n("search")} · ללא תוצאות: ${n("noResults")} · שגיאות עלי אקספרס: ${n("fail:aliexpress")}`,
       `🤖 כשלי AI: ${n("fail:ai")} · כשלי טלגרם: ${n("fail:telegram")}`,
-      `🎯 בול: ${n("thumbsUp")} · 🐼 לא זה: ${n("thumbsDown")} · 🔍 לחפש עוד: ${n("more")}`,
+      `🎯 בול: ${n("thumbsUp")} · 🐼 לא זה: ${n("thumbsDown")} · 🔍 לחפש עוד: ${n("more")} · ♻️ מהזיכרון: ${n("cached")}`,
       "",
       "<b>בדיקה חיה</b>",
       ...checks.map(esc),

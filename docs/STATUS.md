@@ -321,3 +321,12 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Brand only:** the AI returns `brand` (a device something is FOR isn't a brand). When a brand is requested and ≥1 exact match is found, partials (other brands) are dropped, even if that leaves 1-2 products.
 - **Root cause found:** the in-bot relevance model (gpt-5.4-mini) accepts look-alikes: keyboard-shaped keychains for "keyboard", scooter batteries for "electric scooter", flower baskets for "picnic basket", a window robot titled "vacuum". gpt-5.4 rejected all of them in one test (and was faster: 1.7 s vs 2.0 s), but costs ~$0.008/search vs ~$0.0025. Waiting on the owner's decision.
 
+## 3q. Accurate and cheap (2026-10-25 morning, owner approved)
+
+- **Relevance on gpt-5.4, titles only** (photos only when the request names a color or pattern). In a 6-search test it picked the same products as with photos, rejected the look-alikes mini accepted (keyboard keychains, scooter batteries, flower baskets, a window robot titled "vacuum"), and did it at ~$0.004/search in 1.5 s.
+- **One AI call for both searches:** the main and broader searches run together. The pool is the main search's best plus at least a third from the broader one, judged in ONE call. The second relevance call is gone (cost, ~1.5 s).
+- **Repeated searches reuse the products for 6 h** (same keywords, price and brand), with no AliExpress or AI cost. `/status` counts them as "♻️ מהזיכרון".
+- **Honest failure:** if the AI check fails, nothing is called exact. Products come back as close matches minus spare parts, and the card says "לא מצאתי התאמה מדויקת". Before, it showed unfiltered results as if they were exact.
+- **Evals:** the default judge is gpt-5.5 (stronger than the bot's gpt-5.4, so the score isn't self-graded). eval-search prices include gpt-5.4/5.5.
+- **Eval after this round (45 searches, independent gpt-5.5 judge): 97% right item (best so far), 82% every feature.** 5/45 had fewer than 4 results (honest: only real matches), p50 5.7 s, $0.0054/search with no cache. One 58 s outlier didn't repeat (8.5 s on rerun).
+

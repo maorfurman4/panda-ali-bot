@@ -189,12 +189,18 @@ export const understandQuery = createUnderstander();
 // gpt-5.4-mini with product images. Measured 2026-10-24 night (same request + same 24 products, 4 runs each):
 // mini 1.5 s avg, no timeouts, the most consistent. gpt-6-luna averaged 4.4 s and often hit the 5 s timeout, which shows
 // UNFILTERED results (the junk the owner saw); "low" reasoning effort was slower still. ~$0.003 per search.
-const RELEVANCE_MODEL = "gpt-5.4-mini";
+// 2026-10-25 test (6 hard searches): gpt-5.4 rejected look-alikes mini accepted (keyboard keychains, scooter batteries,
+// flower baskets, a window robot titled "vacuum"). On titles alone it picked the same products as with photos at ~$0.004
+// vs ~$0.0075, so photos are sent only when the request names a color or pattern.
+const RELEVANCE_MODEL = "gpt-5.4";
+// Colors and patterns can only be checked on the photo.
+const VISUAL_WORDS = /אפור|שחור|לבן|אדום|כחול|ירוק|צהוב|ורוד|סגול|חום|בז'|כתום|זהב|כסוף|כסף|שקוף|תכלת|בורדו|קרם|פרחוני|מנוקד|פסים|משובץ|הדפס|צבע|gr[ae]y|black|white|red|blue|green|yellow|pink|purple|brown|beige|orange|gold|silver|clear|floral|striped|plaid|color/i;
 
 const RELEVANCE_SYSTEM = `You check AliExpress search results for an Israeli shopper.
 You get the request (Hebrew, with English search keywords) and numbered products: a title (often machine-translated Hebrew)
-and, usually, the product photo. Use both; the photo shows the item type, color, pattern and who it is for. When the photo shows a different item than the
-title claims (a window-cleaning robot titled "robot vacuum"), trust the photo.
+and, when the request names a color or pattern, the product photo. Sellers often mislabel: judge what the item really is
+(a "keyboard" keychain is a keychain; a window-cleaning robot titled "robot vacuum" is not a vacuum). With a photo, use it
+for color, pattern and item type, and trust it over the title.
 Sort the products into two lists:
 - exact: it IS the requested item type AND matches every feature the request names: color, size or weight, material,
   pattern, gender, use ("for work", "for kids", "gaming"), "with microphone", "wireless", "waterproof", "thick", "windproof", "silent".
@@ -224,29 +230,31 @@ const RELEVANCE_SCHEMA = {
 };
 
 // Splits products into { exact, partial } matches (API order), dropping spare parts for the item.
-// Fail-open: any problem returns everything as exact.
-// Only the request text, product titles and product photos are sent.
+// On an AI failure nothing is called exact: products come back as "partial" (the card then says "no exact match").
+// Only the request text, product titles and (for colors/patterns) product photos are sent.
 export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.env, onUsage = () => {} } = {}) {
-  const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI relevance filter failed (${reason}); showing unfiltered results`);
+  const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI relevance filter failed (${reason}); showing unchecked results as close matches`);
   return async function filterRelevant(request, products) {
     if (!products.length || !env.OPENAI_API_KEY) return { exact: products, partial: [] };
     const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})`;
     const lines = products.map((p, i) => `${i}. ${clean(p.product_title, 120)}`);
     const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_220x220.jpg`, detail: "low" }] : []);
+    const titles = [head, ...lines].join("\n");
     const withPhotos = [{ type: "input_text", text: head }, ...products.flatMap((p, i) => [{ type: "input_text", text: lines[i] }, ...photo(p)])];
     const ask = (content) => requestJson({ fetch, env, model: env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL, instructions: RELEVANCE_SYSTEM, content, name: "relevant_products", schema: RELEVANCE_SCHEMA, onUsage });
+    // Spare parts for the item: the model often keeps them, so a deterministic title check drops them too.
+    const parts = new Set(products.flatMap((p, i) => (isPartFor(p.product_title, request.he) ? [i] : [])));
+    const unchecked = (reason) => (warn(reason), { exact: [], partial: products.filter((_, i) => !parts.has(i)) });
     try {
       // One retry with titles only: covers an unreachable photo (HTTP 400) and a slow first call after a cold start.
-      const out = await ask(withPhotos).catch(() => ask([head, ...lines].join("\n")));
+      const out = await ask(VISUAL_WORDS.test(`${request.he} ${request.en}`) ? withPhotos : titles).catch(() => ask(titles));
       const ints = (a) => Array.isArray(a) && a.every(Number.isInteger);
-      if (!ints(out?.exact) || !ints(out?.partial)) return warn("response failed validation"), { exact: products, partial: [] };
-      // Spare parts for the item: the model often keeps them, so a deterministic title check drops them too.
-      const parts = new Set(products.flatMap((p, i) => (isPartFor(p.product_title, request.he) ? [i] : [])));
+      if (!ints(out?.exact) || !ints(out?.partial)) return unchecked("response failed validation");
       const exact = new Set(out.exact.filter((i) => !parts.has(i)));
       const partial = new Set(out.partial.filter((i) => !exact.has(i) && !parts.has(i)));
       return { exact: products.filter((_, i) => exact.has(i)), partial: products.filter((_, i) => partial.has(i)) };
     } catch (e) {
-      return warn(e.message), { exact: products, partial: [] };
+      return unchecked(e.message);
     }
   };
 }

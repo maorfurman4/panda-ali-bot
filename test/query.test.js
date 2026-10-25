@@ -159,31 +159,29 @@ function openaiRelevant(exact, partial = [], opts = {}) {
 }
 const ids = (r) => ({ exact: r.exact.map((p) => p.product_id), partial: r.partial.map((p) => p.product_id) });
 
-test("relevance: sends only the request, numbered titles and photos; splits exact and partial matches, API order", async () => {
+test("relevance: titles only by default (gpt-5.4); photos only when the request names a color or pattern", async () => {
   const api = openaiRelevant([3, 0], [2]);
   const withPhoto = items.map((p, i) => (i === 0 ? { ...p, product_main_image_url: "https://ae01.alicdn.com/kf/a.jpg" } : i === 1 ? { ...p, product_main_image_url: "http://x/b.jpg" } : p));
   const out = await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "משענת לאוטו", en: "car headrest pillow" }, withPhoto);
   assert.deepEqual(ids(out), { exact: ["0", "3"], partial: ["2"] });
   const body = api.requests[0].body;
-  assert.equal(body.model, "gpt-5.4-mini", "gpt-6-luna timed out often (unfiltered results) on 2026-10-24 night; mini was fastest and most consistent");
+  assert.equal(body.model, "gpt-5.4", "mini accepted look-alikes (keychains for 'keyboard'), 2026-10-25");
   assert.deepEqual(body.reasoning, { effort: "none" });
   assert.equal(body.store, false);
   assert.equal(body.text.format.strict, true);
+  assert.deepEqual(body.input, [{ role: "user", content: 'Request: "משענת לאוטו" (car headrest pillow)\n0. כרית משענת ראש לרכב\n1. עוגן פחמן למושב\n2. מחזיק טאבלט לרכב\n3. כרית צוואר לרכב' }]);
+
+  const colored = openaiRelevant([0]);
+  await createRelevanceFilter({ fetch: colored.fetch, env: ENV })({ he: "שטיח לסלון אפור", en: "gray rug" }, withPhoto);
   const text = (t) => ({ type: "input_text", text: t });
-  assert.deepEqual(body.input, [{ role: "user", content: [
-    text('Request: "משענת לאוטו" (car headrest pillow)'),
+  assert.deepEqual(colored.requests[0].body.input[0].content, [
+    text('Request: "שטיח לסלון אפור" (gray rug)'),
     text("0. כרית משענת ראש לרכב"),
     { type: "input_image", image_url: "https://ae01.alicdn.com/kf/a.jpg_220x220.jpg", detail: "low" },
     text("1. עוגן פחמן למושב"), // not https: no photo
     text("2. מחזיק טאבלט לרכב"),
     text("3. כרית צוואר לרכב"),
-  ] }]);
-});
-
-test("relevance: spare parts for the item are dropped even when the AI keeps them", async () => {
-  const parts = [{ product_id: "0", product_title: "רובוט שואב אבק חכם" }, { product_id: "1", product_title: "חלקי חילוף לשואב אבק רובוטי" }];
-  const out = await createRelevanceFilter({ fetch: openaiRelevant([0, 1]).fetch, env: ENV })({ he: "שואב אבק רובוטי", en: "robot vacuum" }, parts);
-  assert.deepEqual(ids(out), { exact: ["0"], partial: [] });
+  ]);
 });
 
 test("relevance: a failed photo call retries once with titles only", async () => {
@@ -201,7 +199,7 @@ test("relevance: nothing matched -> empty; out-of-range numbers ignored; a produ
   assert.deepEqual(ids(out), { exact: ["1"], partial: ["2"] });
 });
 
-test("relevance fail-open: no key, HTTP error, timeout or bad output keeps every product as exact", async (t) => {
+test("relevance failure: nothing is called exact; products come back as close matches (the card says so); no key = dev mode", async (t) => {
   t.mock.method(console, "warn", () => {});
   assert.equal((await createRelevanceFilter({ fetch: async () => assert.fail("no key, no call"), env: {} })({ he: "x", en: "x" }, items)).exact.length, 4);
   for (const fetch of [
@@ -210,7 +208,8 @@ test("relevance fail-open: no key, HTTP error, timeout or bad output keeps every
     openai(null, { text: "nope" }).fetch,
     openai({ exact: "0,1", partial: [] }).fetch,
   ]) {
-    assert.equal((await createRelevanceFilter({ fetch, env: ENV })({ he: "x", en: "x" }, items)).exact.length, 4);
+    const out = await createRelevanceFilter({ fetch, env: ENV })({ he: "x", en: "x" }, items);
+    assert.deepEqual([out.exact.length, out.partial.length], [0, 4]);
   }
 });
 

@@ -10,7 +10,7 @@ if (!process.env.OPENAI_API_KEY || isMockMode()) {
   process.exit(0);
 }
 const j = process.argv.indexOf("--judge");
-const judge = createRelevanceFilter({ env: { ...process.env, OPENAI_RELEVANCE_MODEL: j > 0 ? process.argv[j + 1] : "gpt-5.4-mini" } });
+const judge = createRelevanceFilter({ env: { ...process.env, OPENAI_RELEVANCE_MODEL: j > 0 ? process.argv[j + 1] : "gpt-5.5" } });
 const understand = createUnderstander();
 const advise = createAdvisor();
 const relevant = createRelevanceFilter();

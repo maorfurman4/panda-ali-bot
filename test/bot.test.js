@@ -895,3 +895,25 @@ test("a brand was asked for and found: only that brand is shown (even 2), no oth
   await plain.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
   assert.equal(shownIds(plain.sent()[0]).length, 4, "without a brand, close matches still fill the card");
 });
+
+test("one AI call judges both the main and the broader search (no second check)", async () => {
+  const checked = [];
+  const search = async (q) => (q === "primary" ? [product(1)] : [product(2), product(3), product(4)]);
+  const relevant = async (_r, p) => (checked.push(p.length), { exact: p, partial: [] });
+  const ctx = setup({ search, relevant, live: true, understand: async () => intent({ keywords_en: "primary", fallback_en: "broader" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  assert.deepEqual(checked, [4], "one call with the pool of both searches");
+  assert.equal(shownIds(ctx.sent()[0]).length, 4);
+});
+
+test("the same search within 6 hours reuses the products: no new AliExpress or AI call", async () => {
+  let t = 0, searches = 0, checks = 0;
+  const ctx = setup({ now: () => t, cooldownMs: 0, live: true, search: async () => (searches++, SIX), relevant: async (_r, p) => (checks++, { exact: p, partial: [] }), understand: async () => intent() });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 1 }));
+  t += 60 * 60_000;
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 2 }));
+  assert.deepEqual([searches, checks, ctx.sent().length], [1, 1, 2]);
+  t += 6 * 60 * 60_000;
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 3 }));
+  assert.deepEqual([searches, checks], [2, 2], "expired after 6 hours");
+});

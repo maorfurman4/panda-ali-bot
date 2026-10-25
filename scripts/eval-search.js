@@ -1,6 +1,6 @@
 // End-to-end search quality: for each query the real AI + AliExpress pipeline picks 4 products, then a second
-// AI (the judge, gpt-6-luna by default) checks which of them really ARE what was asked. Reports precision@4.
-// Usage: npm run eval:search [-- --judge gpt-6-luna] [-- --model <relevance model>]
+// AI (the judge, gpt-5.5 by default: stronger than the bot) checks which of them really ARE what was asked. Reports precision@4.
+// Usage: npm run eval:search [-- --judge gpt-5.5] [-- --model <relevance model>]
 import { createUnderstander, createRelevanceFilter } from "../query.js";
 import { searchProducts, isMockMode } from "../aliexpress.js";
 import { pickProducts } from "../bot.js";
@@ -10,9 +10,9 @@ if (!process.env.OPENAI_API_KEY || isMockMode()) {
   process.exit(0);
 }
 const i = process.argv.indexOf("--judge");
-const judge = createRelevanceFilter({ env: { ...process.env, OPENAI_RELEVANCE_MODEL: i > 0 ? process.argv[i + 1] : "gpt-6-luna" } });
+const judge = createRelevanceFilter({ env: { ...process.env, OPENAI_RELEVANCE_MODEL: i > 0 ? process.argv[i + 1] : "gpt-5.5" } }); // stronger than the bot's model: an independent judge
 // $ per 1M tokens [input, output], read 2026-10-24 from https://developers.openai.com/api/docs/pricing
-const PRICES = { "gpt-5.4-nano": [0.2, 1.25], "gpt-5.4-mini": [0.75, 4.5], "gpt-6-luna": [0.1, 0.5], "gpt-5-nano": [0.05, 0.4], "gpt-5-mini": [0.25, 2] };
+const PRICES = { "gpt-5.4": [2.5, 15], "gpt-5.5": [5, 30], "gpt-5.4-nano": [0.2, 1.25], "gpt-5.4-mini": [0.75, 4.5], "gpt-6-luna": [0.1, 0.5], "gpt-5-nano": [0.05, 0.4], "gpt-5-mini": [0.25, 2] };
 const m = process.argv.indexOf("--model");
 if (m > 0) process.env.OPENAI_RELEVANCE_MODEL = process.argv[m + 1];
 let cost = 0;
@@ -21,7 +21,7 @@ const meter = (model) => ({ input_tokens, output_tokens }) => {
   cost += (input_tokens * pin + output_tokens * pout) / 1e6;
 };
 const understand = createUnderstander({ onUsage: meter(process.env.OPENAI_MODEL || "gpt-5.4-nano") });
-const filterRelevant = createRelevanceFilter({ onUsage: meter(process.env.OPENAI_RELEVANCE_MODEL || "gpt-5.4-mini") });
+const filterRelevant = createRelevanceFilter({ onUsage: meter(process.env.OPENAI_RELEVANCE_MODEL || "gpt-5.4") });
 
 const QUERIES = [
   // earlier weak spots
