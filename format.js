@@ -64,7 +64,7 @@ export function isPartFor(title, request = "") {
   const t = cleanTitle(title);
   if (PART_TITLE.test(t)) return true;
   const first = t.replace(BUNDLE_PREFIX, "").split(/[\s,]/)[0];
-  return PART_FIRST_WORDS.test(first) && !request.includes(first.slice(0, 3));
+  return PART_FIRST_WORDS.test(first) && !request.includes(first.slice(0, 4)); // 4 letters: "כיסוי" isn't "כיסא"
 }
 
 export function filterProducts(products) {
@@ -133,6 +133,14 @@ export function discountLine(p) {
 
 export const CLOSEST_NOTE = "לא מצאתי התאמה מדויקת, אלה הכי קרובים 👇";
 
+// Israel: personal imports above $75 pay 18% VAT, collected by AliExpress at checkout (the $75 cap is back since June 2026).
+// shortcut: compares the item price only, at a fixed rate; the real check is the whole order's value.
+const VAT_FREE_ILS = 75 * 3.7;
+export function vatLine(p) {
+  const n = Number(p.target_sale_price ?? p.sale_price);
+  return (p.target_sale_price_currency ?? p.sale_price_currency) === "ILS" && n > VAT_FREE_ILS ? "🧾 מעל 75$: יתווסף מע״מ 18% בקופה" : null;
+}
+
 function buildCard(products, query, demo, reasons, closest) {
   const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [CLOSEST_NOTE] : [])];
   products.forEach((p, i) => {
@@ -145,6 +153,7 @@ function buildCard(products, query, demo, reasons, closest) {
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
         priceLine(p),
         discountLine(p),
+        vatLine(p),
         ratingText(p),
         sold && `🛒 נמכרו: ${sold}`,
         link && `🔗 ${esc(link)}`,
@@ -218,6 +227,7 @@ export const ADVICE_EMPTY = rtl(["על מה להתייעץ? לדוגמה: /advic
 export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
 export const CLARIFY_EXPIRED = "הבקשה פגה, חפשו שוב";
 export const EMPTY_QUERY = rtl(["מה לחפש? לדוגמה: חפש לי אוזניות אלחוטיות"]);
+export const NO_FOOD = rtl(["😕 עלי אקספרס כמעט לא שולח מזון לישראל, ולכן אין תוצאות.", "אפשר לחפש אביזרים, למשל: חפש לי מטחנת קפה ידנית"]);
 export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים שמתאימים בדיוק למה שביקשתם, אבל אני כאן בשבילכם!", "נסו לנסח את הבקשה קצת אחרת או יותר כללי, למשל: חפש לי מטען לאייפון 🙂"]);
 export const guideText = (name) => rtl(['🙂 כדי שאוכל לעזור בצורה הכי טובה, כתבו "חפש לי" ואחריו שם המוצר.', `למשל: חפש לי ${esc(name)}`]);
 export const SEARCH_ERROR = rtl(["😕 הייתה תקלה בחיבור לעלי אקספרס. נסו שוב בעוד דקה."]);

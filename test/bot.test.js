@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -980,4 +980,27 @@ test("help in Hebrew: 'עזרה', 'איך זה עובד?' and the like show the 
   const chat = setup({ understand: async () => intent({ status: "not_product", keywords_en: "" }) });
   await chat.bot.handleUpdate(textUpdate("צריך עזרה עם המחשב"));
   assert.notEqual(chat.sent()[0]?.body, HELP);
+});
+
+test("trusted sellers first: ≥10 sold AND ≥95% positive feedback lead; 90-94% sellers come after", async () => {
+  const items = [product(1, { evaluate_rate: "91%", lastest_volume: "5000" }), product(2, { evaluate_rate: "97%", lastest_volume: "300" }), product(3, { evaluate_rate: "96%", lastest_volume: "200" })];
+  const ctx = setup({ search: async () => items, live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "3", "1"]);
+});
+
+test("suspiciously cheap and barely sold items are dropped; cheap but proven ones stay", async () => {
+  const p = (n, price, sold) => product(n, { target_sale_price: String(price), lastest_volume: String(sold) });
+  const items = [p(1, 100, 500), p(2, 110, 400), p(3, 90, 300), p(4, 15, 3), p(5, 20, 9000)];
+  const ctx = setup({ search: async () => items, live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  const ids = shownIds(ctx.sent()[0]);
+  assert.ok(!ids.includes("4"), "₪15 with 3 sales next to ~₪100 items: suspicious");
+  assert.ok(ids.includes("5"), "₪20 with 9,000 sales: a real bargain");
+});
+
+test("an empty food search explains that AliExpress barely ships food to Israel", async () => {
+  const ctx = setup({ search: async () => [], understand: async () => intent({ corrected_he: "חטיפים יפניים", keywords_en: "Japanese snacks" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי חטיפים יפניים"));
+  assert.equal(ctx.sent()[0].body, NO_FOOD);
 });

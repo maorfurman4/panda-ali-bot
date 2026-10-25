@@ -8,7 +8,8 @@
     "eval:query": "node --env-file-if-exists=.env scripts/eval-query.js",
     "check:live": "node --env-file-if-exists=.env scripts/check-live.js",
     "eval:search": "node --env-file-if-exists=.env scripts/eval-search.js",
-    "eval:advice": "node --env-file-if-exists=.env scripts/eval-advice.js"
+    "eval:advice": "node --env-file-if-exists=.env scripts/eval-advice.js",
+    "eval:categories": "node --env-file-if-exists=.env scripts/eval-categories.js"
   },
   "engines": {
     "node": ">=22"

@@ -27,6 +27,7 @@ import {
   GROUP_LINK,
   EMPTY_QUERY,
   NO_RESULTS,
+  NO_FOOD,
   NOT_PRODUCT,
   NOT_ALLOWED,
   OFF_TOPIC,
@@ -57,6 +58,9 @@ const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
 const RELEVANCE_POOL = 24;
 const PROVEN_SALES = 10;
+const TRUSTED_FEEDBACK = 95;
+// AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
+const FOOD_WORDS = /חטיף|ממתק|שוקולד|סוכרי|עוגיות|\bתה\b|קפה טחון|פולי קפה|אוכל|מזון|תבלין|דבש|אגוזים|food|snack|candy|tea\b/i;
 const RESULTS_TTL_MS = 6 * 60 * 60_000; // shortcut: prices may drift a little within 6 h; shorten if that matters
 const RESULTS_MAX = 300;
 const MORE_PAGES = 2; // up to 2 more cards behind "🔄 עוד", from products already found and checked (no extra AI cost)
@@ -153,8 +157,16 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
     const out = await relevant({ he: context, en: keywords }, pool).catch(() => ({ exact: [], partial: pool }));
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
   }
-  // Proven products (≥10 sold) first, so a card isn't led by unknown listings; within each, exact before partial.
-  const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES;
+  // Trusted products first (≥10 sold and ≥95% positive feedback, the safe bar in buyer guides), so a card isn't led by unknown
+  // or so-so sellers; within each group, exact before partial.
+  const rate = (p) => parseFloat(p.evaluate_rate);
+  const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && !(rate(p) < TRUSTED_FEEDBACK);
+  // Suspiciously cheap: under a quarter of the typical price of the matches AND barely sold (proven cheap items stay).
+  const prices = [...exact, ...partial].map((p) => Number(p.target_sale_price ?? p.sale_price)).filter((n) => n > 0).sort((a, b) => a - b);
+  const median = prices.length >= 4 ? prices[Math.floor(prices.length / 2)] : 0;
+  const suspicious = (p) => median && Number(p.target_sale_price ?? p.sale_price) < median / 4 && Number(p.lastest_volume) < 100;
+  exact = exact.filter((p) => !suspicious(p));
+  partial = partial.filter((p) => !suspicious(p));
   if (brandOnly && exact.length) partial = []; // a brand was asked for and found: another brand isn't "close"
   const tag = (list, match) => list.map((p) => ({ ...p, match })); // the card says so when nothing shown is an exact match
   exact = tag(exact, "exact");
@@ -370,7 +382,8 @@ export function createBot({
     }
     if (!found.length) {
       stats.count("noResults");
-      return ctx.reply(NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
+      const food = FOOD_WORDS.test(`${header} ${keywords}`) && !/מטחנ|כוס|ספל|קופס|grinder|mug|cup|box/i.test(`${header} ${keywords}`);
+      return ctx.reply(food ? NO_FOOD : NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
     const shown = found.slice(0, limit);
     const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice

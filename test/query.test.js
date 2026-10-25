@@ -105,10 +105,19 @@ test("failures are not cached", async (t) => {
   t.mock.method(console, "warn", () => {});
   let n = 0;
   const good = openai(STRICT_OK).fetch;
-  const fetch = async (...args) => (++n === 1 ? { ok: false, status: 500, json: async () => ({}) } : good(...args));
+  const fetch = async (...args) => (++n <= 2 ? { ok: false, status: 500, json: async () => ({}) } : good(...args)); // both tries fail
   const understand = createUnderstander({ fetch, env: ENV });
   assert.equal(await understand("אושניות"), null);
   assert.deepEqual(await understand("אושניות"), OK);
+});
+
+test("understand: one failed AI call is retried once", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  let n = 0;
+  const good = openai(STRICT_OK).fetch;
+  const fetch = async (...args) => (++n === 1 ? { ok: false, status: 500, json: async () => ({}) } : good(...args));
+  assert.deepEqual(await createUnderstander({ fetch, env: ENV })("אושניות"), OK);
+  assert.equal(n, 2);
 });
 
 test("onUsage receives token counts for each AI call (used by the eval for cost)", async () => {

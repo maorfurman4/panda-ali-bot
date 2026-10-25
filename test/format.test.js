@@ -15,6 +15,7 @@ import {
   withinPrice,
   dedupeProducts,
   isPartFor,
+  vatLine,
   esc,
   RLM,
   HELP,
@@ -234,4 +235,11 @@ test("isPartFor: spare parts for the item are spotted, unless the shopper asked 
     ["הרמת מקלדת 2 חלקים מעמד תמיכה", "מקלדת"], ["סוללת קטנוע חשמלי 48V 13S6P 20Ah", "קורקינט חשמלי"], ["רצועה לשעון חכם", "שעון חכם"]]) assert.ok(isPartFor(t, req), t);
   for (const [t, req] of [["מטען מהיר 65W GaN", "מטען 65W לגלקסי"], ["כבל טעינה מהירה לאייפון", "כבל לאייפון"], ["מקלדת אלחוטית מיני", "מקלדת"],
     ["מגן מסך לאייפון 15", "מגן מסך לאייפון"]]) assert.ok(!isPartFor(t, req), t);
+});
+
+test("VAT note: items above $75 (≈₪277) pay 18% VAT at checkout; cheaper or non-ILS items get no note", () => {
+  assert.match(vatLine({ target_sale_price: "300", target_sale_price_currency: "ILS" }), /מע״מ 18%/);
+  assert.equal(vatLine({ target_sale_price: "200", target_sale_price_currency: "ILS" }), null);
+  assert.equal(vatLine({ sale_price: "300", sale_price_currency: "USD" }), null);
+  assert.ok(isPartFor("כיסוי אוניברסלי לכיסא משרדי", "כיסא גיימינג"), "a chair cover isn't a chair (4-letter stem)");
 });

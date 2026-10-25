@@ -356,3 +356,19 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Advisor:** a "⬅️ חזרה" button goes one question back (a snapshot per answer). The result header lists every choice ("מתנה לאמא · תכשיט · עד 50 ₪"; QUERY_MAX 80). Only the requester can press, as before.
 - **Help:** "עזרה", "הסבר", "איך זה עובד?", "איך מחפשים", "מה הבוט יודע לעשות" show the help, with the same 10-minute group limit. The help text is short: the slogan, how to search with one example, "the more details, the more accurate", the gift advisor, the buttons. The link-conversion line was removed.
 
+## 3u. Research round (2026-10-25 evening)
+
+- **Category map** (`npm run eval:categories`, 33 categories × 2 searches, judged by gpt-5.5):
+  - gpt-5.4 got 97% right at $0.005/search; gpt-5.4-mini got 91% at $0.0015. Mini equals 5.4 (100%) in 22 categories and is weaker in home appliances, furniture, shoes, watches, hair, kitchen and food. That's the basis for per-category model routing (to confirm with a second run).
+  - Weak spots: furniture (60%) and food (AliExpress barely ships food to Israel).
+- **Locked APIs:** `product.shipping.get` (delivery to Israel), `sku.detail.get` and `hotproduct.query` answer "InsufficientPermission" (they need Advanced API access, which the owner requests in Portals). The `ds.*` methods need an OAuth access token. The affiliate `product.query` has no stars, review count, delivery time or store rating.
+- **Built from the research (owner approved):**
+  - Trusted sellers first (≥10 sold AND ≥95% positive feedback).
+  - Suspiciously cheap, barely sold items dropped (under ¼ of the matches' median price with <100 sales).
+  - A VAT note on items over $75 (≈₪277): "🧾 מעל 75$: יתווסף מע״מ 18% בקופה" (the cap has been back at $75 since June 2026).
+  - An empty food search gets an explanation.
+  - Gaming chair price floor 250: 4 real chairs, up from 1 cover.
+  - The part check's stem is 4 letters ("כיסוי" ≠ "כיסא").
+  - The understanding step retries once on failure (2/66 had failed).
+- **Keep-awake:** the owner extends it to `*/10 0-2,5-23 * * *` (awake 05:00-03:00 ≈ 682 of 750 h; 24/7 would exceed the shared 750 h and stop every free service until month end).
+

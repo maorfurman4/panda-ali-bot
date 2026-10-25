@@ -28,7 +28,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies ("מגפיים לבנות" -> "girls boots kids"); only "לתינוק"/"לתינוקת" means babies.
 - status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"). For a gift, one of the options or questions should be the budget: give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
-- floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "סלסלה לפיקניק" -> 60); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
+- floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "כיסא גיימינג" -> 250, "סלסלה לפיקניק" -> 60); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
 - min_price_ils / max_price_ils = numbers only when the request states a shekel range or limit ("עד 50 שקל" -> max 50, "בין 80 ל-150" -> min 80, max 150, "עד 20 דולר" -> max 74), otherwise null.
 - The request may be a whole chat sentence (e.g. "מישהו מכיר מטען טוב לרכב?"): extract only the product into corrected_he/keywords_en.
 - If the text starts with a mistyped search command ("החפש לי", "חהפש ךי", "מצה לי"), start corrected_he with the fixed command "חפש לי" followed by the product.
@@ -171,7 +171,9 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
     if (!env.OPENAI_API_KEY) return null; // reported once at startup by index.js
 
     try {
-      const value = validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM, content: text, name: "search_intent", schema: SCHEMA, onUsage }));
+      // One retry: a timeout or an odd answer happened in 2 of 66 searches (2026-10-25); a second try usually succeeds.
+      const ask = async () => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM, content: text, name: "search_intent", schema: SCHEMA, onUsage }));
+      const value = (await ask().catch(() => null)) ?? (await ask());
       if (!value) return warn("response failed validation"), null;
       if (value.status === "ok" || value.status === "clarify") {
         const { min, max } = statedPrice(text);
