@@ -347,3 +347,9 @@ A probe of 38 unusual messages found 4 issues. All fixed:
   - AliExpress links pasted without "https://" (with a path) are converted.
 - Still untested: an `a.aliexpress.com` link shared from the app.
 
+## 3t. The bot lives in the group (owner decision, 2026-10-25)
+
+- **Private chat:** only the owner (`ADMIN_USER_ID`) is served (/status, tests). Anyone else gets an invitation to the group with a join button. `/myid` stays open, and old private buttons answer "החיפוש עובד בקבוצת פנדה אקספרס".
+- **Advisor fully in the group:** callback buttons in the group, requester only, with no deep links and no "continue in private". `continueInPrivate`, `GROUP_HELP` and `ADVICE_EXPIRED` were removed.
+- **/start and /help in the group** show the full help (10-minute cooldown per chat). The help text has no private-chat or affiliate wording (the DISCLOSURE line was removed, by owner decision).
+

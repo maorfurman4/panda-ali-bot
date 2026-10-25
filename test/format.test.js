@@ -17,9 +17,7 @@ import {
   isPartFor,
   esc,
   RLM,
-  DISCLOSURE,
   HELP,
-  GROUP_HELP,
 } from "../format.js";
 
 test("parses evaluate_rate strings safely", () => {
@@ -194,12 +192,11 @@ test("link reply: link only, demo label, no disclosure, RLM on each line", () =>
   assert.equal(esc('<a&b>"'), "&lt;a&amp;b&gt;&quot;");
 });
 
-test("help texts: private keeps the full disclosure sentence; group help is one line", () => {
-  assert.ok(HELP.includes(DISCLOSURE));
+test("help text: for the group, how to search, no private-chat or affiliate wording", () => {
   assert.match(HELP, /חפש לי/);
   assert.match(HELP, /מצא לי/);
   assert.ok(HELP.includes("מספר המכירות הוא לפי עלי אקספרס, בתקופה האחרונה"));
-  assert.equal(GROUP_HELP, `${RLM}🐼 כתבו "חפש לי ..." ואמצא לכם מוצרים. הסבר מלא בפרטי 👈`);
+  assert.doesNotMatch(HELP, /בפרטי|שותפים|עמלה/);
 });
 
 test("dedupe: the same product from several sellers shows once (brand + model, or the same title start)", () => {

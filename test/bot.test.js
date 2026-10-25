@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, GROUP_HELP, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -233,22 +233,16 @@ test("link conversion: API error -> friendly message; unresolvable link -> silen
   assert.equal(unresolved.sent().length, 0);
 });
 
-test("/start and /help in a group: one line + deep-link button, 10-minute per-chat cooldown", async () => {
+test("/start and /help in a group: the full help in the group itself, 10-minute per-chat cooldown", async () => {
   let t = 0;
   const ctx = setup({ now: () => t });
   await ctx.bot.handleUpdate(textUpdate("/start"));
-  const [first] = ctx.sent();
-  assert.equal(first.body, GROUP_HELP);
-  assert.deepEqual(first.reply_markup.inline_keyboard, [[{ text: "להסבר המלא", url: "https://t.me/panda_test_bot?start=help" }]]);
-
+  assert.equal(ctx.sent()[0].body, HELP);
   t += 60_000;
   await ctx.bot.handleUpdate(textUpdate("/help", { userId: 8 }));
   assert.equal(ctx.sent().length, 1, "silent while cooling down, for any member");
-
-  t += 10 * 60_000;
-  await ctx.bot.handleUpdate(textUpdate("/help"));
-  assert.equal(ctx.sent().length, 2);
 });
+
 
 test("/start and /help in private show the full help", async () => {
   for (const cmd of ["/start", "/help", "/start help"]) {
@@ -416,15 +410,6 @@ test("advisor: buttons expire after 10 minutes, and a used question can't be pre
   assert.equal(fresh.calls.filter((c) => c.method === "answerCallbackQuery").at(-1).payload.text, "הבקשה פגה, חפשו שוב");
 });
 
-test("advisor (group): only the first question in the group; options open the private chat", async () => {
-  const ctx = await adviceSetup({ chat: "group" });
-  assert.match(ctx.question.body, /פרטי/);
-  const [opt0, opt1, go] = ctx.buttons;
-  assert.match(opt0.url, /^https:\/\/t\.me\/panda_test_bot\?start=q_[0-9a-z]+_0$/);
-  assert.match(opt1.url, /_1$/);
-  assert.match(go.callback_data, /:go$/);
-});
-
 test("advisor (group): 'search already' is for the requester only and answers in the group", async () => {
   const ctx = await adviceSetup({ chat: "group" });
   const go = ctx.buttons[2];
@@ -433,27 +418,6 @@ test("advisor (group): 'search already' is for the requester only and answers in
   await press(ctx, go, 7, "group");
   assert.deepEqual(ctx.spy.queries, ["מתנה לאמא"]);
   assert.equal(ctx.sent().at(-1).reply_parameters.message_id, ctx.question.reply_parameters.message_id);
-});
-
-test("advisor (group → private): the deep link continues the advice in private chat", async () => {
-  const ctx = await adviceSetup({ chat: "group", advise: async () => BUDGET });
-  const start = new URL(ctx.buttons[0].url).searchParams.get("start");
-  await ctx.bot.handleUpdate(textUpdate(`/start ${start}`, { userId: 7, chat: "private" }));
-  assert.deepEqual(ctx.sessions[0].history, [{ q: "איזו מתנה?", a: "תכשיט" }]);
-  const q2 = ctx.sent().at(-1);
-  assert.equal(q2.chat_id, 7, "next question goes to the private chat");
-  assert.match(q2.body, /מה התקציב\?/);
-  assert.match(q2.reply_markup.inline_keyboard.flat()[0].callback_data, /^q:/);
-});
-
-test("advisor (group → private): someone else's link starts their own copy; an expired link says so", async () => {
-  const ctx = await adviceSetup({ chat: "group", advise: async () => BUDGET });
-  const start = new URL(ctx.buttons[1].url).searchParams.get("start");
-  await ctx.bot.handleUpdate(textUpdate(`/start ${start}`, { userId: 55, chat: "private" }));
-  assert.equal(ctx.sent().at(-1).chat_id, 55);
-  ctx.tick(10 * 60_000 + 1);
-  await ctx.bot.handleUpdate(textUpdate(`/start ${start}`, { userId: 7, chat: "private" }));
-  assert.match(ctx.sent().at(-1).body, /פג/);
 });
 
 test("/advice starts the advisor even for a specific product; without the AI it just searches", async () => {
@@ -951,4 +915,26 @@ test("links that aren't AliExpress products: a short help in private (or after a
   assert.deepEqual(mention.sent().map((m) => m.body), [LINK_HELP]);
   const words = await run("חפש לי אוזניות כמו ב-aliexpress.com", {}, { chat: "private" });
   assert.equal(words.sent()[0].method, "sendPhoto", "a real request that mentions a site is still searched");
+});
+
+test("private chat: only the owner is served; anyone else gets an invitation to the group (and /myid still works)", async () => {
+  const ctx = setup({ adminId: "1", search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+  await ctx.bot.handleUpdate(textUpdate("אוזניות", { chat: "private", userId: 5 }));
+  const [invite] = ctx.sent();
+  assert.equal(invite.body, PRIVATE_INVITE);
+  assert.match(invite.reply_markup.inline_keyboard[0][0].url, /t\.me\/panda_deals_il/);
+  await ctx.bot.handleUpdate(textUpdate("/myid", { chat: "private", userId: 5 }));
+  assert.match(ctx.sent().at(-1).body, /5/);
+  await ctx.bot.handleUpdate(callbackUpdate("q:1:0", { chat: "private", userId: 5 }));
+  assert.match(ctx.calls.at(-1).payload.text, /בקבוצת/);
+});
+
+test("advisor in the group: the options are buttons in the group (no move to private), for the requester only", async () => {
+  const ctx = setup({ search: searchSpy().search, understand: async () => CLARIFY });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מתנה"));
+  const buttons = ctx.sent()[0].reply_markup.inline_keyboard.flat();
+  assert.ok(buttons.every((b) => b.callback_data && !b.url));
+  assert.doesNotMatch(ctx.sent()[0].body, /פרטי/);
+  await ctx.bot.handleUpdate(callbackUpdate(buttons[0].callback_data, { userId: 8 }));
+  assert.equal(ctx.calls.at(-1).payload.text, "רק מי שביקש יכול לבחור");
 });

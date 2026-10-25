@@ -22,7 +22,9 @@ import {
   chosenText,
   cooldownMessage,
   HELP,
-  GROUP_HELP,
+  PRIVATE_INVITE,
+  PRIVATE_BUTTON,
+  GROUP_LINK,
   EMPTY_QUERY,
   NO_RESULTS,
   NOT_PRODUCT,
@@ -43,7 +45,6 @@ import {
   VOTED,
   CLARIFY_NOT_YOURS,
   CLARIFY_EXPIRED,
-  ADVICE_EXPIRED,
   ADVICE_EMPTY,
 } from "./format.js";
 
@@ -201,6 +202,14 @@ export function createBot({
   const bot = new Bot(token, botInfo ? { botInfo } : {});
   const moderation = createModeration({ now });
   bot.use(moderation.middleware); // runs first: spam is removed before any search logic sees it
+  // The bot works in the group (owner request). In private only the owner is served (/status, tests); everyone else gets
+  // an invitation to the group. /myid stays open so the owner can find their id.
+  bot.use(async (ctx, next) => {
+    if (ctx.chat?.type !== "private" || (adminId && String(ctx.from?.id) === String(adminId))) return next();
+    if (ctx.callbackQuery) return ctx.answerCallbackQuery({ text: PRIVATE_BUTTON });
+    if (/^\/myid\b/.test(ctx.message?.text ?? "")) return next();
+    if (ctx.message) return reply(ctx, PRIVATE_INVITE, { reply_markup: { inline_keyboard: [[{ text: "🐼 להצטרפות לקבוצה", url: GROUP_LINK }]] } });
+  });
   bot.on("message:new_chat_members", moderation.onJoin);
   const cooldowns = new Map(); // shortcut: in-memory, resets on restart; fine for a single instance
   const groupHelpAt = new Map();
@@ -398,13 +407,10 @@ export function createBot({
 
   function showQuestion(ctx, session, question, options, { edit = false } = {}) {
     Object.assign(session, { question, options, at: now() });
-    const inGroup = ctx.chat.type !== "private";
-    const rows = options.map((o, n) =>
-      inGroup ? [{ text: o.label_he, url: `https://t.me/${ctx.me.username}?start=q_${session.id}_${n}` }] : [{ text: o.label_he, callback_data: `q:${session.id}:${n}` }],
-    );
+    const rows = options.map((o, n) => [{ text: o.label_he, callback_data: `q:${session.id}:${n}` }]); // in the group too (owner request)
     rows.push([{ text: SEARCH_NOW, callback_data: `q:${session.id}:go` }]);
     const extra = { parse_mode: "HTML", reply_markup: { inline_keyboard: rows } };
-    const text = questionText(question, { inGroup });
+    const text = questionText(question);
     return edit ? ctx.editMessageText(text, extra).catch(() => {}) : reply(ctx, text, extra);
   }
 
@@ -438,20 +444,6 @@ export function createBot({
     );
   }
 
-  // A group option's deep link (/start q_<id>_<n>) continues the advice in private chat.
-  async function continueInPrivate(ctx, id, n) {
-    const source = pending.get(id);
-    if (!source || now() - source.at > CLARIFY_TTL_MS) {
-      pending.delete(id);
-      return reply(ctx, ADVICE_EXPIRED);
-    }
-    // The requester continues their own session; anyone else gets their own copy.
-    const session = source.userId === ctx.from.id ? source : { ...structuredClone(source), id: (++clarifySeq).toString(36), userId: ctx.from.id };
-    pending.set(session.id, session);
-    session.replyToId = ctx.msg.message_id;
-    return answer(ctx, session, n, { edit: false });
-  }
-
   async function runConvert(ctx, url) {
     if (!(await allow(ctx))) return;
     let link;
@@ -464,16 +456,13 @@ export function createBot({
     if (link) return reply(ctx, formatLinkReply(link, { demo: isMockMode() }));
   }
 
-  // Private: full help. Group: one line + deep link, at most once per 10 minutes per chat (silent otherwise).
+  // The full help, in the group itself (owner request: the bot lives in the group), at most once per 10 minutes per chat.
   bot.command(["start", "help"], (ctx) => {
-    const deep = ctx.chat.type === "private" && ctx.match.match(/^q_([0-9a-z]+)_(\d)$/);
-    if (deep) return continueInPrivate(ctx, deep[1], Number(deep[2]));
-    if (ctx.chat.type === "private") return reply(ctx, HELP);
+    if (ctx.chat.type === "private") return reply(ctx, HELP); // only the owner gets here (see the private-chat gate)
     const last = groupHelpAt.get(ctx.chat.id);
     if (last !== undefined && now() - last < HELP_COOLDOWN_MS) return;
     groupHelpAt.set(ctx.chat.id, now());
-    const button = { text: "להסבר המלא", url: `https://t.me/${ctx.me.username}?start=help` };
-    return reply(ctx, GROUP_HELP, { reply_markup: { inline_keyboard: [[button]] } });
+    return reply(ctx, HELP);
   });
   bot.command("search", (ctx) => runSearch(ctx, ctx.match));
   bot.command("myid", (ctx) => ctx.chat.type === "private" && reply(ctx, `🆔 ${ctx.from.id}`));

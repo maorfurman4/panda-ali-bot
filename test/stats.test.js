@@ -68,5 +68,5 @@ test("/status is for the owner only (private), with version, counters and live c
   assert.match(body, /AI: ✅/);
   const stranger = setup({ stats, adminId: "777", healthChecks: async () => [] });
   await stranger.bot.handleUpdate(textUpdate("/status", { chat: "private", userId: 5 }));
-  assert.equal(stranger.sent().length, 0, "silent for anyone else");
+  assert.ok(!stranger.sent().some((m) => /מצב הבוט/.test(m.body ?? "")), "no report for anyone else");
 });

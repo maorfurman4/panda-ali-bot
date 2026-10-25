@@ -1,7 +1,6 @@
 // Hebrew message texts and formatting (HTML parse mode).
 // Every line starts with RLM so lines that begin with a digit, a price or a Latin brand still render right-to-left.
 export const RLM = "‏";
-export const DISCLOSURE = "ℹ️ קישורי שותפים – ייתכן שנקבל עמלה על רכישה. המחירים משוערים."; // private /start only, by owner decision
 const MIN_FEEDBACK = 90;
 const TITLE_MAX = 40; // photo captions are only as wide as the photo
 const QUERY_MAX = 45;
@@ -175,35 +174,37 @@ export function withinPrice(products, maxIls, minIls = null) {
   });
 }
 
-export const questionText = (question, { inGroup = false } = {}) =>
-  rtl([`🤔 ${esc(question)}`, ...(inGroup ? ["👇 הבחירה תמשיך איתכם בצ'אט פרטי"] : [])]);
+export const questionText = (question) => rtl([`🤔 ${esc(question)}`]);
 export const chosenText = (label) => rtl([`🔎 ${esc(label)}`]);
 
 export function formatLinkReply(link, { demo = false } = {}) {
   return rtl([`🔗 הנה הקישור${demo ? " [דמו]" : ""}:`, esc(link)]);
 }
 
+export const GROUP_LINK = GROUP_URL;
 export const HELP = rtl([
-  "🐼 <b>היי, אני הבוט של פנדה דילים</b>",
-  "אני מחפש בשבילכם מוצרים בעלי אקספרס.",
+  "🐼 <b>היי, אני הבוט של פנדה אקספרס</b>",
+  "אני מחפש בשבילכם מוצרים שווים בעלי אקספרס, כאן בקבוצה.",
   "",
   "🔎 <b>איך מחפשים?</b>",
-  "• בקבוצה, בתחילת ההודעה: חפש לי אוזניות אלחוטיות",
-  "• או: מצא לי מטען לרכב",
-  "• או: /search wireless earbuds",
-  "• או: תייגו אותי בתחילת ההודעה עם מה שאתם מחפשים",
-  "• או פשוט כתבו בקבוצה: מישהו מכיר… / מחפש… / יש המלצה על…",
-  "• כאן בפרטי: פשוט כתבו מה אתם מחפשים",
+  "• כתבו בתחילת ההודעה: חפש לי אוזניות אלחוטיות",
+  "• או: מצא לי מטען לרכב עד 50 ש\"ח",
+  "• או שאלו: מישהו מכיר שואב אבק טוב?",
+  "• לא צריך לכתוב מושלם, אני מבין גם שגיאות כתיב 😉",
   "🧭 לא בטוחים מה לקנות? /advice מתנה לאמא, ואשאל כמה שאלות קצרות",
   "",
-  "🔗 קישור למוצר מעלי אקספרס: שלחו אותו כאן, או בקבוצה אחרי תיוג שלי, ואחזיר קישור לרכישה.",
-  "💡 חיפוש באנגלית מחזיר לרוב תוצאות טובות יותר.",
+  "🔗 קישור למוצר מעלי אקספרס: תייגו אותי ואחריו הקישור, ואחזיר קישור מסודר.",
+  "👇 מתחת לכל תוצאה: 🎯 בול! / 🐼 לא זה, ו-🔍 לחפש עוד?",
   "📊 מספר המכירות הוא לפי עלי אקספרס, בתקופה האחרונה.",
-  "",
-  `<i>${DISCLOSURE}</i>`,
 ]);
 
-export const GROUP_HELP = rtl(['🐼 כתבו "חפש לי ..." ואמצא לכם מוצרים. הסבר מלא בפרטי 👈']);
+export const PRIVATE_INVITE = rtl([
+  "🐼 היי! אני עובד בקבוצת <b>פנדה אקספרס</b>.",
+  'שם כותבים "חפש לי" ואחריו שם המוצר, ומקבלים את המוצרים הכי שווים מעלי אקספרס.',
+  "מחכים לכם בקבוצה 👇",
+]);
+export const PRIVATE_BUTTON = "החיפוש עובד בקבוצת פנדה אקספרס 🐼";
+
 export const NOT_PRODUCT = rtl(["🤔 לא הבנתי מה לחפש.", 'נסו לכתוב שוב: "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
 export const OFF_TOPIC = rtl(["🐼 שימו לב: הקבוצה מיועדת למוצרים ודילים מעלי אקספרס.", 'לחיפוש מוצר כתבו "חפש לי" ואחריו שם המוצר, למשל: חפש לי מטען לרכב']);
 export const LINK_HELP = rtl(["🔗 אני ממיר רק קישורים של מוצרים מעלי אקספרס.", "באפליקציה: נכנסים למוצר ← שיתוף ← העתקת קישור, ומדביקים כאן."]);
@@ -217,7 +218,6 @@ export const NO_MORE = "אין עוד תוצאות לחיפוש הזה";
 export const MORE_NOT_YOURS = "רק מי שחיפש יכול לבקש עוד";
 export const VOTE_THANKS = "תודה על המשוב 🙏";
 export const VOTED = "כבר הצבעת, תודה 🙂";
-export const ADVICE_EXPIRED = rtl(["הייעוץ פג. כתבו לי שוב מה אתם מחפשים 🙂"]);
 export const ADVICE_EMPTY = rtl(["על מה להתייעץ? לדוגמה: /advice מתנה לאמא"]);
 export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
 export const CLARIFY_EXPIRED = "הבקשה פגה, חפשו שוב";
