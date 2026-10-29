@@ -9,7 +9,8 @@
     "check:live": "node --env-file-if-exists=.env scripts/check-live.js",
     "eval:search": "node --env-file-if-exists=.env scripts/eval-search.js",
     "eval:advice": "node --env-file-if-exists=.env scripts/eval-advice.js",
-    "eval:categories": "node --env-file-if-exists=.env scripts/eval-categories.js"
+    "eval:categories": "node --env-file-if-exists=.env scripts/eval-categories.js",
+    "eval:personas": "node --env-file-if-exists=.env scripts/eval-personas.js"
   },
   "engines": {
     "node": ">=22"

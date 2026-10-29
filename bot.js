@@ -56,7 +56,7 @@ const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
-const RELEVANCE_POOL = 24;
+const RELEVANCE_POOL = 36; // titles only on gpt-5.4: ~$0.006 per check; 3 mixed lists need the extra room
 const PROVEN_SALES = 10;
 const TRUSTED_FEEDBACK = 95;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
@@ -75,9 +75,11 @@ const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile
 const LEAD = String.raw`(?:(?:פנדה|בוט|היי|הי|בבקשה|אפשר|תוכל|תוכלי|אתה יכול|את יכולה)[\s,]+)*`;
 const VERB = String.raw`[הושל]?(?:ת?[חכה]י?פו?[שס]{1,2}[וי]?|ת?מי?צ(?:[אהע]|וא)[וי]?)`;
 const ME = String.raw`(?:[ךכ]?לי{1,2}|לנו)`; // also "ךלי": ך sits next to ל on the Hebrew keyboard
-const TRIGGER = new RegExp(String.raw`^\s*${LEAD}(?:${VERB}\s*-?\s*${ME}|jpa\s*kh|nmt\s*kh)(?![\u05D0-\u05EA])[\s:,.]*([\s\S]*)$`, "i");
+// Members who write in English, Russian or Arabic ("find me…", "найди мне…", "ابحث لي عن…") are searched too.
+const FOREIGN = String.raw`find\s+me|search\s+for|look\s+for|найди(?:те)?(?:\s+мне)?|поищи(?:\s+мне)?|ابحث(?:\s+لي)?(?:\s+عن)?|دور(?:\s+لي)?(?:\s+على)?`;
+const TRIGGER = new RegExp(String.raw`^\s*(?:${LEAD}(?:${VERB}\s*-?\s*${ME}|jpa\s*kh|nmt\s*kh)(?![\u05D0-\u05EA])|(?:${FOREIGN})(?=\s))[\s:,.]*([\s\S]*)$`, "i");
 // A missing space after "לי" ("חפש ליהדום"): the whole rest goes to the AI, which fixes it (and keeps real words like "לימון").
-const TRIGGER_GLUED = new RegExp(String.raw`^\s*${LEAD}${VERB}\s+(לי[\u05D0-\u05EA][\s\S]*)$`);
+const TRIGGER_GLUED = new RegExp(String.raw`^\s*${LEAD}${VERB}\s*(לי[\u05D0-\u05EA][\s\S]*)$`); // also "חפשליאוזניות"
 // The verb without "לי" ("חפש מטען", "תמצא אוזניות"): searched only if the AI confirms a product; otherwise silent.
 const VERB_START = new RegExp(String.raw`^\s*${LEAD}${VERB}\s+\S`);
 export const startsWithSearchVerb = (text) => VERB_START.test(text.replace(BIDI_MARKS, ""));
@@ -102,7 +104,7 @@ const HELP_WORDS = /^(?:עזרה|הסבר|הוראות|מדריך|איך (?:זה
 const LINKISH = /https?:\/\/|www\.|t\.me\/|(?:^|\s)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|il|co|io|me|app|ly|ru|cn|info|biz|us)(?:\/\S*)?(?=\s|$)/i;
 // Backup for the AI's "not_allowed" when the AI is unavailable: the most obvious Hebrew/English words only.
 const BLOCKED_WORDS = /סכין קפיצית|אגרופן|טייזר|ויברטור|דילדו|סיגרי(?:ה|ות) אלקטרוני|וייפ|מצלמ(?:ה|ת) (?:נסתרת|ריגול)|switchblade|brass knuckles|taser|vibrator|dildo|\bvape\b|hidden camera|spy cam/i;
-const isBlocked = (intent, text) => intent?.status === "not_allowed" || (!intent && BLOCKED_WORDS.test(text));
+const isBlocked = (intent, text) => intent?.status === "not_allowed" || BLOCKED_WORDS.test(text); // the list wins even if the AI says ok ("וייפ")
 
 export const isSoftRequest = (text) => text.length <= SOFT_MAX_LENGTH && SOFT.test(text.replace(BIDI_MARKS, ""));
 
@@ -139,21 +141,33 @@ export async function dedupeByPhoto(products, hash) {
 
 export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
-  const find = (q) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls });
+  // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
+  // stands, "baby pacifier" -> pacifier clips; the real ones were on page 2 or in the relevance order, 2026-10-29). So the
+  // main words fetch three lists at once (free, parallel) and the AI pool mixes them, each ranked, round-robin.
+  const LISTS = live ? [{}, { page: 2 }, { sort: "relevance" }] : [{}];
+  const find = async (q, lists) => {
+    const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls, ...v })));
+    if (got.every((r) => r.status === "rejected")) throw got[0].reason;
+    const ranked = got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []));
+    const seen = new Set(), out = [];
+    for (let i = 0; i < Math.max(...ranked.map((l) => l.length)); i++) {
+      for (const l of ranked) if (l[i] && !seen.has(keyOf(l[i]))) seen.add(keyOf(l[i])) && out.push(l[i]);
+    }
+    return out;
+  };
   const broader = Boolean(fallback && fallback !== keywords);
-  // Both searches run together (AliExpress calls are free) and ONE AI call judges both pools: no second check, ~1.5 s less.
-  const [main, wide] = await Promise.allSettled([find(keywords), broader ? find(fallback) : Promise.resolve([])]);
+  // Both searches run together and ONE AI call judges both pools: no second check, ~1.5 s less.
+  const [main, wide] = await Promise.allSettled([find(keywords, LISTS), broader ? find(fallback, [{}]) : Promise.resolve([])]);
   if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
   if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
-  const usable = (r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []);
-  const first = usable(main);
+  const first = main.status === "fulfilled" ? main.value : [];
   const seen = new Set(first.map(keyOf));
-  const more = usable(wide).filter((p) => !seen.has(keyOf(p)));
+  const more = (wide.status === "fulfilled" ? wide.value : []).filter((p) => !seen.has(keyOf(p)));
   let exact = first.length >= limit ? first : first.concat(more); // demo mode (no AI): the broader search only tops up
   let partial = [];
   if (live) {
-    // The main search's best fill the pool; the broader one gets at least a third, or whatever room is left.
-    const fromMore = Math.min(more.length, Math.max(RELEVANCE_POOL - first.length, Math.round(RELEVANCE_POOL / 3)));
+    // The main search's mixed lists fill the pool; the broader one gets at least a quarter, or whatever room is left.
+    const fromMore = Math.min(more.length, Math.max(RELEVANCE_POOL - first.length, Math.round(RELEVANCE_POOL / 4)));
     const pool = first.slice(0, RELEVANCE_POOL - fromMore).concat(more.slice(0, fromMore));
     const out = await relevant({ he: context, en: keywords }, pool).catch(() => ({ exact: [], partial: pool }));
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);

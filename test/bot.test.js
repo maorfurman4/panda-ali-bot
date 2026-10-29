@@ -60,7 +60,7 @@ test("parseTrigger: start-of-message triggers only", () => {
     "חפש ליי מטען", "חפש לנו מטען", "חפש לי. מטען", "בבקשה תחפש לי מטען", "אפשר לחפש לי מטען", "תוכל למצוא לי מטען",
     "פנדה, חפש לי מטען", "jpa kh מטען", "JPA KH מטען", "חפש ךלי מטען",
   ]) assert.equal(parseTrigger(text, u), "מטען", text);
-  for (const text of ["תודה @panda_test_bot", "חפש בגוגל", "חפש מטען", "חפש", "חפשתי אתמול", "מצאתי לי מטען", "חפשליד", "@panda_test_bot_fake כבל", "מה קורה"]) {
+  for (const text of ["תודה @panda_test_bot", "חפש בגוגל", "חפש מטען", "חפש", "חפשתי אתמול", "מצאתי לי מטען", "@panda_test_bot_fake כבל", "מה קורה"]) {
     assert.equal(parseTrigger(text, u), null, text);
   }
 });
@@ -578,7 +578,7 @@ test("enough relevant results -> the early broader search is never AI-checked or
   const relevant = async (r, p) => (checked.push(r.en), { exact: p, partial: [] });
   const ctx = setup({ search: async (q) => (queries.push(q), q === "earphones" ? [product(9)] : SIX), relevant, live: true, understand: async () => intent({ fallback_en: "earphones" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
-  assert.deepEqual(queries, ["wireless earbuds", "earphones"], "both start together (saves ~2 s when the fallback is needed)");
+  assert.deepEqual([...new Set(queries)], ["wireless earbuds", "earphones"], "both start together (3 lists for the main words)");
   assert.deepEqual(checked, ["wireless earbuds"], "one AI check only");
   assert.ok(!shownIds(ctx.sent()[0]).includes("9"));
 });
@@ -607,12 +607,12 @@ test("no-results message no longer claims English works better", () => {
 });
 
 
-test("only the 24 best-ranked candidates go to the relevance check (keeps it fast)", async () => {
-  const many = Array.from({ length: 40 }, (_, i) => product(i + 1, { lastest_volume: String(1000 - i) }));
+test("at most 36 candidates go to the relevance check (keeps it fast)", async () => {
+  const many = Array.from({ length: 60 }, (_, i) => product(i + 1, { lastest_volume: String(1000 - i) }));
   let sentToAi = 0;
   const ctx = setup({ search: async () => many, relevant: async (_r, p) => ((sentToAi = p.length), p), live: true });
   await ctx.bot.handleUpdate(textUpdate("/search x"));
-  assert.equal(sentToAi, 24);
+  assert.equal(sentToAi, 36);
 });
 
 
@@ -629,7 +629,7 @@ test("fewer than 4 exact matches -> the broader search runs even if partials fil
   const relevant = async (_r, p) => ({ exact: p.filter((x) => /_p(1|5)$/.test(x.promotion_link)), partial: p.filter((x) => !/_p(1|5)$/.test(x.promotion_link)) });
   const ctx = setup({ search, relevant, live: true, understand: async () => intent({ keywords_en: "primary", fallback_en: "broader" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
-  assert.deepEqual(queries, ["primary", "broader"]);
+  assert.deepEqual([...new Set(queries)], ["primary", "broader"]);
   assert.deepEqual(shownIds(ctx.sent()[0]).slice(0, 2).sort(), ["1", "5"], "both exact matches first");
 });
 
@@ -816,10 +816,10 @@ test("the same search within 6 hours reuses the products: no new AliExpress or A
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 1 }));
   t += 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 2 }));
-  assert.deepEqual([searches, checks, ctx.sent().length], [1, 1, 2]);
+  assert.deepEqual([searches, checks, ctx.sent().length], [3, 1, 2], "3 AliExpress lists once, then memory");
   t += 6 * 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 3 }));
-  assert.deepEqual([searches, checks], [2, 2], "expired after 6 hours");
+  assert.deepEqual([searches, checks], [6, 2], "expired after 6 hours");
 });
 
 test("advisor: a tap within 1.5 s of the question changing is ignored (the second tap of a double tap)", async () => {
@@ -983,4 +983,27 @@ test("a vague request ('מוצר למטבח') opens the advisor even when the AI
   assert.match(ctx.sent()[0].body, /איזה מוצר למטבח\?/);
   const specific = await run("חפש לי מוצרי ניקיון לרכב", { understand: async () => intent({ corrected_he: "מוצרי ניקיון לרכב", keywords_en: "car cleaning kit" }) });
   assert.equal(specific.sent()[0].method, "sendPhoto", "'מוצרי ניקיון' is specific: searched");
+});
+
+test("live search fetches 3 AliExpress lists for the main words (best-sellers, page 2, relevance) and mixes them", async () => {
+  const seen = [];
+  const search = async (q, o) => (seen.push(o.page ?? o.sort ?? "p1"), o.sort === "relevance" ? [product(9, { lastest_volume: "3" })] : [product(o.page === 2 ? 5 : 1)]);
+  const checked = [];
+  const ctx = setup({ search, live: true, relevant: async (_r, p) => (checked.push(...p.map((x) => x.promotion_link.at(-1))), { exact: p, partial: [] }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  assert.deepEqual(seen.map(String).sort(), ["2", "p1", "relevance"]);
+  assert.deepEqual(checked.sort(), ["1", "5", "9"], "the relevance-ordered item reaches the AI even with 3 sales");
+});
+
+test("triggers in English, Russian and Arabic; fully glued 'חפשליאוזניות' goes to the AI", () => {
+  assert.equal(parseTrigger("find me wireless earbuds", "x"), "wireless earbuds");
+  assert.equal(parseTrigger("найди мне чехол для айфона", "x"), "чехол для айфона");
+  assert.equal(parseTrigger("ابحث لي عن ساعة ذكية", "x"), "ساعة ذكية");
+  assert.equal(parseTrigger("חפשליאוזניות", "x"), "ליאוזניות");
+  assert.equal(parseTrigger("finding nemo is great", "x"), null);
+});
+
+test("blocked words are refused even when the AI says 'ok' (it did for 'וייפ')", async () => {
+  const { sent } = await run("חפש לי וייפ", { understand: async () => intent({ keywords_en: "vape" }), search: async () => assert.fail("no search") });
+  assert.deepEqual(sent().map((m) => m.body), [NOT_ALLOWED]);
 });

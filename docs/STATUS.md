@@ -386,3 +386,19 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Nightly digest (owner request):** at 02:30 Israel time, before the nightly sleep resets memory, the owner gets a private summary: searches, no-results, cached, 🎯/🐼/more since the last digest, and the searches that got 🐼. A weekly report isn't possible without a database, since memory resets each night and on each deploy. Clearing the cache on 🐼 was dropped (owner).
 - **Cost after the understanding upgrade:** ~$0.0066 per search, up from ~$0.0055 (+20%; understanding ~$0.0015 per new request, relevance ~$0.005), before the 6 h results memory.
 
+## 3w. 50-persona simulation (2026-10-29, `npm run eval:personas`)
+
+50 different "members" write to the real bot (real AI + AliExpress), and gpt-5.5 judges each card.
+- **Before the fixes**, among the failures:
+  - English/Russian/Arabic speakers got the "write חפש לי" hint.
+  - "חפשליאוזניות" went unrecognized; "וייפ" was searched, not refused.
+  - Adjustable desk, PS5 controller, Chanel bag and pacifier found nothing.
+  - Men's down coat and e-bike showed 1 product; "two products in one message" got 1/4 right.
+- **Root cause of the empty searches:** AliExpress's best-seller order buries the real item under accessories that sell more (desk -> phone stands, PS5 controller -> thumb grips, pacifier -> clips). The real ones sit on page 2 or in AliExpress's relevance order.
+- **Fixes:**
+  - The main words now fetch 3 lists in parallel (best-sellers, page 2, relevance), each ranked and mixed round-robin into a 36-title AI pool, ~$0.006 per check on gpt-5.4 titles.
+  - More price floors (desk 150, controller 60, e-bike 1200).
+  - Triggers in English/Russian/Arabic ("find me", "найди мне", "ابحث لي عن"), and fully glued "חפשלי…".
+  - Blocked words win even when the AI says ok.
+- **After:** foreign languages, luxury brand (3/3), furniture, PS5, coat (4/4), glued and combined requests all work. Still weak: pacifier (no results), cat toys (2/4), e-bike (2/4). Some cards show 2-3 products (only real matches). Latency p50 ~7 s, a few at 12-15 s.
+
