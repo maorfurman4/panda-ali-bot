@@ -134,6 +134,7 @@ test("validateIntent normalizes and checks each status (nulls from strict mode a
   assert.deepEqual(validateIntent({ ...STRICT_OK, min_price_ils: 200, max_price_ils: 150 }), { ...OK, max_price_ils: 150 }, "min above max is dropped");
   assert.deepEqual(validateIntent({ ...STRICT_OK, floor_price_ils: 200 }), { ...OK, floor_price_ils: 200 }, "AI price floor for big-ticket items");
   assert.deepEqual(validateIntent({ ...STRICT_OK, brand: "Xiaomi" }), { ...OK, brand: "Xiaomi" });
+  assert.deepEqual(validateIntent({ ...STRICT_OK, alt_en: "bluetooth earphones" }), { ...OK, alt_en: "bluetooth earphones" });
   assert.deepEqual(validateIntent({ ...STRICT_OK, min_price_ils: 80, floor_price_ils: 200 }), { ...OK, min_price_ils: 80 }, "the shopper's own price wins");
   assert.deepEqual(validateIntent({ ...STRICT_OK, status: "not_allowed", corrected_he: "אקדח", keywords_en: "gun" }), { status: "not_allowed", corrected_he: "אקדח", keywords_en: "", max_price_ils: null });
   assert.deepEqual(validateIntent({ ...STRICT_OK, status: "not_product", corrected_he: "תודה", keywords_en: "" }), {

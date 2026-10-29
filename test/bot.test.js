@@ -1007,3 +1007,24 @@ test("blocked words are refused even when the AI says 'ok' (it did for 'וייפ
   const { sent } = await run("חפש לי וייפ", { understand: async () => intent({ keywords_en: "vape" }), search: async () => assert.fail("no search") });
   assert.deepEqual(sent().map((m) => m.body), [NOT_ALLOWED]);
 });
+
+test("second chance: too few matches -> the AI's other wording is searched and only new candidates get one more check", async () => {
+  const queries = [], checks = [];
+  const search = async (q) => (queries.push(q), q === "silicone pacifier" ? [product(7), product(8), product(9)] : [product(1), product(2)]);
+  const relevant = async (r, p) => (checks.push(r.en), { exact: p.filter((x) => /_p[789]$/.test(x.promotion_link)), partial: [] });
+  const ctx = setup({ search, relevant, live: true, understand: async () => intent({ keywords_en: "baby pacifier", alt_en: "silicone pacifier" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מוצץ לתינוק"));
+  assert.deepEqual(checks, ["baby pacifier", "silicone pacifier"]);
+  assert.deepEqual(shownIds(ctx.sent()[0]).sort(), ["7", "8", "9"]);
+  const strong = setup({ search: async () => SIX, live: true, relevant: async (r, p) => (checks.push(r.en), { exact: p, partial: [] }), understand: async () => intent({ alt_en: "earphones" }) });
+  checks.length = 0;
+  await strong.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  assert.equal(checks.length, 1, "enough matches: no second check");
+});
+
+test("links are shortened only for the products a card can show (not every search result)", async () => {
+  const seen = [];
+  const ctx = setup({ search: async (q, o) => (assert.equal(o.shorten, false), SIX), shorten: async (p) => (seen.push(p.length), p) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  assert.ok(seen[0] <= 12, `shortened ${seen[0]}`);
+});

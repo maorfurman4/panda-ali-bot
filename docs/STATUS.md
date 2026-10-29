@@ -402,3 +402,11 @@ A probe of 38 unusual messages found 4 issues. All fixed:
   - Blocked words win even when the AI says ok.
 - **After:** foreign languages, luxury brand (3/3), furniture, PS5, coat (4/4), glued and combined requests all work. Still weak: pacifier (no results), cat toys (2/4), e-bike (2/4). Some cards show 2-3 products (only real matches). Latency p50 ~7 s, a few at 12-15 s.
 
+## 3x. Second chance + faster links (2026-10-29 noon)
+
+- **Second wording:** the AI returns `alt_en` (another seller-style wording). If the first pass finds fewer than 4 matches, the bot searches `alt_en` (2 lists) and checks only the new candidates in one more AI call. That happens only on weak searches.
+- **Parts rule:** e-bike conversion kits, batteries and motors, and pacifier clips, aren't the item.
+- **Emoji alone** is the product it shows.
+- **Links shortened only for shown products:** searches pass `shorten:false`, and `shortenLinks` runs on the ≤12 products a card can use. That's ~1 s and 3 AliExpress calls fewer per search (measured: link.generate adds ~0.9-1.1 s per list).
+- **eval:personas after:** pacifier 4/4 (was nothing), e-bike 4/4 (was 2/4), desk 4/4, PS5 4/4, 12V screwdriver 4/4, emoji 3/4, cat toy 3/4. Russian shows correct iPhone 15 cases (the judge scores 0 because it reads the Russian request). Still weak: a Fortnite skin request (not a physical product) got a wrong 1-item card. Two outliers took 18-24 s (second chance + slow AliExpress).
+

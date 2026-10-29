@@ -81,14 +81,17 @@ export async function searchProducts(query, deps = {}) {
     throw e;
   }
   const products = Array.isArray(result.products) ? result.products : (result.products?.product ?? []);
-  return shortenLinks(products, { ...deps, env });
+  // The bot passes shorten:false and shortens only the products it shows (each link.generate call adds ~1 s, 2026-10-29).
+  return deps.shorten === false ? products : shortenLinks(products, { ...deps, env });
 }
 
 const itemUrl = (p) => `https://www.aliexpress.com/item/${p.product_id}.html`;
 
 // product.query promotion links are ~1 KB long (risky for Telegram URL buttons): swap them for short
 // s.click links in ONE link.generate call (max 50 per call). On failure the original links are kept.
-async function shortenLinks(products, deps) {
+export async function shortenLinks(products, deps = {}) {
+  deps = { ...deps, env: deps.env ?? process.env };
+  if (isMockMode(deps.env)) return products;
   const targets = products.filter((p) => p.product_id && p.promotion_link);
   if (!targets.length) return products;
   try {

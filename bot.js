@@ -1,7 +1,7 @@
 // Telegram handlers: search triggers, link conversion, cooldowns, Hebrew photo result cards.
 // Privacy: logs contain only update IDs and error messages, never message text or user names.
 import { Bot, InputFile } from "grammy";
-import { searchProducts, convertToAffiliate, isMockMode } from "./aliexpress.js";
+import { searchProducts, convertToAffiliate, isMockMode, shortenLinks } from "./aliexpress.js";
 import { findAliExpressUrl } from "./links.js";
 import { understandQuery, filterRelevant, nextAdvice, explainFit } from "./query.js";
 import { makeCollage, photoHash } from "./collage.js";
@@ -139,14 +139,14 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
   // stands, "baby pacifier" -> pacifier clips; the real ones were on page 2 or in the relevance order, 2026-10-29). So the
   // main words fetch three lists at once (free, parallel) and the AI pool mixes them, each ranked, round-robin.
   const LISTS = live ? [{}, { page: 2 }, { sort: "relevance" }] : [{}];
   const find = async (q, lists) => {
-    const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls, ...v })));
+    const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls, shorten: false, ...v })));
     if (got.every((r) => r.status === "rejected")) throw got[0].reason;
     const ranked = got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []));
     const seen = new Set(), out = [];
@@ -171,6 +171,17 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
     const pool = first.slice(0, RELEVANCE_POOL - fromMore).concat(more.slice(0, fromMore));
     const out = await relevant({ he: context, en: keywords }, pool).catch(() => ({ exact: [], partial: pool }));
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
+    // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
+    // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
+    if (alt && exact.length + partial.length < limit) {
+      const known = new Set([...first, ...more].map(keyOf));
+      const fresh = await find(alt, [{}, { sort: "relevance" }]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
+      if (fresh.length) {
+        const again = await relevant({ he: context, en: alt }, fresh.slice(0, RELEVANCE_POOL)).catch(() => ({ exact: [], partial: [] }));
+        exact = exact.concat(again.exact ?? []);
+        partial = partial.concat(again.partial ?? []);
+      }
+    }
   }
   // Trusted products first (≥10 sold and ≥95% positive feedback, the safe bar in buyer guides), so a card isn't led by unknown
   // or so-so sellers; within each group, exact before partial.
@@ -219,6 +230,7 @@ export function createBot({
   advise = nextAdvice,
   explain = explainFit,
   collage = makeCollage,
+  shorten = (products) => shortenLinks(products), // only the products a card shows get short links
   hash = photoHash, // tests pass a network-free stub
   stats = defaultStats,
   adminId = process.env.ADMIN_USER_ID, // owner's numeric Telegram id: /status and alerts
@@ -316,6 +328,7 @@ export function createBot({
       return showResults(ctx, {
         keywords: intent?.keywords_en || query,
         fallback: intent?.fallback_en,
+        alt: intent?.alt_en ?? null,
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
         minPriceIls: intent?.min_price_ils ?? intent?.floor_price_ils ?? null,
@@ -344,7 +357,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: Boolean(intent.brand), replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: Boolean(intent.brand), replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -367,7 +380,7 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, alt = null, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let found;
@@ -378,9 +391,10 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, context, maxPriceIls, minPriceIls: min, brandOnly, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, context, maxPriceIls, minPriceIls: min, brandOnly, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
+        found = await shorten(found).catch(() => found);
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
       }

@@ -23,6 +23,8 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות").
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
+- alt_en = a second, differently worded English search for the same item, the way sellers title it ("baby pacifier" -> "silicone orthodontic pacifier", "cat toy" -> "interactive cat teaser toy"), or null. It is searched only when the first search finds too few.
+- An emoji alone is the product it shows ("🎧" -> headphones, "⌚" -> watch).
 - fallback_en = the core item as a good standalone AliExpress search, 2-3 English words ("merino arm warmers thumb holes" -> "arm warmers", "Zara men clothing" -> "men casual shirts"; never a vague word like "clothing" or "shoes" alone), used if the first search finds too few, or null when keywords_en is already that.
 - brand = the brand the shopper asked for ("אוזניות של שיאומי" -> "Xiaomi"), or null. A device something is FOR is not a requested brand ("כיסוי לאייפון", "מטען לגלקסי" -> null).
 - Brands: when the shopper names a brand (Nike, Zara, Dior, Rolex, Xiaomi, Lenovo, Apple…), keep it in keywords_en, as shoppers do on AliExpress ("נייקי אייר מקס" -> "Nike Air Max", "נעליים של UGG" -> "UGG boots", "בושם של דיור" -> "Dior perfume", "שעון רולקס" -> "Rolex watch", "בגדים של זארה" -> "Zara women clothing"). fallback_en = the same item WITHOUT the brand name, always ("Zara men clothing" -> fallback "men casual shirts"; "Dior perfume" -> "women perfume long lasting"), because AliExpress often has few or no items of a big brand. Compatibility brands stay too ("כיסוי לאייפון" -> "iPhone case").
@@ -52,6 +54,7 @@ const SCHEMA = {
     max_price_ils: { type: ["number", "null"] },
     floor_price_ils: { type: ["number", "null"] },
     brand: { type: ["string", "null"] },
+    alt_en: { type: ["string", "null"] },
     fallback_en: { type: ["string", "null"] },
     clarify_question_he: { type: ["string", "null"] },
     options: {
@@ -64,7 +67,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "fallback_en", "clarify_question_he", "options"],
+  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "alt_en", "fallback_en", "clarify_question_he", "options"],
   additionalProperties: false,
 };
 
@@ -104,6 +107,8 @@ export function validateIntent(o) {
   if (floor && !min && !(max && floor >= max)) base.floor_price_ils = floor; // the shopper's own price always wins
   const brand = clean(o.brand, 40);
   if (brand) base.brand = brand;
+  const alt = clean(o.alt_en, 100);
+  if (alt && alt.toLowerCase() !== base.keywords_en.toLowerCase()) base.alt_en = alt;
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
@@ -224,7 +229,8 @@ Leave out everything else:
 - accessories or add-ons for it, spare parts, and different item types that only share a word or a category
   (boots are not sneakers, slippers, house shoes or safety/work shoes; a chef knife is not a boning or butcher knife;
   a work bag is not a lunch or tool bag; an iPad case is not a laptop sleeve; a gaming headset is not regular earbuds;
-  a living room rug is not a bath mat or door mat; a car charger is not a laptop or wall charger).
+  a living room rug is not a bath mat or door mat; a car charger is not a laptop or wall charger; an e-bike conversion kit,
+  battery or motor is not an e-bike; a pacifier clip or chain is not a pacifier).
 Styles and close variants of the item count. When the request names a brand, items that show that brand are exact;
 the same item without the brand (or of another brand) is partial, never left out for lacking the brand. Merchandise of a
 person or band who shares the brand's name (a "Zara Larsson" T-shirt for "Zara") is not the brand: it counts only as
