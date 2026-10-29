@@ -58,6 +58,7 @@ const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
 const RELEVANCE_POOL = 36; // titles only on gpt-5.4: ~$0.006 per check; 3 mixed lists need the extra room
 const PROVEN_SALES = 10;
+const SECOND_CHANCE_BUDGET_MS = 7000; // a slow AliExpress day: show what was found rather than wait another ~5 s (18-24 s outliers seen)
 const TRUSTED_FEEDBACK = 95;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
 const FOOD_WORDS = /חטיף|ממתק|שוקולד|סוכרי|עוגיות|\bתה\b|קפה טחון|פולי קפה|אוכל|מזון|תבלין|דבש|אגוזים|food|snack|candy|tea\b/i;
@@ -141,6 +142,7 @@ export async function dedupeByPhoto(products, hash) {
 
 export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
+  const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
   // stands, "baby pacifier" -> pacifier clips; the real ones were on page 2 or in the relevance order, 2026-10-29). So the
   // main words fetch three lists at once (free, parallel) and the AI pool mixes them, each ranked, round-robin.
@@ -173,7 +175,7 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
-    if (alt && exact.length + partial.length < limit) {
+    if (alt && exact.length + partial.length < limit && Date.now() - started < SECOND_CHANCE_BUDGET_MS) {
       const known = new Set([...first, ...more].map(keyOf));
       const fresh = await find(alt, [{}, { sort: "relevance" }]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
       if (fresh.length) {

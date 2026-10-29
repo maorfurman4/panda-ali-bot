@@ -409,4 +409,6 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Emoji alone** is the product it shows.
 - **Links shortened only for shown products:** searches pass `shorten:false`, and `shortenLinks` runs on the ≤12 products a card can use. That's ~1 s and 3 AliExpress calls fewer per search (measured: link.generate adds ~0.9-1.1 s per list).
 - **eval:personas after:** pacifier 4/4 (was nothing), e-bike 4/4 (was 2/4), desk 4/4, PS5 4/4, 12V screwdriver 4/4, emoji 3/4, cat toy 3/4. Russian shows correct iPhone 15 cases (the judge scores 0 because it reads the Russian request). Still weak: a Fortnite skin request (not a physical product) got a wrong 1-item card. Two outliers took 18-24 s (second chance + slow AliExpress).
+- **Virtual items** (game skins, game coins, digital codes, gift cards, subscriptions, apps) are `not_product` ("סקין לפורטנייט", "כרטיס מתנה לאמזון"). Plain-ASCII requests skip the AI, so "V-Bucks" is still searched.
+- **Second-chance budget:** the extra wording runs only if the search took under 7 s so far (avoids the 18-24 s outliers on slow AliExpress days).
 
