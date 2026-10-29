@@ -229,7 +229,7 @@ test("relevance: no products -> no AI call", async () => {
 });
 
 // ---- shopping advisor (multi-step questions) + "why it fits" ----
-import { createAdvisor, createExplainer } from "../query.js";
+import { createAdvisor, createExplainer, createTitler } from "../query.js";
 
 const ASK = {
   status: "ask",
@@ -278,6 +278,14 @@ test("explainer: one short reason per product, same order; anything else is null
   assert.equal(await createExplainer({ fetch: openai({}, { status: 500 }).fetch, env: ENV })({ request: "x", history: [] }, products), null);
 });
 
+test("titler: short Hebrew labels in order; numbering stripped; a label where the model talks about its task falls back", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const products = [{ product_title: "Water Filter for Melitta" }, { product_title: "Microwave" }, { product_title: "Cable" }];
+  const api = openai({ reasons: ["0. מסנן מים - מתאים למליטה", "מיקרוגל; השם צריך לשמור את הנפח", "כבל USB ל-Type C"] });
+  assert.deepEqual(await createTitler({ fetch: api.fetch, env: ENV })("פילטר למליטה", products), ["מסנן מים - מתאים למליטה", null, "כבל USB ל-Type C"]);
+  assert.equal(await createTitler({ fetch: openai({ reasons: ["רק אחד"] }).fetch, env: ENV })("x", products), null);
+  assert.equal(await createTitler({ fetch: async () => assert.fail("no key"), env: {} })("x", products), null);
+});
 
 test("validateIntent keeps an optional broader fallback search", () => {
   assert.equal(validateIntent({ ...STRICT_OK, fallback_en: "ipad case" }).fallback_en, "ipad case");

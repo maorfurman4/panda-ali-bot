@@ -429,3 +429,13 @@ Live recheck of the fixed cases: 31/32 right. Honest few-item cards remain for b
 - **Market (quick):** WebDigital builds similar custom bots (4 products, ChatGPT). Others convert links (Affiracle), track prices (@aliexpress_price_bot), sort by discount (@discount_livebot) or do coupons and seller analysis (AliSmart). Ours leads on Hebrew understanding, per-product AI relevance, honesty, the group advisor and Israel specifics (VAT, ₪). Gaps: coupons, delivery time (need Advanced API), price-drop alerts and price history (need a database), sort options.
 - **"הכי זול" / "הזול ביותר" / cheapest** (also Russian/Arabic) shows the matches cheapest first, exact before partial. The quality filters still apply.
 
+
+## 4a. Head-to-head with "דילים AI - בוב" + better picking (2026-10-29)
+
+- **Comparison** on the owner's 9 searches against a competing group bot (19k members): before, Bob won 5, we won 1, 3 ties. The right products were in our AliExpress pool; our picking and titles lost.
+- **Relevance:** a feature counts only if the item really has it ("ergonomic" = vertical/trackball/contoured); "for <device/brand>" is exact only if the title names it; commercial versions are partial for home shoppers.
+- **Ranking:** an exact match that sold at least once now comes before a popular close match. A brand search keeps that brand's close items and drops other brands.
+- **Short Hebrew names:** the cheap model rewrites the shown products' titles (≈0.1¢, in parallel with link shortening). Each bad label falls back to the seller title.
+- **Second-chance wording keeps the brand**; appliance price floors (microwave 150, fridge 400, washer 500, AC 600, coffee machine 120).
+- **Owner cost line:** the nightly digest and /status show the day's AI cost and cents per search. "מצא ךי" is a trigger.
+- eval:search after: 100% right item (was 97%), 87% every feature, p50 5.9 s, $0.0082 per search.

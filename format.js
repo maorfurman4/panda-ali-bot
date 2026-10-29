@@ -149,7 +149,7 @@ function buildCard(products, query, demo, reasons, closest) {
     lines.push(
       "",
       ...[
-        `${MEDALS[i]} <b>${esc(shortTitle(p.product_title) || "מוצר")}</b>`,
+        `${MEDALS[i]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
         priceLine(p),
         discountLine(p),

@@ -93,6 +93,16 @@ test("group /search sends ONE photo card: top 4, as a reply, with only the bot's
   assert.ok(calls.some((c) => c.method === "sendChatAction" && c.payload.action === "typing"));
 });
 
+test("short Hebrew names from the AI replace seller titles; without them the cleaned seller title stays", async () => {
+  const asked = [];
+  const title = async (request, products) => (asked.push(request), products.map((_, i) => `שם קצר ${i + 1}`));
+  const { sent } = await run("/search wireless earbuds", { title });
+  assert.deepEqual(asked, ["wireless earbuds"]);
+  assert.match(sent()[0].caption, /<b>שם קצר 1<\/b>/);
+  const plain = await run("/search wireless earbuds", { title: async () => null });
+  assert.doesNotMatch(plain.sent()[0].caption, /שם קצר/);
+});
+
 test("private search also shows 4 products", async () => {
   const { sent } = await run("earbuds", {}, { chat: "private" });
   const [msg] = sent();
@@ -748,12 +758,12 @@ test("the main search failing still shows the broader search's results; both fai
   assert.equal(both.sent()[0].body, SEARCH_ERROR);
 });
 
-test("proven products (≥10 sold) lead the card; unknown listings only fill in after them", async () => {
+test("proven products (≥10 sold) lead the card, then exact ones that sold at least once; never-sold ones only fill in", async () => {
   const items = [product(1, { lastest_volume: "0" }), product(2, { lastest_volume: "3" }), product(3, { lastest_volume: "500" }), product(4, { lastest_volume: "40" }), product(5, { lastest_volume: "12" })];
   const relevant = async (_r, p) => ({ exact: p.filter((x) => /_p(1|2|3)$/.test(x.promotion_link)), partial: p.filter((x) => /_p(4|5)$/.test(x.promotion_link)) });
   const ctx = setup({ search: async () => items, relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
-  assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "4", "5", "2"], "proven exact, proven partial, then the best unknown exact");
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "2", "4", "5"], "proven exact, exact with a few sales, then proven partial; the never-sold exact is left out");
 });
 
 test("only close (partial) matches -> the card says so under the header; any exact match -> no note", async () => {
@@ -799,6 +809,10 @@ test("a brand was asked for and found: only that brand is shown (even 2), no oth
   const plain = setup({ search: async () => SIX, relevant, live: true, understand: async () => intent() });
   await plain.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
   assert.equal(shownIds(plain.sent()[0]).length, 4, "without a brand, close matches still fill the card");
+  const sameBrand = SIX.map((p, i) => (i === 3 ? { ...p, product_title: `Xiaomi ${p.product_title}` } : p));
+  const near = setup({ search: async () => sameBrand, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
+  await near.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
+  assert.deepEqual(shownIds(near.sent()[0]), ["1", "2", "4"], "a close item of the same brand still shows");
 });
 
 test("one AI call judges both the main and the broader search (no second check)", async () => {

@@ -3,7 +3,7 @@
 import { Bot, InputFile } from "grammy";
 import { searchProducts, convertToAffiliate, isMockMode, shortenLinks } from "./aliexpress.js";
 import { findAliExpressUrl } from "./links.js";
-import { understandQuery, filterRelevant, nextAdvice, explainFit } from "./query.js";
+import { understandQuery, filterRelevant, nextAdvice, explainFit, shortTitles } from "./query.js";
 import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
@@ -187,7 +187,7 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
     }
   }
   // Trusted products first (≥10 sold and ≥95% positive feedback, the safe bar in buyer guides), so a card isn't led by unknown
-  // or so-so sellers; within each group, exact before partial.
+  // or so-so sellers.
   const rate = (p) => parseFloat(p.evaluate_rate);
   const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && !(rate(p) < TRUSTED_FEEDBACK);
   // Suspiciously cheap: under a quarter of the typical price of the matches AND barely sold (proven cheap items stay).
@@ -196,11 +196,17 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   const suspicious = (p) => median && Number(p.target_sale_price ?? p.sale_price) < median / 4 && Number(p.lastest_volume) < 100;
   exact = exact.filter((p) => !suspicious(p));
   partial = partial.filter((p) => !suspicious(p));
-  if (brandOnly && exact.length) partial = []; // a brand was asked for and found: another brand isn't "close"
+  // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
+  // "ergonomic Logitech mouse"). brandOnly is the brand name, or true when unknown.
+  const ofBrand = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
+  if (brandOnly && exact.length) partial = partial.filter(ofBrand);
   const tag = (list, match) => list.map((p) => ({ ...p, match })); // the card says so when nothing shown is an exact match
   exact = tag(exact, "exact");
   partial = tag(partial, "partial");
-  const tiers = [exact.filter(proven), partial.filter(proven), exact.filter((p) => !proven(p)), partial.filter((p) => !proven(p))];
+  // A real match that has sold at least once beats a popular close one (Logitech Lift, 6 sold, before an M750 that only
+  // calls itself ergonomic); never-sold real matches still come after proven close ones.
+  const sold = (p) => Number(p.lastest_volume) >= 1 && !(rate(p) < TRUSTED_FEEDBACK);
+  const tiers = [exact.filter(proven), exact.filter((p) => !proven(p) && sold(p)), partial.filter(proven), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
   const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
   const ranked = dedupeProducts(cheapest ? [...byPrice(exact), ...byPrice(partial)] : tiers.flatMap(rankProducts));
@@ -234,6 +240,7 @@ export function createBot({
   relevant = filterRelevant,
   advise = nextAdvice,
   explain = explainFit,
+  title = shortTitles,
   collage = makeCollage,
   shorten = (products) => shortenLinks(products), // only the products a card shows get short links
   hash = photoHash, // tests pass a network-free stub
@@ -339,7 +346,7 @@ export function createBot({
         maxPriceIls: intent?.max_price_ils ?? null,
         minPriceIls: intent?.min_price_ils ?? intent?.floor_price_ils ?? null,
         floorOnly: Boolean(!intent?.min_price_ils && intent?.floor_price_ils),
-        brandOnly: Boolean(intent?.brand),
+        brandOnly: intent?.brand || false,
         replyToId: ctx.msg.message_id,
       });
     });
@@ -363,7 +370,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: Boolean(intent.brand), replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -400,7 +407,9 @@ export function createBot({
         const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
-        found = await shorten(found).catch(() => found);
+        // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
+        const [linked, names] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null)]);
+        found = linked.map((p, i) => (names?.[i] ? { ...p, short_he: names[i] } : p));
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
       }
