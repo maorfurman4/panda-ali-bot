@@ -42,6 +42,9 @@ test("parseTrigger: start-of-message triggers only", () => {
   assert.equal(parseTrigger("מצא לי מטען", u), "מטען");
   assert.equal(parseTrigger("חפש לי: כבל", u), "כבל");
   assert.equal(parseTrigger("‏חפש לי אוזניות", u), "אוזניות", "leading RLM from copied mobile text");
+  assert.equal(parseTrigger("jpa kh tuzbhu,", u), "tuzbhu, (אוזניות)", "Hebrew typed on the English layout: both spellings go to the AI");
+  assert.equal(parseTrigger("jpa kh מטען", u), "מטען", "already Hebrew: unchanged");
+  for (const text of ["busca cargador", "Búscame cargador", "encuéntrame cargador"]) assert.equal(parseTrigger(text, u), "cargador", text);
   assert.equal(parseTrigger("@panda_test_bot כבל", u), "כבל");
   assert.equal(parseTrigger("@Panda_Test_Bot, מנורה", u), "מנורה");
   assert.equal(parseTrigger("חפש לי", u), "");
@@ -101,6 +104,25 @@ test("short Hebrew names from the AI replace seller titles; without them the cle
   assert.match(sent()[0].caption, /<b>שם קצר 1<\/b>/);
   const plain = await run("/search wireless earbuds", { title: async () => null });
   assert.doesNotMatch(plain.sent()[0].caption, /שם קצר/);
+});
+
+test("'X וגם Y' searches both items, a card for each; 'X ו-Y' without 'וגם' stays one search", async () => {
+  const { sent, queries } = await run("/search מטען לרכב וגם כבל לאייפון");
+  assert.deepEqual(queries, ["מטען לרכב", "כבל לאייפון"]);
+  assert.equal(sent().filter((m) => m.method === "sendPhoto").length, 2);
+  const one = await run("/search מטען וכבל");
+  assert.deepEqual(one.queries, ["מטען וכבל"]);
+});
+
+test("few results: the same model from another seller fills the card; with enough results each model shows once", async () => {
+  const two = [product(1, { product_title: "Ruckus R350 access point" }), product(2, { product_title: "Ruckus R350 access point original", target_sale_price: "1858.90" })];
+  const few = setup({ search: async () => two, relevant: async (_r, p) => ({ exact: p, partial: [] }), live: true });
+  await few.bot.handleUpdate(textUpdate("חפש לי ruckus r350"));
+  assert.deepEqual(shownIds(few.sent()[0]), ["1", "2"]);
+  const many = [...two, product(3), product(4), product(5), product(6)];
+  const full = setup({ search: async () => many, relevant: async (_r, p) => ({ exact: p, partial: [] }), live: true });
+  await full.bot.handleUpdate(textUpdate("חפש לי ruckus r350"));
+  assert.equal(shownIds(full.sent()[0]).filter((id) => id === "1" || id === "2").length, 1);
 });
 
 test("private search also shows 4 products", async () => {

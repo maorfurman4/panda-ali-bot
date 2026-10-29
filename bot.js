@@ -78,7 +78,7 @@ const LEAD = String.raw`(?:(?:פנדה|בוט|היי|הי|בבקשה|אפשר|ת
 const VERB = String.raw`[הושל]?(?:ת?[חכה]י?פו?[שס]{1,3}[וי]?|ת?מי?צ(?:[אהע]|וא)[וי]?)`;
 const ME = String.raw`(?:[ךכ]?לי{1,2}|ךי|לנו)`; // also "ךלי"/"ךי": ך sits next to ל on the Hebrew keyboard
 // Members who write in English, Russian or Arabic ("find me…", "найди мне…", "ابحث لي عن…") are searched too.
-const FOREIGN = String.raw`find\s+me|search\s+for|look\s+for|найди(?:те)?(?:\s+мне)?|поищи(?:\s+мне)?|ابحث(?:\s+لي)?(?:\s+عن)?|دور(?:\s+لي)?(?:\s+على)?`;
+const FOREIGN = String.raw`find\s+me|search\s+for|look\s+for|b[uú]s?ca(?:me)?|encu[eé]ntra(?:me)?|найди(?:те)?(?:\s+мне)?|поищи(?:\s+мне)?|ابحث(?:\s+لي)?(?:\s+عن)?|دور(?:\s+لي)?(?:\s+على)?`;
 const TRIGGER = new RegExp(String.raw`^\s*(?:${LEAD}(?:${VERB}\s*-?\s*${ME}|jpa\s*kh|nmt\s*kh)(?![\u05D0-\u05EA])|(?:${FOREIGN})(?=\s))[\s:,.]*([\s\S]*)$`, "i");
 // A missing space after "לי" ("חפש ליהדום"): the whole rest goes to the AI, which fixes it (and keeps real words like "לימון").
 const TRIGGER_GLUED = new RegExp(String.raw`^\s*${LEAD}${VERB}\s*(לי[\u05D0-\u05EA][\s\S]*)$`); // also "חפשליאוזניות"
@@ -117,10 +117,18 @@ function mentionRest(text, username) {
 }
 
 // Query for a start-of-message trigger ("" when it has no query), or null when the text isn't addressed to the bot.
+// Hebrew typed with the English keyboard layout ("jpa kh nturb"): the rest is converted key by key, and the AI gets both,
+// so an English product name the shopper meant ("jpa kh iphone") still works.
+const HEB_KEYS = { q: "/", w: "'", e: "ק", r: "ר", t: "א", y: "ט", u: "ו", i: "ן", o: "ם", p: "פ", a: "ש", s: "ד", d: "ג", f: "כ", g: "ע", h: "י", j: "ח", k: "ל", l: "ך", ";": "ף", z: "ז", x: "ס", c: "ב", v: "ה", b: "נ", n: "מ", m: "צ", ",": "ת", ".": "ץ" };
+const toHebrewKeys = (s) => s.toLowerCase().replace(/[a-z;,.]/g, (c) => HEB_KEYS[c]);
+
 export function parseTrigger(text, username) {
   const clean = text.replace(BIDI_MARKS, "");
   const m = clean.match(TRIGGER) ?? clean.match(TRIGGER_GLUED);
-  return m ? m[1].trim() : mentionRest(text, username);
+  if (!m) return mentionRest(text, username);
+  const rest = m[1].trim();
+  const latinLayout = /^\s*(?:jpa|nmt)\s*kh\b/i.test(clean) && /^[a-z;,.\s\d]+$/i.test(rest) && /[a-z]/i.test(rest);
+  return latinLayout ? `${rest} (${toHebrewKeys(rest)})` : rest;
 }
 
 // The result pipeline, shared by the bot and the search-quality eval:
@@ -217,7 +225,11 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   const tiers = [exact.filter(proven), exact.filter((p) => !proven(p) && sold(p)), partial.filter(proven), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
   const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
-  const ranked = dedupeProducts(cheapest ? [...byPrice(exact), ...byPrice(partial)] : tiers.flatMap(rankProducts));
+  const all = cheapest ? [...byPrice(exact), ...byPrice(partial)] : tiers.flatMap(rankProducts);
+  let ranked = dedupeProducts(all);
+  // Few results: the same model from another seller is still a choice, usually at another price (Ruckus R350 at ₪1,179
+  // and ₪1,859; the competitor showed both, 2026-10-29). The photo check below still drops identical listings.
+  if (ranked.length < limit) ranked = ranked.concat(all.filter((p) => !ranked.includes(p)).slice(0, limit - ranked.length));
   // Photo check on the candidates that can still be shown (2× the need, so removed repeats get refilled).
   return (hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : ranked).slice(0, limit + extra);
 }
@@ -334,7 +346,16 @@ export function createBot({
     const query = rawQuery.trim();
     if (!query) return reply(ctx, EMPTY_QUERY);
     if (!(await allow(ctx))) return;
+    // "מטען לרכב וגם כבל לאייפון": two items, a card for each (at most two; "מטען וכבל" stays one, it is often a set).
+    const both = query.split(/\s+וגם\s+/).map((q) => q.trim()).filter((q) => q.length >= 2);
+    if (both.length === 2) {
+      for (const one of both) await searchOne(ctx, one);
+      return;
+    }
+    return searchOne(ctx, query);
+  }
 
+  async function searchOne(ctx, query) {
     return withTyping(ctx, async () => {
       const intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
       if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);

@@ -445,3 +445,10 @@ Live recheck of the fixed cases: 31/32 right. Honest few-item cards remain for b
 - **Free experiments** (AliExpress API calls cost nothing): the same words searched inside the item's category skip most accessories. Microwave: 1 real microwave of 50 (best-sellers) → 47 of 50 inside "Major Appliances", 19 of 50 inside the main "Home Appliances" category. Baseus solar camera: the 4,026-sold S1 Lite (₪380) appeared only inside "Security & Protection". Car tablet holder: inside "Automobiles", magnets and rings disappear. But a wrong category returns nothing (Ruckus R350 inside "Computer & Office": 0).
 - **So:** the understanding AI now also names one of 28 AliExpress main categories (≈0.02¢), and the bot adds two lists inside it (best-sellers + relevance) to its three regular lists. Never the only lists, so a wrong category can't empty a search. The second chance also searches inside it.
 - AliExpress product fields seen: first/second level category id and name, shop id/name, commission rate, video, discount, evaluate_rate, lastest_volume. No star rating or review count in this API (the competitor likely uses another source).
+
+## 4c. Checklist round (2026-10-30)
+
+- **English keyboard layout:** "jpa kh tuzbhu," → the AI gets "tuzbhu, (אוזניות)", both spellings, so the meant item is understood.
+- **Spanish:** "busca", "búscame", "encuéntrame" are search words (they got the fixed message before).
+- **Two items:** "מטען לרכב וגם כבל לאייפון" → two searches, a card for each. "מטען וכבל" (no "וגם") stays one search, since it is often a set.
+- **Thin cards:** when fewer than 4 products remain, the same model from another seller fills in (other price). With enough results each model still shows once.
