@@ -25,6 +25,15 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות").
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
+- category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:
+  6 Home Appliances (kitchen and home machines, vacuums, coffee machines and their filters), 7 Computer & Office (mice,
+  keyboards, networking), 13 Home Improvement, 15 Home & Garden (kitchenware, decor, storage, garden), 18 Sports &
+  Entertainment, 21 Office & School Supplies, 26 Toys & Hobbies, 30 Security & Protection (security cameras, locks),
+  34 Automobiles & Accessories (car holders, car electronics), 36 Jewelry, 39 Lights & Lighting, 44 Consumer Electronics
+  (earbuds, speakers, cameras, drones), 66 Beauty & Health (hair removal, skin care, massage), 320 Weddings & Events,
+  322 Shoes, 509 Phones (phones, cases, chargers, cables), 1420 Tools, 1501 Mother & Kids, 1503 Furniture, 1511 Watches,
+  1524 Luggage & Bags, 200000345 Women's Clothing, 200000343 Men's Clothing, 200574005 Underwear, 200000297 Apparel
+  Accessories (hats, scarves, belts), 201768104 Sportswear, 201355758 Motorcycle, 202228412 Books & Culture.
 - alt_en = a second, differently worded English search for the same item, the way sellers title it ("baby pacifier" -> "silicone orthodontic pacifier", "cat toy" -> "interactive cat teaser toy"), or null. Keep the brand or model the shopper named ("Baseus solar camera" -> "Baseus outdoor security camera solar", never just "solar security camera"). It names the item itself, never a minor detail that would find only that part ("car screen holder with screws" -> "car tablet holder mount", not "monitor bracket with screws"). It is searched only when the first search finds too few.
 - An emoji alone is the product it shows ("🎧" -> headphones, "⌚" -> watch).
 - fallback_en = the core item as a good standalone AliExpress search, 2-3 English words ("merino arm warmers thumb holes" -> "arm warmers", "Zara men clothing" -> "men casual shirts"; never a vague word like "clothing" or "shoes" alone), used if the first search finds too few, or null when keywords_en is already that.
@@ -57,6 +66,7 @@ const SCHEMA = {
     max_price_ils: { type: ["number", "null"] },
     floor_price_ils: { type: ["number", "null"] },
     brand: { type: ["string", "null"] },
+    category_id: { type: ["integer", "null"] },
     alt_en: { type: ["string", "null"] },
     fallback_en: { type: ["string", "null"] },
     clarify_question_he: { type: ["string", "null"] },
@@ -70,12 +80,15 @@ const SCHEMA = {
       },
     },
   },
-  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "alt_en", "fallback_en", "clarify_question_he", "options"],
+  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "category_id", "alt_en", "fallback_en", "clarify_question_he", "options"],
   additionalProperties: false,
 };
 
 const price = (v) => (typeof v === "number" && v > 0 && Number.isFinite(v) ? v : null);
 const clean = (s, max) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, max) : "");
+
+// The AliExpress main categories the AI may name (category.get, 2026-10-29); searched only as an extra list.
+const CATEGORY_IDS = new Set([6, 7, 13, 15, 18, 21, 26, 30, 34, 36, 39, 44, 66, 320, 322, 509, 1420, 1501, 1503, 1511, 1524, 200000345, 200000343, 200574005, 200000297, 201768104, 201355758, 202228412]);
 
 // Validates the model's JSON in code before anything uses it; returns null when it can't be trusted.
 // Prices written in the request, read by code so they never depend on the AI ("עד 30 ש"ח", "עד 20 דולר", "בין 80 ל-150").
@@ -111,6 +124,7 @@ export function validateIntent(o) {
   if (floor && !min && !(max && floor >= max)) base.floor_price_ils = floor; // the shopper's own price always wins
   const brand = clean(o.brand, 40);
   if (brand) base.brand = brand;
+  if (CATEGORY_IDS.has(o.category_id)) base.category_id = o.category_id; // an unknown number is dropped, never searched
   const alt = clean(o.alt_en, 100);
   if (alt && alt.toLowerCase() !== base.keywords_en.toLowerCase()) base.alt_en = alt;
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };

@@ -1,0 +1,10 @@
+import { apiCall, searchProducts } from "../aliexpress.js";
+const r = await apiCall("aliexpress.affiliate.category.get", {});
+const cats = r.categories?.category ?? r.categories ?? [];
+const top = cats.filter((c) => !c.parent_category_id);
+console.log("total", cats.length, "top-level", top.length);
+console.log(top.map((c) => `${c.category_id}:${c.category_name}`).join(" | "));
+const p = (await searchProducts("microwave oven", { shorten: false }))[0];
+console.log("\nfields:", Object.keys(p).join(", "));
+console.log("sample cats:", p.first_level_category_id, p.first_level_category_name, p.second_level_category_id, p.second_level_category_name);
+import("fs").then((fs) => fs.writeFileSync("/private/tmp/claude-501/-Users-admin-Desktop-panda-ali-bot/5081c070-186e-4840-a6af-b56b36b690bc/scratchpad/cats.json", JSON.stringify(cats)));

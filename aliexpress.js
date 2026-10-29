@@ -52,7 +52,7 @@ export async function apiCall(method, params, { fetch = globalThis.fetch, env = 
   return out.result;
 }
 
-// deps.page / deps.sort ("relevance"): other result lists for the same words (see pickProducts).
+// deps.page / deps.sort ("relevance") / deps.category: other result lists for the same words (see pickProducts).
 // deps.minIls / deps.maxIls: optional shekel range, filtered by AliExpress itself (in agorot, on the sale price;
 // verified live 2026-10-24: 40 of 50 knife sets in 300–600 ₪ vs 0 without). The caller still post-filters exactly.
 export async function searchProducts(query, deps = {}) {
@@ -70,6 +70,7 @@ export async function searchProducts(query, deps = {}) {
         target_language: "HE",
         ...(deps.sort === "relevance" ? {} : { sort: "LAST_VOLUME_DESC" }), // no sort param = AliExpress's own relevance order
         ...(deps.page > 1 ? { page_no: String(deps.page) } : {}),
+        ...(deps.category ? { category_ids: String(deps.category) } : {}), // a main category: an extra list, never the only one
         page_size: String(PAGE_SIZE),
         ...(deps.minIls ? { min_sale_price: String(Math.round(deps.minIls * 100)) } : {}),
         ...(deps.maxIls ? { max_sale_price: String(Math.round(deps.maxIls * 100)) } : {}),

@@ -439,3 +439,9 @@ Live recheck of the fixed cases: 31/32 right. Honest few-item cards remain for b
 - **Second-chance wording keeps the brand**; appliance price floors (microwave 150, fridge 400, washer 500, AC 600, coffee machine 120).
 - **Owner cost line:** the nightly digest and /status show the day's AI cost and cents per search. "מצא ךי" is a trigger.
 - eval:search after: 100% right item (was 97%), 87% every feature, p50 5.9 s, $0.0082 per search.
+
+## 4b. Learning AliExpress itself: search inside the main category (2026-10-29)
+
+- **Free experiments** (AliExpress API calls cost nothing): the same words searched inside the item's category skip most accessories. Microwave: 1 real microwave of 50 (best-sellers) → 47 of 50 inside "Major Appliances", 19 of 50 inside the main "Home Appliances" category. Baseus solar camera: the 4,026-sold S1 Lite (₪380) appeared only inside "Security & Protection". Car tablet holder: inside "Automobiles", magnets and rings disappear. But a wrong category returns nothing (Ruckus R350 inside "Computer & Office": 0).
+- **So:** the understanding AI now also names one of 28 AliExpress main categories (≈0.02¢), and the bot adds two lists inside it (best-sellers + relevance) to its three regular lists. Never the only lists, so a wrong category can't empty a search. The second chance also searches inside it.
+- AliExpress product fields seen: first/second level category id and name, shop id/name, commission rate, video, discount, evaluate_rate, lastest_volume. No star rating or review count in this API (the competitor likely uses another source).

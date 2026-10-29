@@ -1024,6 +1024,16 @@ test("live search fetches 3 AliExpress lists for the main words (best-sellers, p
   assert.deepEqual(checked.sort(), ["1", "5", "9"], "the relevance-ordered item reaches the AI even with 3 sales");
 });
 
+test("with the AI's main category, two more lists search inside it; without a category there are only the 3 lists", async () => {
+  const seen = [];
+  const search = async (q, o) => (seen.push(`${o.category ?? "-"}/${o.sort ?? o.page ?? "vol"}`), o.category ? [product(7)] : [product(1)]);
+  const checked = [];
+  const ctx = setup({ search, live: true, understand: async () => intent({ category_id: 6 }), relevant: async (_r, p) => (checked.push(...p.map((x) => x.promotion_link.at(-1))), { exact: p, partial: [] }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מיקרוגל"));
+  assert.deepEqual(seen.sort(), ["-/2", "-/relevance", "-/vol", "6/relevance", "6/vol"]);
+  assert.ok(checked.includes("7"), "items found only inside the category reach the AI");
+});
+
 test("triggers in English, Russian and Arabic; fully glued 'חפשליאוזניות' goes to the AI", () => {
   assert.equal(parseTrigger("find me wireless earbuds", "x"), "wireless earbuds");
   assert.equal(parseTrigger("найди мне чехол для айфона", "x"), "чехол для айфона");

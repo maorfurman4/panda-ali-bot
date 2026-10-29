@@ -291,6 +291,12 @@ test("titler: names matched by product number; numbering and task talk dropped p
   assert.equal(await createTitler({ fetch: async () => assert.fail("no key"), env: {} })("x", products), null);
 });
 
+test("validateIntent keeps a known AliExpress main category and drops an unknown number", () => {
+  assert.equal(validateIntent({ ...STRICT_OK, category_id: 6 }).category_id, 6);
+  assert.equal(validateIntent({ ...STRICT_OK, category_id: 999 }).category_id, undefined);
+  assert.equal(validateIntent({ ...STRICT_OK, category_id: null }).category_id, undefined);
+});
+
 test("validateIntent keeps an optional broader fallback search", () => {
   assert.equal(validateIntent({ ...STRICT_OK, fallback_en: "ipad case" }).fallback_en, "ipad case");
   assert.equal(validateIntent({ ...STRICT_OK, fallback_en: null }).fallback_en, undefined);
