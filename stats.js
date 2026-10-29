@@ -17,8 +17,8 @@ export function createStats({ now = Date.now, notify = null } = {}) {
     setNotifier(fn) {
       notify = fn;
     },
-    count(name) {
-      counters[name] = (counters[name] ?? 0) + 1;
+    count(name, by = 1) {
+      counters[name] = (counters[name] ?? 0) + by;
     },
     // Keeps the last 10 items of a list (e.g. searches that got 👎), newest first.
     remember(name, text) {
@@ -46,6 +46,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
         "📊 סיכום יומי של הבוט",
         `🔎 חיפושים: ${d("search")} · ללא תוצאות: ${d("noResults")} · ♻️ מהזיכרון: ${d("cached")}`,
         `🎯 בול: ${d("thumbsUp")} · 🐼 לא זה: ${d("thumbsDown")} · 🔍 לחפש עוד: ${d("more")}`,
+        `💰 עלות בינה מלאכותית: $${d("aiCost").toFixed(2)} (${((d("aiCost") * 100) / d("search")).toFixed(1)} סנט לחיפוש)`,
         ...(bad.length ? ["", "חיפושים שקיבלו 🐼 (כדאי לבדוק):", ...bad.map((b) => `• ${b}`)] : []),
       ].join("\n");
     },

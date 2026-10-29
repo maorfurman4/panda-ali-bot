@@ -11,6 +11,8 @@ import { stats } from "./stats.js";
 import { isPartFor } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
+// USD per 1M tokens [input, output], for the owner's daily cost line (unknown models are priced as gpt-5.4).
+const PRICES = { "gpt-5.4": [2.5, 15], "gpt-5.4-mini": [0.75, 4.5], "gpt-5.5": [5, 30] };
 // gpt-5.4-mini: on 9 real group requests (2026-10-29) nano wrote weak or wrong search words ("מאצה" -> matzo/bread kit,
 // "קלאפר" -> air freshener, "ערכת…" lost the "kit"); mini got all 9 right in ~1 s at ~$0.0015 per new request (cached 24 h).
 const DEFAULT_MODEL = "gpt-5.4-mini";
@@ -155,7 +157,12 @@ async function requestJson({ fetch, env, model, instructions, content, name, sch
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  if (data.usage) onUsage({ input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens });
+  if (data.usage) {
+    onUsage({ input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens });
+    // shortcut: ignores the cached-input discount, so the owner's daily cost is slightly overstated
+    const [pin, pout] = PRICES[model] ?? PRICES["gpt-5.4"];
+    stats.count("aiCost", (data.usage.input_tokens * pin + data.usage.output_tokens * pout) / 1e6);
+  }
   if (data.status !== "completed") throw new Error(`status ${data.status}`);
   const part = data.output?.find((o) => o.type === "message")?.content?.[0];
   if (part?.type !== "output_text") throw new Error(part?.type ?? "no output");

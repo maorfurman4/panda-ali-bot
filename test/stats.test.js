@@ -75,8 +75,10 @@ test("nightly digest: the day's counts and 🐼 searches since the previous dige
   let t = 1000;
   const stats = createStats({ now: () => t });
   t += 1; stats.count("search"); stats.count("search"); stats.count("thumbsDown"); stats.remember("thumbsDown", "מגפיים לבנות");
+  stats.count("aiCost", 0.012); stats.count("aiCost", 0.004);
   const text = stats.digest();
   assert.match(text, /חיפושים: 2/);
+  assert.match(text, /עלות בינה מלאכותית: \$0\.02 \(0\.8 סנט לחיפוש\)/);
   assert.match(text, /🐼 לא זה: 1/);
   assert.match(text, /• מגפיים לבנות/);
   t += 1;

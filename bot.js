@@ -76,7 +76,7 @@ const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile
 // - "לי" / "ליי" / "לנו", glued or not ("חפשלי"), and the same keys typed on an English layout ("jpa kh")
 const LEAD = String.raw`(?:(?:פנדה|בוט|היי|הי|בבקשה|אפשר|תוכל|תוכלי|אתה יכול|את יכולה|אחי|אחותי|חברים|דחוף|יאללה|@\w+)[\s,!.]+)*`; // "דחוף!!! חפש לי…", "אחי תחפש לי…", "היי @בוט תמצא לי…"
 const VERB = String.raw`[הושל]?(?:ת?[חכה]י?פו?[שס]{1,3}[וי]?|ת?מי?צ(?:[אהע]|וא)[וי]?)`;
-const ME = String.raw`(?:[ךכ]?לי{1,2}|לנו)`; // also "ךלי": ך sits next to ל on the Hebrew keyboard
+const ME = String.raw`(?:[ךכ]?לי{1,2}|ךי|לנו)`; // also "ךלי"/"ךי": ך sits next to ל on the Hebrew keyboard
 // Members who write in English, Russian or Arabic ("find me…", "найди мне…", "ابحث لي عن…") are searched too.
 const FOREIGN = String.raw`find\s+me|search\s+for|look\s+for|найди(?:те)?(?:\s+мне)?|поищи(?:\s+мне)?|ابحث(?:\s+لي)?(?:\s+عن)?|دور(?:\s+لي)?(?:\s+على)?`;
 const TRIGGER = new RegExp(String.raw`^\s*(?:${LEAD}(?:${VERB}\s*-?\s*${ME}|jpa\s*kh|nmt\s*kh)(?![\u05D0-\u05EA])|(?:${FOREIGN})(?=\s))[\s:,.]*([\s\S]*)$`, "i");
@@ -536,7 +536,7 @@ export function createBot({
       "📊 <b>מצב הבוט</b>",
       `🏷️ גרסה: ${esc(version)} · ${isMockMode() ? "דמו" : "אמיתי"} · פעיל ${Math.round((now() - startedAt) / 60_000)} דק'`,
       `🔎 חיפושים: ${n("search")} · ללא תוצאות: ${n("noResults")} · שגיאות עלי אקספרס: ${n("fail:aliexpress")}`,
-      `🤖 כשלי AI: ${n("fail:ai")} · כשלי טלגרם: ${n("fail:telegram")}`,
+      `🤖 כשלי AI: ${n("fail:ai")} · כשלי טלגרם: ${n("fail:telegram")} · 💰 עלות AI: $${n("aiCost").toFixed(2)}`,
       `🎯 בול: ${n("thumbsUp")} · 🐼 לא זה: ${n("thumbsDown")} · 🔍 לחפש עוד: ${n("more")} · ♻️ מהזיכרון: ${n("cached")}`,
       "",
       "<b>בדיקה חיה</b>",
