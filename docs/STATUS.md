@@ -412,3 +412,15 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Virtual items** (game skins, game coins, digital codes, gift cards, subscriptions, apps) are `not_product` ("סקין לפורטנייט", "כרטיס מתנה לאמזון"). Plain-ASCII requests skip the AI, so "V-Bucks" is still searched.
 - **Second-chance budget:** the extra wording runs only if the search took under 7 s so far (avoids the 18-24 s outliers on slow AliExpress days).
 
+## 3y. Second 50-persona set (2026-10-29, `npm run eval:personas -- --set 2`)
+
+A new set of 50 edge cases (number words, "הכי זול", negation, model numbers, abbreviations, transliterated brands, quantities, cm sizes, feminine/plural verbs, urgency, slang, complaints, Amazon links, phone numbers, Spanish, mixed Arabic, final-letter typos, tripled letters, extra spaces, newlines, costumes, fishing, garden, health, medicine, toy guns, lingerie, specific car models). Most passed. Fixed:
+- Leading words before the command: "דחוף!!!", "אחי", "יאללה", "חברים", and a mention ("היי @בוט תמצא לי…").
+- Tripled letters ("חפששש").
+- "חכה לדייג" was read as "wait" and is now a fishing rod.
+- Negated features ("לא שקוף") count against matches.
+- A broken AI header with CJK characters (seen on an Arabic request) falls back to the shopper's words.
+- Novelty/prank versions (mustache pacifiers) are partial unless asked, so regular items come first.
+
+Live recheck of the fixed cases: 31/32 right. Honest few-item cards remain for bridal dresses, classical guitars and car-model seat covers (2 each).
+

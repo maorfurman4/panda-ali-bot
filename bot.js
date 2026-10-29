@@ -73,8 +73,8 @@ const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile
 // - verbs: חפש/מצא with ח/כ/ה, ש/ס, א/ה/ע swaps and extra/missing י/ו (חפס, כפש, חיפש, תחפוש, מצה, מצע, תמצאי…)
 // - a stray or grammatical first letter (החפש, וחפש, לחפש) and polite openers (בבקשה / אפשר / תוכל / פנדה …)
 // - "לי" / "ליי" / "לנו", glued or not ("חפשלי"), and the same keys typed on an English layout ("jpa kh")
-const LEAD = String.raw`(?:(?:פנדה|בוט|היי|הי|בבקשה|אפשר|תוכל|תוכלי|אתה יכול|את יכולה)[\s,]+)*`;
-const VERB = String.raw`[הושל]?(?:ת?[חכה]י?פו?[שס]{1,2}[וי]?|ת?מי?צ(?:[אהע]|וא)[וי]?)`;
+const LEAD = String.raw`(?:(?:פנדה|בוט|היי|הי|בבקשה|אפשר|תוכל|תוכלי|אתה יכול|את יכולה|אחי|אחותי|חברים|דחוף|יאללה|@\w+)[\s,!.]+)*`; // "דחוף!!! חפש לי…", "אחי תחפש לי…", "היי @בוט תמצא לי…"
+const VERB = String.raw`[הושל]?(?:ת?[חכה]י?פו?[שס]{1,3}[וי]?|ת?מי?צ(?:[אהע]|וא)[וי]?)`;
 const ME = String.raw`(?:[ךכ]?לי{1,2}|לנו)`; // also "ךלי": ך sits next to ל on the Hebrew keyboard
 // Members who write in English, Russian or Arabic ("find me…", "найди мне…", "ابحث لي عن…") are searched too.
 const FOREIGN = String.raw`find\s+me|search\s+for|look\s+for|найди(?:те)?(?:\s+мне)?|поищи(?:\s+мне)?|ابحث(?:\s+لي)?(?:\s+عن)?|دور(?:\s+لي)?(?:\s+على)?`;

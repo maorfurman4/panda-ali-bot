@@ -30,7 +30,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Brands: when the shopper names a brand (Nike, Zara, Dior, Rolex, Xiaomi, Lenovo, Apple…), keep it in keywords_en, as shoppers do on AliExpress ("נייקי אייר מקס" -> "Nike Air Max", "נעליים של UGG" -> "UGG boots", "בושם של דיור" -> "Dior perfume", "שעון רולקס" -> "Rolex watch", "בגדים של זארה" -> "Zara women clothing"). fallback_en = the same item WITHOUT the brand name, always ("Zara men clothing" -> fallback "men casual shirts"; "Dior perfume" -> "women perfume long lasting"), because AliExpress often has few or no items of a big brand. Compatibility brands stay too ("כיסוי לאייפון" -> "iPhone case").
 - status "not_allowed" for products the group bot must not search: weapons (switchblades "סכין קפיצית", brass knuckles "אגרופן", real or replica guns "אקדח", tasers), drugs, medicines and diet pills ("תרופה להרזיה"), vapes and e-cigarettes, sex and adult products, and hidden cameras or trackers meant to secretly watch or follow a person ("מצלמה נסתרת לשירותים").
   Allowed (status "ok"): kitchen and chef knives, folding multitools, toy guns ("אקדח מים" -> "water gun toy", "רובה נרף" -> "foam blaster toy"), security and dash cameras, GPS trackers for keys, bags or cars.
-- Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
+- Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "חכה לדייג" (a fishing rod), "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies ("מגפיים לבנות" -> "girls boots kids"); only "לתינוק"/"לתינוקת" means babies.
 - status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"). For a gift, one of the options or questions should be the budget: give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
 - floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "אופניים חשמליים" -> 1200, "כיסא גיימינג" -> 250, "שולחן מחשב" -> 150, "שלט לפלייסטיישן" -> 60, "סלסלה לפיקניק" -> 60); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
@@ -101,7 +101,8 @@ export function validateIntent(o) {
   const status = String(o.status).toLowerCase();
   const max = o.max_price_ils;
   if (max != null && !(typeof max === "number" && max > 0 && Number.isFinite(max))) return null;
-  const base = { status, corrected_he: clean(o.corrected_he, 60), keywords_en: clean(o.keywords_en, 100), max_price_ils: max ?? null };
+  // A broken header ("ש充ן", seen on an Arabic request) is dropped; the bot then shows the shopper's own words.
+  const base = { status, corrected_he: /[\u3000-\u9fff\uac00-\ud7af]/.test(String(o.corrected_he)) ? "" : clean(o.corrected_he, 60), keywords_en: clean(o.keywords_en, 100), max_price_ils: max ?? null };
   const min = price(o.min_price_ils);
   if (min && !(max && min >= max)) base.min_price_ils = min; // only when present, so existing callers and tests see the same shape
   const floor = price(o.floor_price_ils);
@@ -222,6 +223,7 @@ for color, pattern and item type, and trust it over the title.
 Sort the products into two lists:
 - exact: it IS the requested item type AND matches every feature the request names: color, size or weight, material,
   pattern, gender, use ("for work", "for kids", "gaming"), "with microphone", "wireless", "waterproof", "thick", "windproof", "silent".
+  A negated feature counts too: "לא שקוף" (not clear) means a clear one contradicts the request.
 - partial: it is the requested item type and nothing contradicts the request, but a named feature can't be confirmed.
 Leave out everything else:
 - anything that contradicts a named feature: another color in the photo (asked gray, it's brown or beige), the other gender
@@ -232,6 +234,8 @@ Leave out everything else:
   a work bag is not a lunch or tool bag; an iPad case is not a laptop sleeve; a gaming headset is not regular earbuds;
   a living room rug is not a bath mat or door mat; a car charger is not a laptop or wall charger; an e-bike conversion kit,
   battery or motor is not an e-bike; a pacifier clip or chain is not a pacifier).
+A novelty, prank, costume or party version of the item (a mustache or vampire pacifier, a joke mug) is partial, not exact,
+unless the shopper asked for a funny or party one.
 Styles and close variants of the item count. When the request names a brand, items that show that brand are exact;
 the same item without the brand (or of another brand) is partial, never left out for lacking the brand. Merchandise of a
 person or band who shares the brand's name (a "Zara Larsson" T-shirt for "Zara") is not the brand: it counts only as
