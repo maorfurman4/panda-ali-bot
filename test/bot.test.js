@@ -766,6 +766,20 @@ test("proven products (≥10 sold) lead the card, then exact ones that sold at l
   assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "2", "4", "5"], "proven exact, exact with a few sales, then proven partial; the never-sold exact is left out");
 });
 
+test("an AI verdict of 'nothing fits' on a full pool is asked once more; a second empty verdict stands", async () => {
+  const many = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => product(n));
+  let calls = 0;
+  const flaky = async (_r, p) => (++calls === 1 ? { exact: [], partial: [] } : { exact: p.slice(0, 4), partial: [] });
+  const ctx = setup({ search: async () => many, relevant: flaky, live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מתקן למסך"));
+  assert.equal(calls, 2);
+  assert.equal(shownIds(ctx.sent()[0]).length, 4);
+  let empties = 0;
+  const empty = setup({ search: async () => many, relevant: async () => (++empties, { exact: [], partial: [] }), live: true });
+  await empty.bot.handleUpdate(textUpdate("חפש לי מתקן למסך"));
+  assert.equal(empties, 2, "asked twice, no more (no alt wording in this intent)");
+});
+
 test("only close (partial) matches -> the card says so under the header; any exact match -> no note", async () => {
   const partialOnly = setup({ search: async () => SIX, relevant: async (_r, p) => ({ exact: [], partial: p }), live: true });
   await partialOnly.bot.handleUpdate(textUpdate("חפש לי בגדים של זארה"));

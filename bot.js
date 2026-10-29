@@ -172,7 +172,12 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
     // The main search's mixed lists fill the pool; the broader one gets at least a quarter, or whatever room is left.
     const fromMore = Math.min(more.length, Math.max(RELEVANCE_POOL - first.length, Math.round(RELEVANCE_POOL / 4)));
     const pool = first.slice(0, RELEVANCE_POOL - fromMore).concat(more.slice(0, fromMore));
-    const out = await relevant({ he: context, en: keywords }, pool).catch(() => ({ exact: [], partial: pool }));
+    const judge = () => relevant({ he: context, en: keywords }, pool).catch(() => ({ exact: [], partial: pool }));
+    let out = await judge();
+    // "Nothing fits" on a full pool is often a one-off AI verdict on a vague request ("מתקן להחזקת מסך לרכב": 0 of 36 in the
+    // group, 9 fitting holders on a rerun, 2026-10-29), so it is asked once more (≈0.7¢, only on these rare searches).
+    const none = (o) => !(Array.isArray(o) ? o.length : o.exact.length + o.partial.length);
+    if (none(out) && pool.length >= 8 && Date.now() - started < SECOND_CHANCE_BUDGET_MS) out = await judge();
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
