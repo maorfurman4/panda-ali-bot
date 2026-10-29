@@ -975,3 +975,12 @@ test("advisor: 'תחפש כבר' before any answer searches the AI's English key
   await ctx.bot.handleUpdate(callbackUpdate(go.callback_data));
   assert.equal(spy.queries[0], "kitchen gadgets");
 });
+
+test("a vague request ('מוצר למטבח') opens the advisor even when the AI said 'search'", async () => {
+  const advise = async () => ({ status: "ask", question_he: "איזה מוצר למטבח?", options: [{ label_he: "כלי בישול", keywords_en: "cookware", max_price_ils: null }, { label_he: "אחסון", keywords_en: "kitchen storage", max_price_ils: null }] });
+  const ctx = setup({ search: async () => assert.fail("no search yet"), advise, understand: async () => intent({ corrected_he: "מוצר למטבח", keywords_en: "kitchen product" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש ךלי מוצר למבטח"));
+  assert.match(ctx.sent()[0].body, /איזה מוצר למטבח\?/);
+  const specific = await run("חפש לי מוצרי ניקיון לרכב", { understand: async () => intent({ corrected_he: "מוצרי ניקיון לרכב", keywords_en: "car cleaning kit" }) });
+  assert.equal(specific.sent()[0].method, "sendPhoto", "'מוצרי ניקיון' is specific: searched");
+});

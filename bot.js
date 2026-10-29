@@ -95,6 +95,7 @@ const SOFT = new RegExp(`(?:^|[\\s,.!?"'(])(?:${SOFT_PHRASES.join("|")})(?=$|[\\
 const SOFT_MAX_LENGTH = 200;
 
 const GUIDE_COOLDOWN_MS = 10 * 60_000;
+const VAGUE_START = /^(?:מוצר|מוצרים|משהו|דבר|דברים|מתנה|מתנות|רעיון|רעיונות)(?:\s|$)/;
 // Asking for the help in Hebrew (the whole message), like /help.
 const HELP_WORDS = /^(?:עזרה|הסבר|הוראות|מדריך|איך (?:זה עובד|הבוט עובד|מחפשים|משתמשים(?: בבוט)?|עובדים עם הבוט)|מה (?:הבוט|אתה) (?:יודע|עושה)(?: לעשות)?|help)\s*[?!.]*$/i;
 // A link or a bare web address ("google.com", "s.click.aliexpress.com"): never searched as a product.
@@ -293,6 +294,11 @@ export function createBot({
       if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
       if (isBlocked(intent, query)) return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);
+      // "מוצר למטבח", "משהו לבית", "מתנה לאמא": always the advisor, even when the AI said "search" (it did for a typo).
+      if (intent?.status === "ok" && VAGUE_START.test(intent.corrected_he || query)) {
+        const step = await advise({ request: intent.corrected_he || query, history: [] }).catch(() => null);
+        if (step?.status === "ask") return showQuestion(ctx, newSession(ctx, query, intent.max_price_ils, intent.min_price_ils, intent.keywords_en), step.question_he, step.options);
+      }
       return showResults(ctx, {
         keywords: intent?.keywords_en || query,
         fallback: intent?.fallback_en,
