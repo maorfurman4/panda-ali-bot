@@ -30,7 +30,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
   keyboards, networking), 13 Home Improvement, 15 Home & Garden (kitchenware, decor, storage, garden), 18 Sports &
   Entertainment, 21 Office & School Supplies, 26 Toys & Hobbies, 30 Security & Protection (security cameras, locks),
   34 Automobiles & Accessories (car holders, car electronics), 36 Jewelry, 39 Lights & Lighting, 44 Consumer Electronics
-  (earbuds, speakers, cameras, drones), 66 Beauty & Health (hair removal, skin care, massage), 320 Weddings & Events,
+  (earbuds, speakers, action cameras, drones; security cameras are 30), 66 Beauty & Health (hair removal, skin care, massage), 320 Weddings & Events,
   322 Shoes, 509 Phones (phones, cases, chargers, cables), 1420 Tools, 1501 Mother & Kids, 1503 Furniture, 1511 Watches,
   1524 Luggage & Bags, 200000345 Women's Clothing, 200000343 Men's Clothing, 200574005 Underwear, 200000297 Apparel
   Accessories (hats, scarves, belts), 201768104 Sportswear, 201355758 Motorcycle, 202228412 Books & Culture.
