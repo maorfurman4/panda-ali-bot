@@ -22,7 +22,7 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60_000;
 
 const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebrew, sometimes mixed with English) into an AliExpress search.
-- Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות").
+- Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות"), always in Hebrew even when the shopper wrote another language ("auriculares" -> "אוזניות", "чехол для айфона" -> "כיסוי לאייפון"); brand and model names stay as written.
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:

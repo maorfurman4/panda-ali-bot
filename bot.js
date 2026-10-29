@@ -440,6 +440,9 @@ export function createBot({
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
         const [linked, names] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null)]);
         found = linked.map((p, i) => (names?.[i] ? { ...p, short_he: names[i] } : p));
+        // Same model in another color gets the same short name (KZ EDX Pro X twice): with enough results, keep the first.
+        // With few results a second seller of the same model stays (see pickProducts).
+        if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he === p.short_he) === i);
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
       }

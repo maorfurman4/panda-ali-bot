@@ -125,6 +125,14 @@ test("few results: the same model from another seller fills the card; with enoug
   assert.equal(shownIds(full.sent()[0]).filter((id) => id === "1" || id === "2").length, 1);
 });
 
+test("two products with the same short name (one model, two colors) show once when there are enough results", async () => {
+  const title = async (_r, products) => products.map((_, i) => (i < 2 ? "KZ EDX Pro X אוזניות" : `שם ${i}`));
+  const { sent } = await run("/search earbuds", { title });
+  const caption = sent()[0].caption;
+  assert.equal(caption.match(/KZ EDX Pro X/g).length, 1);
+  assert.match(caption, /4️⃣/, "the card is still filled to 4");
+});
+
 test("private search also shows 4 products", async () => {
   const { sent } = await run("earbuds", {}, { chat: "private" });
   const [msg] = sent();
