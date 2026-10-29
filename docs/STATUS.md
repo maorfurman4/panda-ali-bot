@@ -424,3 +424,8 @@ A new set of 50 edge cases (number words, "הכי זול", negation, model numbe
 
 Live recheck of the fixed cases: 31/32 right. Honest few-item cards remain for bridal dresses, classical guitars and car-model seat covers (2 each).
 
+## 3z. Market check + cheapest first (2026-10-29)
+
+- **Market (quick):** WebDigital builds similar custom bots (4 products, ChatGPT). Others convert links (Affiracle), track prices (@aliexpress_price_bot), sort by discount (@discount_livebot) or do coupons and seller analysis (AliSmart). Ours leads on Hebrew understanding, per-product AI relevance, honesty, the group advisor and Israel specifics (VAT, ₪). Gaps: coupons, delivery time (need Advanced API), price-drop alerts and price history (need a database), sort options.
+- **"הכי זול" / "הזול ביותר" / cheapest** (also Russian/Arabic) shows the matches cheapest first, exact before partial. The quality filters still apply.
+

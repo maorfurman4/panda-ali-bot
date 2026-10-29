@@ -58,6 +58,7 @@ const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
 const RELEVANCE_POOL = 36; // titles only on gpt-5.4: ~$0.006 per check; 3 mixed lists need the extra room
 const PROVEN_SALES = 10;
+const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
 const SECOND_CHANCE_BUDGET_MS = 7000; // a slow AliExpress day: show what was found rather than wait another ~5 s (18-24 s outliers seen)
 const TRUSTED_FEEDBACK = 95;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
@@ -140,7 +141,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -200,7 +201,9 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   exact = tag(exact, "exact");
   partial = tag(partial, "partial");
   const tiers = [exact.filter(proven), partial.filter(proven), exact.filter((p) => !proven(p)), partial.filter((p) => !proven(p))];
-  const ranked = dedupeProducts(tiers.flatMap(rankProducts));
+  // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
+  const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
+  const ranked = dedupeProducts(cheapest ? [...byPrice(exact), ...byPrice(partial)] : tiers.flatMap(rankProducts));
   // Photo check on the candidates that can still be shown (2× the need, so removed repeats get refilled).
   return (hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : ranked).slice(0, limit + extra);
 }
@@ -331,6 +334,7 @@ export function createBot({
         keywords: intent?.keywords_en || query,
         fallback: intent?.fallback_en,
         alt: intent?.alt_en ?? null,
+        cheapest: CHEAPEST.test(query),
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
         minPriceIls: intent?.min_price_ils ?? intent?.floor_price_ils ?? null,
@@ -359,7 +363,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: Boolean(intent.brand), replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: Boolean(intent.brand), replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -382,18 +386,18 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, alt = null, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, alt = null, cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let found;
     try {
-      const key = JSON.stringify([keywords, fallback, maxPriceIls, minPriceIls, brandOnly, limit]);
+      const key = JSON.stringify([keywords, fallback, maxPriceIls, minPriceIls, brandOnly, cheapest, limit]);
       const hit = resultsCache.get(key);
       if (hit && now() - hit.at < RESULTS_TTL_MS) {
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, context, maxPriceIls, minPriceIls: min, brandOnly, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         found = await shorten(found).catch(() => found);

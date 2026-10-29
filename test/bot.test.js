@@ -1029,3 +1029,12 @@ test("links are shortened only for the products a card can show (not every searc
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
   assert.ok(seen[0] <= 12, `shortened ${seen[0]}`);
 });
+
+test("'הכי זול': the matches are shown cheapest first", async () => {
+  const p = (n, price, sold) => product(n, { target_sale_price: String(price), lastest_volume: String(sold) });
+  const items = [p(1, 40, 9000), p(2, 25, 300), p(3, 32, 5000), p(4, 28, 800)];
+  const cheap = await run("חפש לי את המטען הכי זול", { result: items, live: true });
+  assert.deepEqual(shownIds(cheap.sent()[0]), ["2", "4", "3", "1"]);
+  const normal = await run("חפש לי מטען", { result: items, live: true });
+  assert.notDeepEqual(shownIds(normal.sent()[0]), ["2", "4", "3", "1"], "without 'הכי זול' the usual ranking");
+});
