@@ -74,7 +74,7 @@ const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g; // copied mobile
 // - "לי" / "ליי" / "לנו", glued or not ("חפשלי"), and the same keys typed on an English layout ("jpa kh")
 const LEAD = String.raw`(?:(?:פנדה|בוט|היי|הי|בבקשה|אפשר|תוכל|תוכלי|אתה יכול|את יכולה)[\s,]+)*`;
 const VERB = String.raw`[הושל]?(?:ת?[חכה]י?פו?[שס]{1,2}[וי]?|ת?מי?צ(?:[אהע]|וא)[וי]?)`;
-const ME = String.raw`(?:לי{1,2}|לנו)`;
+const ME = String.raw`(?:[ךכ]?לי{1,2}|לנו)`; // also "ךלי": ך sits next to ל on the Hebrew keyboard
 const TRIGGER = new RegExp(String.raw`^\s*${LEAD}(?:${VERB}\s*-?\s*${ME}|jpa\s*kh|nmt\s*kh)(?![\u05D0-\u05EA])[\s:,.]*([\s\S]*)$`, "i");
 // A missing space after "לי" ("חפש ליהדום"): the whole rest goes to the AI, which fixes it (and keeps real words like "לימון").
 const TRIGGER_GLUED = new RegExp(String.raw`^\s*${LEAD}${VERB}\s+(לי[\u05D0-\u05EA][\s\S]*)$`);
