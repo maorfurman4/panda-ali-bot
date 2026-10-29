@@ -376,3 +376,11 @@ A probe of 38 unusual messages found 4 issues. All fixed:
   - "מבטח" was read as security; the AI now considers two swapped letters ("מבטח" -> "מטבח").
 - **Known:** the same model with different photos and titles (ABIR K30 ×2) isn't merged. Merging by model code alone would join different products (IP68, USB3…).
 
+## 3v. Root causes from the owner's group test (2026-10-29)
+
+- **Weak understanding:** the request-understanding model (gpt-5.4-nano) wrote bad search words on anything non-trivial: "מאצה" became matzo/bread kit, "ערכת…" lost the "kit" ("matcha" alone finds cardigans in a matcha color), "קלאפר" became a brand. All understanding, advisor and explainer calls now use **gpt-5.4-mini**: 9/9 right in ~1 s, ~$0.0015 per new request (cached 24 h). The prompt also says to keep the item's noun and kind, and that an unknown word is a product, not a brand. Live recheck: 22/26 right (matcha set 4/4, green screen 4/4, clapperboard 3/3, probe thermometer 4/4).
+- **"תחפש כבר" before any answer** searched the raw Hebrew request (no results). The advisor session now carries the AI's English keywords.
+- **Non-search group messages:** one fixed message, "🐼 כאן מחפשים מוצרים מעלי אקספרס. כתבו "חפש לי"…", with no AI call. Once per 10 minutes per user; admins, links and replies exempt.
+- **Server slept** at 11:06 despite the cron window (21 s to wake). The server now pings its own /health every 10 minutes within 05:00-03:00 (`isAwakeHour`). The owner should check that the cron-job.org job is still enabled (failed runs on cold start can disable it).
+- **Known left:** Gucci shoes (AliExpress has none) falls back to cheap slippers, shown with the "no exact match" note. Very specific requests (car-shaped alarm clock with engine sound under ₪70) may find nothing. One webhook 500 on 26.10 22:12 (no logs here).
+

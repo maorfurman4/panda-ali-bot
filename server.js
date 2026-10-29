@@ -13,3 +13,11 @@ export function createApp({ bot, mode, webhookSecret }) {
   }
   return app;
 }
+
+// Keep-awake window (Israel time): the free server sleeps after 15 idle minutes. Awake 05:00-03:00 fits the 750 free
+// monthly hours shared with the owner's other services (24/7 would stop them all until the month ends).
+export const isAwakeHour = (date = new Date()) => {
+  const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", hour: "numeric", hourCycle: "h23" }).format(date));
+  return h >= 5 || h < 3;
+};
+

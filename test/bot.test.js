@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -128,13 +128,16 @@ test("group triggers: חפש לי / מצא לי / mention at start", async () =>
   assert.deepEqual((await run("@panda_test_bot כבל")).queries, ["כבל"]);
 });
 
-test("group chatter and look-alike triggers stay silent", async () => {
-  for (const text of ["תודה @panda_test_bot", "חפש בגוגל", "חפש מטען", "אוזניות", "שלום לכולם", "/start@other_bot"]) {
-    const { calls, queries } = await run(text);
+test("look-alike triggers never search; plain chatter gets one fixed 'how to search' message, never an AI call", async () => {
+  for (const text of ["תודה @panda_test_bot", "חפש בגוגל", "אוזניות", "שלום לכולם"]) {
+    const { sent, queries } = await run(text, { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
     assert.deepEqual(queries, [], text);
-    assert.equal(calls.length, 0, text);
+    assert.ok(sent().every((m) => m.body === HOW_TO_SEARCH), text);
   }
+  const other = await run("/start@other_bot");
+  assert.equal(other.calls.length, 0, "commands for other bots: nothing");
 });
+
 
 test("private chat: plain text is a search, and 'חפש לי' is stripped", async () => {
   assert.deepEqual((await run("earbuds", {}, { chat: "private" })).queries, ["earbuds"]);
@@ -631,46 +634,6 @@ test("fewer than 4 exact matches -> the broader search runs even if partials fil
 });
 
 // ---- bare product names in groups: a hint to write "חפש לי ..." ----
-test("bare product name in a group: one hint with the corrected name, no search; then silent for 10 minutes", async () => {
-  let t = 0;
-  const seen = [];
-  const ctx = setup({ now: () => t, search: async () => assert.fail("no search"), understand: async (q) => (seen.push(q), intent({ corrected_he: "שרוול מרינו מחמם" })) });
-  await ctx.bot.handleUpdate(textUpdate("שרוול מרינו מחמם"));
-  assert.deepEqual(ctx.sent().map((m) => m.body), [guideText("שרוול מרינו מחמם")]);
-  t += 60_000;
-  await ctx.bot.handleUpdate(textUpdate("משקפי תלת מימד"));
-  assert.equal(ctx.sent().length, 1, "cooldown: no second hint");
-});
-
-test("an unrelated group message gets the off-topic warning (owner request: no silence); AI down -> silent", async () => {
-  const chat = await run("בוקר טוב לכולם", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
-  assert.deepEqual(chat.sent().map((m) => m.body), [OFF_TOPIC]);
-  const down = await run("בוקר טוב לכולם", { understand: async () => null });
-  assert.equal(down.sent().length, 0);
-});
-
-test("no warning for admins (their posts and deals), shared links, or replies; both hint kinds used up -> no AI call", async () => {
-  const notProduct = async () => intent({ status: "not_product", keywords_en: "" });
-  const admin = setup({ admins: [7], understand: notProduct });
-  await admin.bot.handleUpdate(textUpdate("דיל חדש בקבוצה! שווה לבדוק"));
-  assert.equal(admin.sent().length, 0);
-  const link = setup({ understand: async () => assert.fail("no AI for links") });
-  await link.bot.handleUpdate(textUpdate("תראו את זה https://he.aliexpress.com/item/123.html"));
-  assert.equal(link.sent().length, 0);
-  const reply = setup({ understand: async () => assert.fail("no AI for replies") });
-  const u = textUpdate("כן מסכים איתך");
-  u.message.reply_to_message = { message_id: 1, date: 0, chat: u.message.chat, text: "x" };
-  await reply.bot.handleUpdate(u);
-  assert.equal(reply.sent().length, 0);
-  let t = 0, calls = 0;
-  const both = setup({ now: () => t, understand: async (q) => (calls++, q === "a" ? intent({ corrected_he: "x" }) : notProduct()) });
-  await both.bot.handleUpdate(textUpdate("a"));
-  await both.bot.handleUpdate(textUpdate("בוקר טוב"));
-  t += 60_000;
-  await both.bot.handleUpdate(textUpdate("עוד הודעה"));
-  assert.equal(calls, 2, "both kinds used: the third message costs nothing");
-});
-
 test("a reply that says 'חפש לי' or asks naturally is searched (owner request)", async () => {
   for (const text of ["חפש לי אוזניות", "מישהו מכיר אוזניות טובות?"]) {
     const ctx = setup({ search: searchSpy().search, understand: async () => intent() });
@@ -740,10 +703,8 @@ test("not_allowed (weapons, adult, spy cams…): a polite refusal, no search; na
   const understand = async () => intent({ status: "not_allowed", keywords_en: "" });
   const direct = await run("חפש לי מצלמה נסתרת לשירותים", { understand, search: async () => assert.fail("no search") });
   assert.deepEqual(direct.sent().map((m) => m.body), [NOT_ALLOWED]);
-  for (const text of ["מישהו מכיר סכין קפיצית טובה?", "סכין קפיצית"]) {
-    const { sent } = await run(text, { understand, search: async () => assert.fail("no search") });
-    assert.equal(sent().length, 0, text);
-  }
+  const natural = await run("מישהו מכיר סכין קפיצית טובה?", { understand, search: async () => assert.fail("no search") });
+  assert.equal(natural.sent().length, 0, "a natural request for a blocked item: silent");
 });
 
 test("anonymous admin (posts as the group): any member may press their result's buttons", async () => {
@@ -771,15 +732,6 @@ test("the verb without 'לי' ('חפש מטען') searches when the AI sees a pr
   assert.equal(ok.sent()[0].method, "sendPhoto");
   const chat = await run("תחפש בגוגל", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
   assert.equal(chat.sent().length, 0);
-});
-
-test("a short message the AI corrects into a command ('החפש לי…' typos) is searched, never answered with 'write חפש לי'", async () => {
-  const seen = [];
-  const understand = async (q) => (seen.push(q), q === "אוזניות אלחוטיות" ? intent() : intent({ corrected_he: "חפש לי אוזניות אלחוטיות" }));
-  const { sent } = await run("חהפש ךי אוזניות אלחוטיות", { understand });
-  assert.equal(sent()[0].method, "sendPhoto");
-  assert.ok(!sent().some((m) => /כתבו "חפש לי"/.test(m.body ?? "")));
-  assert.deepEqual(seen, ["חהפש ךי אוזניות אלחוטיות", "אוזניות אלחוטיות"]);
 });
 
 test("the main search failing still shows the broader search's results; both failing shows the error", async () => {
@@ -827,16 +779,6 @@ test("same photo = same product from another seller: shown once, the best-ranked
   const ctx = setup({ search: async () => SIX, hash });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מגפיים"));
   assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "3", "5", "6"]);
-});
-
-test("hint limits are per kind: a bare-name hint doesn't block an off-topic warning a minute later", async () => {
-  let t = 0;
-  const understand = async (q) => (q.includes("עבודה") ? intent({ status: "not_product", keywords_en: "" }) : intent({ corrected_he: "משקפי שמש" }));
-  const ctx = setup({ now: () => t, understand, search: async () => assert.fail("no search") });
-  await ctx.bot.handleUpdate(textUpdate("משקפי שמש מקוטבים"));
-  t += 60_000;
-  await ctx.bot.handleUpdate(textUpdate("מחפש עבודה בתל אביב"));
-  assert.deepEqual(ctx.sent().map((m) => m.body), [guideText("משקפי שמש"), OFF_TOPIC]);
 });
 
 test("the AI's price floor (big-ticket items) filters the search; if it finds nothing, the search reruns without it", async () => {
@@ -1003,4 +945,33 @@ test("an empty food search explains that AliExpress barely ships food to Israel"
   const ctx = setup({ search: async () => [], understand: async () => intent({ corrected_he: "חטיפים יפניים", keywords_en: "Japanese snacks" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי חטיפים יפניים"));
   assert.equal(ctx.sent()[0].body, NO_FOOD);
+});
+
+test("the fixed 'how to search' message: once per 10 minutes per user, none for admins, links or replies, no AI", async () => {
+  let t = 0;
+  const ctx = setup({ now: () => t, understand: async () => assert.fail("no AI for chatter") });
+  await ctx.bot.handleUpdate(textUpdate("בוקר טוב"));
+  t += 60_000;
+  await ctx.bot.handleUpdate(textUpdate("מה נשמע"));
+  assert.deepEqual(ctx.sent().map((m) => m.body), [HOW_TO_SEARCH]);
+  const admin = setup({ admins: [7], understand: async () => assert.fail("no AI") });
+  await admin.bot.handleUpdate(textUpdate("דיל חדש בקבוצה! שווה לבדוק"));
+  assert.equal(admin.sent().length, 0);
+  const link = setup({ understand: async () => assert.fail("no AI") });
+  await link.bot.handleUpdate(textUpdate("תראו את זה https://he.aliexpress.com/item/123.html"));
+  assert.equal(link.sent().length, 0);
+  const reply = setup({ understand: async () => assert.fail("no AI") });
+  const u = textUpdate("כן מסכים איתך");
+  u.message.reply_to_message = { message_id: 1, date: 0, chat: u.message.chat, text: "x" };
+  await reply.bot.handleUpdate(u);
+  assert.equal(reply.sent().length, 0);
+});
+
+test("advisor: 'תחפש כבר' before any answer searches the AI's English keywords, not the Hebrew request", async () => {
+  const spy = searchSpy();
+  const ctx = setup({ search: spy.search, understand: async () => ({ ...CLARIFY, keywords_en: "kitchen gadgets" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מוצר למטבח"));
+  const go = ctx.sent()[0].reply_markup.inline_keyboard.flat().find((b) => b.text === "🔎 תחפש כבר");
+  await ctx.bot.handleUpdate(callbackUpdate(go.callback_data));
+  assert.equal(spy.queries[0], "kitchen gadgets");
 });

@@ -48,6 +48,12 @@ if (mode === "webhook") {
     .setWebhook(`${WEBHOOK_URL.replace(/\/+$/, "")}/webhook`, { secret_token: WEBHOOK_SECRET })
     .catch((e) => fail("setWebhook failed", e));
   console.log(`✅ @${bot.botInfo.username} is running (webhook)`);
+  // The server pings its own public URL every 10 minutes within the awake window, so it never sleeps there even if the
+  // external wake-up job (cron-job.org) fails; that job is still what wakes it at 05:00.
+  const { isAwakeHour } = await import("./server.js");
+  setInterval(() => {
+    if (isAwakeHour()) fetch(`${WEBHOOK_URL.replace(/\/+$/, "")}/health`).catch(() => {});
+  }, 10 * 60_000).unref();
 } else {
   await bot.api.deleteWebhook().catch((e) => fail("deleteWebhook failed", e));
   bot

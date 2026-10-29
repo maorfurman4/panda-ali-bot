@@ -29,7 +29,7 @@ test("sends only the query text to OpenAI Responses with a strict schema, storag
   assert.equal(req.url, "https://api.openai.com/v1/responses");
   assert.equal(req.init.headers.authorization, "Bearer sk-test");
   assert.deepEqual(Object.keys(req.body).sort(), ["input", "instructions", "max_output_tokens", "model", "reasoning", "store", "text"]);
-  assert.equal(req.body.model, "gpt-5.4-nano", "gpt-4.1-nano was deprecated by OpenAI on 2026-10-23; gpt-5.4-nano scored 16/16");
+  assert.equal(req.body.model, "gpt-5.4-mini", "nano wrote weak search words on real requests (2026-10-29)");
   assert.deepEqual(req.body.reasoning, { effort: "none" });
   assert.equal(req.body.store, false);
   assert.ok(req.body.max_output_tokens <= 300);

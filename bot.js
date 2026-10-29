@@ -33,7 +33,7 @@ import {
   OFF_TOPIC,
   LINK_HELP,
   SEARCHING,
-  guideText,
+  HOW_TO_SEARCH,
   SEARCH_ERROR,
   LINK_ERROR,
   SEARCH_NOW,
@@ -328,22 +328,11 @@ export function createBot({
     );
   }
 
-  // Any other group message (owner request: no silence). A product -> the hint to write "חפש לי ..." (or a search when the
-  // AI fixed a mistyped command); something unrelated -> the off-topic warning, except from admins (their posts and deals).
-  // Each kind at most once per 10 minutes per user, checked before the AI call.
-  async function guideOrWarn(ctx, text) {
-    if (!hintAllowed(ctx, "bare") && !hintAllowed(ctx, "offTopic")) return;
-    const intent = await understand(text).catch(() => null);
-    if (intent?.status === "not_product") {
-      if (!hintAllowed(ctx, "offTopic") || (await moderation.isAdmin(ctx, ctx.from.id))) return;
-      return hint(ctx, "offTopic", OFF_TOPIC);
-    }
-    if (intent?.status !== "ok" && intent?.status !== "clarify") return; // AI down or not_allowed: silent
-    if (!hintAllowed(ctx, "bare")) return;
-    // The AI fixed a mistyped command ("החפש לי אוזניות" -> "חפש לי אוזניות"): search it instead of hinting.
-    const fixed = parseTrigger(intent.corrected_he ?? "", ctx.me.username);
-    if (fixed) return runSearch(ctx, fixed);
-    return hint(ctx, "bare", guideText(intent.corrected_he || text));
+  // Any other group message (owner request: no silence, one fixed message, no AI cost): how to search, at most once per
+  // 10 minutes per user. Admins are exempt (their posts and deals).
+  async function guideOrWarn(ctx) {
+    if (!hintAllowed(ctx, "bare") || (await moderation.isAdmin(ctx, ctx.from.id))) return;
+    return hint(ctx, "bare", HOW_TO_SEARCH);
   }
 
   // Search -> quality filter (≥90% feedback, price cap) -> AI relevance (real results only) -> ranking.
@@ -418,10 +407,10 @@ export function createBot({
 
   // ---- Shopping advisor: up to 3 questions with buttons, then a search with "why it fits" lines.
   // In groups only the first question is shown; its options are deep links that continue in private chat.
-  function newSession(ctx, request, maxPriceIls = null, minPriceIls = null) {
+  function newSession(ctx, request, maxPriceIls = null, minPriceIls = null, keywords = null) {
     for (const [key, e] of pending) if (now() - e.at > CLARIFY_TTL_MS) pending.delete(key);
     const id = (++clarifySeq).toString(36);
-    const session = { id, userId: requester(ctx), request, history: [], keywords: null, label: null, maxPriceIls, minPriceIls, replyToId: ctx.msg?.message_id, at: now() };
+    const session = { id, userId: requester(ctx), request, history: [], keywords, label: null, maxPriceIls, minPriceIls, replyToId: ctx.msg?.message_id, at: now() };
     pending.set(id, session);
     return session;
   }
@@ -439,7 +428,8 @@ export function createBot({
   }
 
   function askClarify(ctx, query, intent) {
-    return showQuestion(ctx, newSession(ctx, query, intent.max_price_ils, intent.min_price_ils), intent.clarify_question_he, intent.options);
+    // The AI's keywords ride along, so "תחפש כבר" before any answer searches them, not the Hebrew request.
+    return showQuestion(ctx, newSession(ctx, query, intent.max_price_ils, intent.min_price_ils, intent.keywords_en || null), intent.clarify_question_he, intent.options);
   }
 
   // Records the answer, then asks the next question (max 3 in total) or searches.
@@ -597,7 +587,7 @@ export function createBot({
     if (startsWithSearchVerb(text)) return runSoftSearch(ctx, text, { warn: false }); // "חפש מטען": searched if the AI sees a product
     // Replies are conversation (a reply with "חפש לי" or a natural request was already handled above); shared links are deals.
     if (ctx.msg.reply_to_message || LINKISH.test(text) || text.length > SOFT_MAX_LENGTH) return;
-    return guideOrWarn(ctx, text);
+    return guideOrWarn(ctx);
   });
 
   bot.catch((err) => console.error(`update ${err.ctx.update.update_id} failed: ${err.error?.message ?? err.error}`));

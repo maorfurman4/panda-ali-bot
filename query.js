@@ -11,7 +11,9 @@ import { stats } from "./stats.js";
 import { isPartFor } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_MODEL = "gpt-5.4-nano"; // gpt-4.1-nano was deprecated by OpenAI on 2026-10-23; gpt-5.4-nano scored 16/16, p50 1.3 s
+// gpt-5.4-mini: on 9 real group requests (2026-10-29) nano wrote weak or wrong search words ("מאצה" -> matzo/bread kit,
+// "קלאפר" -> air freshener, "ערכת…" lost the "kit"); mini got all 9 right in ~1 s at ~$0.0015 per new request (cached 24 h).
+const DEFAULT_MODEL = "gpt-5.4-mini";
 const MAX_OUTPUT_TOKENS = 300; // on reasoning models this includes reasoning tokens, so effort is set to "none"
 const TIMEOUT_MS = 5000;
 const CACHE_MAX = 500;
@@ -19,6 +21,7 @@ const CACHE_TTL_MS = 24 * 60 * 60_000;
 
 const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebrew, sometimes mixed with English) into an AliExpress search.
 - Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות").
+- keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - fallback_en = the core item as a good standalone AliExpress search, 2-3 English words ("merino arm warmers thumb holes" -> "arm warmers", "Zara men clothing" -> "men casual shirts"; never a vague word like "clothing" or "shoes" alone), used if the first search finds too few, or null when keywords_en is already that.
 - brand = the brand the shopper asked for ("אוזניות של שיאומי" -> "Xiaomi"), or null. A device something is FOR is not a requested brand ("כיסוי לאייפון", "מטען לגלקסי" -> null).

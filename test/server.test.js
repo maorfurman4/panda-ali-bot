@@ -51,3 +51,13 @@ test("polling mode exposes no /webhook route", async () => {
     await srv.close();
   }
 });
+
+test("keep-awake window: 05:00-03:00 Israel time", async () => {
+  const { isAwakeHour } = await import("../server.js");
+  const at = (iso) => isAwakeHour(new Date(iso));
+  assert.equal(at("2026-10-29T08:00:00+02:00"), true);
+  assert.equal(at("2026-10-29T02:30:00+02:00"), true);
+  assert.equal(at("2026-10-29T03:30:00+02:00"), false);
+  assert.equal(at("2026-10-29T04:59:00+02:00"), false);
+  assert.equal(at("2026-10-29T05:00:00+02:00"), true);
+});
