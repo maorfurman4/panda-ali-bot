@@ -383,4 +383,6 @@ A probe of 38 unusual messages found 4 issues. All fixed:
 - **Non-search group messages:** one fixed message, "🐼 כאן מחפשים מוצרים מעלי אקספרס. כתבו "חפש לי"…", with no AI call. Once per 10 minutes per user; admins, links and replies exempt.
 - **Server slept** at 11:06 despite the cron window (21 s to wake). The server now pings its own /health every 10 minutes within 05:00-03:00 (`isAwakeHour`). The owner should check that the cron-job.org job is still enabled (failed runs on cold start can disable it).
 - **Known left:** Gucci shoes (AliExpress has none) falls back to cheap slippers, shown with the "no exact match" note. Very specific requests (car-shaped alarm clock with engine sound under ₪70) may find nothing. One webhook 500 on 26.10 22:12 (no logs here).
+- **Nightly digest (owner request):** at 02:30 Israel time, before the nightly sleep resets memory, the owner gets a private summary: searches, no-results, cached, 🎯/🐼/more since the last digest, and the searches that got 🐼. A weekly report isn't possible without a database, since memory resets each night and on each deploy. Clearing the cache on 🐼 was dropped (owner).
+- **Cost after the understanding upgrade:** ~$0.0066 per search, up from ~$0.0055 (+20%; understanding ~$0.0015 per new request, relevance ~$0.005), before the 6 h results memory.
 

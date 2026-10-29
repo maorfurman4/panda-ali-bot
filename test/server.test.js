@@ -61,3 +61,10 @@ test("keep-awake window: 05:00-03:00 Israel time", async () => {
   assert.equal(at("2026-10-29T04:59:00+02:00"), false);
   assert.equal(at("2026-10-29T05:00:00+02:00"), true);
 });
+
+test("digest time: 02:30-02:39 Israel time only", async () => {
+  const { isDigestTime } = await import("../server.js");
+  assert.equal(isDigestTime(new Date("2026-10-29T02:35:00+02:00")), true);
+  assert.equal(isDigestTime(new Date("2026-10-29T02:45:00+02:00")), false);
+  assert.equal(isDigestTime(new Date("2026-10-29T14:35:00+02:00")), false);
+});

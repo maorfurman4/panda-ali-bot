@@ -21,3 +21,9 @@ export const isAwakeHour = (date = new Date()) => {
   return h >= 5 || h < 3;
 };
 
+// The nightly digest goes out in the 10 minutes from 02:30 Israel time, before the server sleeps (memory resets then).
+export const isDigestTime = (date = new Date()) => {
+  const [h, m] = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", hour: "numeric", minute: "numeric", hourCycle: "h23" }).format(date).split(":").map(Number);
+  return h === 2 && m >= 30 && m < 40;
+};
+

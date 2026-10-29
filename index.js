@@ -50,9 +50,12 @@ if (mode === "webhook") {
   console.log(`✅ @${bot.botInfo.username} is running (webhook)`);
   // The server pings its own public URL every 10 minutes within the awake window, so it never sleeps there even if the
   // external wake-up job (cron-job.org) fails; that job is still what wakes it at 05:00.
-  const { isAwakeHour } = await import("./server.js");
+  const { isAwakeHour, isDigestTime } = await import("./server.js");
   setInterval(() => {
     if (isAwakeHour()) fetch(`${WEBHOOK_URL.replace(/\/+$/, "")}/health`).catch(() => {});
+    // shortcut: the digest covers what's in memory since the last digest or restart; a deploy that day resets it.
+    const text = process.env.ADMIN_USER_ID && isDigestTime() ? stats.digest() : null;
+    if (text) bot.api.sendMessage(process.env.ADMIN_USER_ID, text).catch(() => {});
   }, 10 * 60_000).unref();
 } else {
   await bot.api.deleteWebhook().catch((e) => fail("deleteWebhook failed", e));

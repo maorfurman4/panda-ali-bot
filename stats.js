@@ -11,6 +11,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
   const recent = {};
   const lastAlert = {};
   const lists = {};
+  let lastDigest = { at: startedAt, counters: {} };
 
   return {
     setNotifier(fn) {
@@ -21,7 +22,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
     },
     // Keeps the last 10 items of a list (e.g. searches that got 👎), newest first.
     remember(name, text) {
-      lists[name] = [{ text, at: now() }, ...(lists[name] ?? [])].slice(0, 10);
+      lists[name] = [{ text, at: now() }, ...(lists[name] ?? [])].slice(0, 30);
     },
     // 3 failures of the same kind within 10 minutes alert the owner, at most once an hour per kind.
     failure(kind, detail) {
@@ -33,6 +34,20 @@ export function createStats({ now = Date.now, notify = null } = {}) {
         lastAlert[kind] = t;
         Promise.resolve(notify(`⚠️ תקלה חוזרת בבוט (${kind}): ${detail}\nבדקו /status`)).catch(() => {});
       }
+    },
+    // The day's summary for the owner: counts since the previous digest and the 🐼 searches in that time.
+    digest() {
+      const t = now(), since = lastDigest.at, prev = lastDigest.counters;
+      const d = (k) => (counters[k] ?? 0) - (prev[k] ?? 0);
+      const bad = (lists.thumbsDown ?? []).filter((x) => x.at > since).map((x) => x.text);
+      lastDigest = { at: t, counters: { ...counters } };
+      if (!d("search")) return null;
+      return [
+        "📊 סיכום יומי של הבוט",
+        `🔎 חיפושים: ${d("search")} · ללא תוצאות: ${d("noResults")} · ♻️ מהזיכרון: ${d("cached")}`,
+        `🎯 בול: ${d("thumbsUp")} · 🐼 לא זה: ${d("thumbsDown")} · 🔍 לחפש עוד: ${d("more")}`,
+        ...(bad.length ? ["", "חיפושים שקיבלו 🐼 (כדאי לבדוק):", ...bad.map((b) => `• ${b}`)] : []),
+      ].join("\n");
     },
     snapshot: () => ({ startedAt, counters: { ...counters }, lastError: { ...lastError }, lists: structuredClone(lists) }),
   };

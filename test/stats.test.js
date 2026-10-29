@@ -70,3 +70,17 @@ test("/status is for the owner only (private), with version, counters and live c
   await stranger.bot.handleUpdate(textUpdate("/status", { chat: "private", userId: 5 }));
   assert.ok(!stranger.sent().some((m) => /מצב הבוט/.test(m.body ?? "")), "no report for anyone else");
 });
+
+test("nightly digest: the day's counts and 🐼 searches since the previous digest; nothing on a day without searches", () => {
+  let t = 1000;
+  const stats = createStats({ now: () => t });
+  t += 1; stats.count("search"); stats.count("search"); stats.count("thumbsDown"); stats.remember("thumbsDown", "מגפיים לבנות");
+  const text = stats.digest();
+  assert.match(text, /חיפושים: 2/);
+  assert.match(text, /🐼 לא זה: 1/);
+  assert.match(text, /• מגפיים לבנות/);
+  t += 1;
+  assert.equal(stats.digest(), null, "no new searches since the last digest");
+  t += 1; stats.count("search");
+  assert.doesNotMatch(stats.digest(), /מגפיים לבנות/, "only new 🐼 searches");
+});
