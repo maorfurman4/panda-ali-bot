@@ -149,7 +149,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, category = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -186,7 +186,7 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
     // The main search's mixed lists fill the pool; the broader one gets at least a quarter, or whatever room is left.
     const fromMore = Math.min(more.length, Math.max(RELEVANCE_POOL - first.length, Math.round(RELEVANCE_POOL / 4)));
     const pool = first.slice(0, RELEVANCE_POOL - fromMore).concat(more.slice(0, fromMore));
-    const judge = () => relevant({ he: context, en: keywords }, pool).catch(() => ({ exact: [], partial: pool }));
+    const judge = () => relevant({ he: context, en: keywords, looks }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();
     // "Nothing fits" on a full pool is often a one-off AI verdict on a vague request ("מתקן להחזקת מסך לרכב": 0 of 36 in the
     // group, 9 fitting holders on a rerun, 2026-10-29), so it is asked once more (≈0.7¢, only on these rare searches).
@@ -199,7 +199,7 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
       const known = new Set([...first, ...more].map(keyOf));
       const fresh = await find(alt, [{}, { sort: "relevance" }, ...inCategory.slice(1)]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
       if (fresh.length) {
-        const again = await relevant({ he: context, en: alt }, fresh.slice(0, RELEVANCE_POOL)).catch(() => ({ exact: [], partial: [] }));
+        const again = await relevant({ he: context, en: alt, looks }, fresh.slice(0, RELEVANCE_POOL)).catch(() => ({ exact: [], partial: [] }));
         exact = exact.concat(again.exact ?? []);
         partial = partial.concat(again.partial ?? []);
       }
@@ -373,6 +373,7 @@ export function createBot({
         keywords: intent?.keywords_en || query,
         fallback: intent?.fallback_en,
         alt: intent?.alt_en ?? null,
+        looks: intent?.looks_like ?? null,
         cheapest: CHEAPEST.test(query),
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
@@ -403,7 +404,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -426,7 +427,7 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, alt = null, cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, alt = null, looks = null, cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let found;
@@ -437,7 +438,7 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, category, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.

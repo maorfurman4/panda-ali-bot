@@ -498,12 +498,12 @@ test("a collage image is sent as the photo when it can be built", async () => {
   assert.deepEqual(seen, [[1, 2, 3, 4].map((n) => `https://ae01.alicdn.com/kf/img${n}.jpg`)]);
 });
 
-test("relevance filter decides which products are shown, using the corrected Hebrew and English keywords", async () => {
+test("relevance filter decides which products are shown, using the corrected Hebrew, English keywords and the item's look", async () => {
   const calls = [];
   const relevant = async (req, products) => (calls.push(req), products.filter((p) => /model (2|5)/.test(p.product_title)));
-  const ctx = setup({ search: async () => SIX, understand: async () => intent(), relevant, live: true });
+  const ctx = setup({ search: async () => SIX, understand: async () => intent({ looks_like: "two small in-ear buds in a case" }), relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אושניות"));
-  assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds" }]);
+  assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds", looks: "two small in-ear buds in a case" }]);
   assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "5"]);
 });
 

@@ -22,9 +22,12 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60_000;
 
 const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebrew, sometimes mixed with English) into an AliExpress search.
-- Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות"), always in Hebrew even when the shopper wrote another language ("auriculares" -> "אוזניות", "чехол для айфона" -> "כיסוי לאייפון"); brand and model names stay as written.
+- Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות"), keeping every feature the shopper named, negations too ("קשת לשיער לא גומייה" keeps "לא גומייה"), always in Hebrew even when the shopper wrote another language ("auriculares" -> "אוזניות", "чехол для айфона" -> "כיסוי לאייפון"); brand and model names stay as written.
 - Take the home shopper's meaning, the everyday product sold to households, over a commercial or industrial one that
   shares the words ("לוח מחורץ"/"לוח מחורר" -> "pegboard wall organizer", not shop slatwall panels).
+- looks_like = one short English sentence on what the item physically looks like, and what it is NOT (the look-alikes a
+  search returns): "קשת לשיער" -> "a rigid C-shaped hoop worn over the top of the head; not an elastic hair tie, scrunchie or
+  soft fabric band". It tells the later product check what to accept. null only when there is nothing to confuse it with.
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:
@@ -71,6 +74,7 @@ const SCHEMA = {
     category_id: { type: ["integer", "null"] },
     alt_en: { type: ["string", "null"] },
     fallback_en: { type: ["string", "null"] },
+    looks_like: { type: ["string", "null"] },
     clarify_question_he: { type: ["string", "null"] },
     options: {
       type: ["array", "null"],
@@ -82,7 +86,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "category_id", "alt_en", "fallback_en", "clarify_question_he", "options"],
+  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "category_id", "alt_en", "fallback_en", "looks_like", "clarify_question_he", "options"],
   additionalProperties: false,
 };
 
@@ -129,6 +133,8 @@ export function validateIntent(o) {
   if (CATEGORY_IDS.has(o.category_id)) base.category_id = o.category_id; // an unknown number is dropped, never searched
   const alt = clean(o.alt_en, 100);
   if (alt && alt.toLowerCase() !== base.keywords_en.toLowerCase()) base.alt_en = alt;
+  const looks = clean(o.looks_like, 200);
+  if (looks) base.looks_like = looks;
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
@@ -266,6 +272,8 @@ or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 A novelty, prank, costume or party version of the item (a mustache or vampire pacifier, a joke mug) is partial, not exact,
 unless the shopper asked for a funny or party one.
+A "Looks like" line, when given, defines the item: a product that doesn't look like that, or is one of the things it
+says the item is NOT, is not the item (for a hair headband, elastic hair ties are left out).
 The request is everyday Hebrew: the item type is what an Israeli means by the word ("מסרק לשיער" covers hair combs AND
 hair brushes, so an anti-static or detangling hair brush is exact; "תחתית לסיר" covers any heat-resistant pad or trivet for pots). An item that does the requested job with an
 extra feature (a massage, anti-static, detangling or foldable comb) is still the item: exact. A head, nozzle, sprayer,
@@ -293,7 +301,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI relevance filter failed (${reason}); showing unchecked results as close matches`);
   return async function filterRelevant(request, products) {
     if (!products.length || !env.OPENAI_API_KEY) return { exact: products, partial: [] };
-    const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})`;
+    const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})` + (request.looks ? `\nLooks like: ${clean(request.looks, 200)}` : "");
     const lines = products.map((p, i) => `${i}. ${clean(p.product_title, 120)}`);
     const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_220x220.jpg`, detail: "low" }] : []);
     const titles = [head, ...lines].join("\n");

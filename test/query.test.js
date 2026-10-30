@@ -291,6 +291,11 @@ test("titler: names matched by product number; numbering and task talk dropped p
   assert.equal(await createTitler({ fetch: async () => assert.fail("no key"), env: {} })("x", products), null);
 });
 
+test("validateIntent keeps the look description for the product check", () => {
+  assert.equal(validateIntent({ ...STRICT_OK, looks_like: "a rigid C-shaped hoop worn over the head; not an elastic hair tie" }).looks_like, "a rigid C-shaped hoop worn over the head; not an elastic hair tie");
+  assert.equal(validateIntent({ ...STRICT_OK, looks_like: null }).looks_like, undefined);
+});
+
 test("validateIntent keeps a known AliExpress main category and drops an unknown number", () => {
   assert.equal(validateIntent({ ...STRICT_OK, category_id: 6 }).category_id, 6);
   assert.equal(validateIntent({ ...STRICT_OK, category_id: 999 }).category_id, undefined);
