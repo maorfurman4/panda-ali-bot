@@ -86,6 +86,37 @@ export async function searchProducts(query, deps = {}) {
   return deps.shorten === false ? products : shortenLinks(products, { ...deps, env });
 }
 
+// AliExpress's own curated lists ("featured promos"), e.g. "1101-1118 11.11 Sale - Bestsellers" (checked 2026-10-30).
+export async function promoNames(deps = {}) {
+  const result = await apiCall("aliexpress.affiliate.featuredpromo.get", {}, deps);
+  return (result.promos?.promo ?? []).map((p) => p.promo_name).filter(Boolean);
+}
+
+// One page of a featured promo for Israel, optionally in one main category. The API ignores its sort, so callers rank.
+export async function promoProducts(name, deps = {}) {
+  const env = deps.env ?? process.env;
+  try {
+    const result = await apiCall(
+      "aliexpress.affiliate.featuredpromo.products.get",
+      {
+        promotion_name: name,
+        tracking_id: env.ALI_TRACKING_ID,
+        country: "IL",
+        ship_to_country: "IL",
+        target_currency: "ILS",
+        target_language: "HE",
+        page_size: String(PAGE_SIZE),
+        ...(deps.category ? { category_id: String(deps.category) } : {}),
+      },
+      { ...deps, env },
+    );
+    return result.products?.product ?? [];
+  } catch (e) {
+    if (e.code === "resp_code 405") return []; // "the result is empty"
+    throw e;
+  }
+}
+
 const itemUrl = (p) => `https://www.aliexpress.com/item/${p.product_id}.html`;
 
 // product.query promotion links are ~1 KB long (risky for Telegram URL buttons): swap them for short

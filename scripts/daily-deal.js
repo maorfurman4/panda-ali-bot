@@ -1,11 +1,12 @@
-// Posts one deal to the daily-deals channel (run by .github/workflows/daily-deals.yml).
+// Hourly run of the daily-deals channel (by .github/workflows/daily-deals.yml): posts when this hour is a posting hour.
+// DEALS_FORCE=true posts now whatever the hour.
 // Needs DEALS_BOT_TOKEN (the new bot) and DEALS_CHAT_ID (its channel; found by itself on the first run). Without the
 // token it is a dry run that prints the post.
 // State (posted product ids, last topic) lives in DEALS_STATE, kept between runs by the workflow's cache.
 // Usage: npm run deal
 import { readFile, writeFile } from "node:fs/promises";
 import { Api } from "grammy";
-import { postDeal } from "../deals.js";
+import { runDeals } from "../deals.js";
 
 const file = process.env.DEALS_STATE || "deals-state.json";
 const state = await readFile(file, "utf8").then(JSON.parse).catch(() => ({}));
@@ -18,5 +19,5 @@ if (token && !chatId) {
   chatId = chat.id;
   console.log(`channel found: ${chat.title} (${chatId}); save this id as the DEALS_CHAT_ID secret`);
 }
-const next = await postDeal(state, { api: token ? new Api(token) : null, chatId });
+const next = await runDeals(state, { api: token ? new Api(token) : null, chatId, force: process.env.DEALS_FORCE === "true" });
 await writeFile(file, JSON.stringify(next));
