@@ -1,11 +1,11 @@
 # The daily-deals bot: runs every hour and posts a best-selling AliExpress deal at the posting hours (Israel time, see
-# SCHEDULE in deals.js: 5 a day, 7 on sale days, 10 on the big shopping days). No server; a failed run emails the owner.
+# SCHEDULE in deals.js: 6 a day, 8 on sale days, 12 on the big shopping days). No server; a failed run emails the owner.
 # GitHub may start a scheduled run up to ~30 minutes late. A manual run ("Run workflow") posts at once.
 name: Daily deals
 
 on:
   schedule:
-    - cron: "2 6-19 * * *" # every hour, 08:02-21:02 Israel winter time, 09:02-22:02 summer time
+    - cron: "2 6-21 * * *" # backup: every hour, 08:02-23:02 Israel winter time, 09:02-00:02 summer time
   # Also started on the hour by cron-job.org through the API with force=false: GitHub's own schedule can be late or skip
   # (no scheduled run at all in the first 2 hours, 2026-10-30). Whichever comes first posts; the other sees the hour taken.
   workflow_dispatch:
