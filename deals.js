@@ -20,7 +20,7 @@ const MIN_FEEDBACK = 95;
 // The regular search sorted by sales holds the real best sellers: 10x the sales of the "hot products" list (earbuds:
 // top 28,689 vs 3,045, median 10,789 vs 401; checked 2026-10-30), for 7% commission instead of ~8%.
 const MIN_SOLD = 500;
-const TO_AI = 8; // the AI chooses among the 8 best sellers only, so every post is a top seller
+const TO_AI = 3; // the AI chooses among the 3 best sellers only (it picked #8 of 8 when given 8; owner: the strongest products)
 export const BUY_LABEL = "🛒 לקנייה בעלי אקספרס";
 const KEEP_POSTED = 500; // product ids remembered so a deal isn't posted twice
 
@@ -109,7 +109,11 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
       continue;
     }
     list = list.slice(0, TO_AI);
-    const choice = await pick(list);
+    const choice = await pick(list, words);
+    if (choice?.none) {
+      log(`none of the best sellers for "${words}" is that item, trying the next topic`); // AliExpress search noise
+      continue;
+    }
     const [p] = await shorten([list[choice?.i ?? 0]]); // search links are ~1 KB; on failure the long one is kept
     const caption = formatDeal(p, choice ?? {}, banner);
     if (api) {

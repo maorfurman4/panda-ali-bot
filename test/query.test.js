@@ -328,15 +328,18 @@ test("validateIntent: a named product the model still asks about is searched dir
 });
 
 test("deal picker: the chosen product with its post text; bad optional parts dropped, null on a bad pick", async () => {
-  const products = [{ product_title: "Phone screen protector" }, { product_title: "SoundPEATS wireless earbuds" }];
+  const products = [{ product_title: "Phone screen protector", lastest_volume: 900 }, { product_title: "SoundPEATS wireless earbuds", lastest_volume: 700 }];
   const answer = { i: 1, emoji: "🎧", headline: "סוף לכבלים מסתבכים", name: "SoundPEATS אוזניות אלחוטיות", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות", "השם צריך להיות קצר"], warning: null };
   const api = openai(answer);
   assert.deepEqual(await createDealPicker({ fetch: api.fetch, env: ENV })(products), {
     i: 1, name: "SoundPEATS אוזניות אלחוטיות", emoji: "🎧", headline: "סוף לכבלים מסתבכים", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות"], warning: null,
   });
-  assert.equal(api.requests[0].body.input[0].content, "0. Phone screen protector\n1. SoundPEATS wireless earbuds");
+  assert.equal(api.requests[0].body.input[0].content, "0. Phone screen protector (sold 900)\n1. SoundPEATS wireless earbuds (sold 700)");
   assert.equal(api.requests[0].body.max_output_tokens, 800, "a whole post needs more room than a search answer");
   assert.equal((await createDealPicker({ fetch: openai({ ...answer, emoji: "x" }).fetch, env: ENV })(products)).emoji, null, "not an emoji");
+  const topical = openai({ ...answer, i: -1 });
+  assert.deepEqual(await createDealPicker({ fetch: topical.fetch, env: ENV })(products, "power bank"), { none: true }, "nothing is the topic's item");
+  assert.match(topical.requests[0].body.input[0].content, /^Topic: power bank\n0\. /);
   const mixed = await createDealPicker({ fetch: openai({ ...answer, benefits: ["4 ראשים מתחלפים", "סוללה ל-60 שעות", "קלות"] }).fetch, env: ENV })([products[0], { product_title: "Massage gun 8 heads, 60 hours battery" }]);
   assert.deepEqual(mixed.benefits, ["סוללה ל-60 שעות", "קלות"], "a number from another product is dropped");
   assert.equal((await createDealPicker({ fetch: openai({ ...answer, headline: "הגאדג'ט שכל מטבח צריך" }).fetch, env: ENV })(products)).headline, "הגאדג'ט שכל מטבח צריך", "ad Hebrew kept");
