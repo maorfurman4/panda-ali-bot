@@ -1,4 +1,4 @@
-// Daily-deals bot: a separate Telegram bot that posts one hot AliExpress product to its own channel, a few times a day.
+// Daily-deals bot: a separate Telegram bot that posts one best-selling AliExpress product to its own channel, a few times a day.
 // It has no server: scripts/daily-deal.js runs it from a scheduled GitHub Action (see .github/workflows/daily-deals.yml).
 import { searchProducts, shortenLinks } from "./aliexpress.js";
 import { pickDeal as defaultPick } from "./query.js";
@@ -17,8 +17,10 @@ export const TOPICS = [
 ];
 
 const MIN_FEEDBACK = 95;
-const MIN_SOLD = 50;
-const TO_AI = 20; // candidates the AI chooses from
+// The regular search sorted by sales holds the real best sellers: 10x the sales of the "hot products" list (earbuds:
+// top 28,689 vs 3,045, median 10,789 vs 401; checked 2026-10-30), for 7% commission instead of ~8%.
+const MIN_SOLD = 500;
+const TO_AI = 8; // the AI chooses among the 8 best sellers only, so every post is a top seller
 const KEEP_POSTED = 500; // product ids remembered so a deal isn't posted twice
 
 // Proven, complete, not-yet-posted items, best first.
@@ -39,7 +41,6 @@ export function candidates(products, posted = []) {
 // AI parts (headline, benefits, warning) are optional: without them the post is the plain card under "הדיל של עכשיו".
 export function formatDeal(p, { name, emoji, headline, benefits = [], warning } = {}) {
   const sold = soldText(p.lastest_volume);
-  const trust = [ratingText(p), sold && `🛒 נמכרו: ${sold}`].filter(Boolean).join(" · ");
   const lines = [
     `${emoji || "🔥"} <b>${esc(headline || "הדיל של עכשיו")}</b>`,
     `<b>${esc(name || shortTitle(p.product_title) || "מוצר")}</b>`,
@@ -49,7 +50,8 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning } 
     priceLine(p),
     discountLine(p),
     vatLine(p),
-    trust,
+    ratingText(p),
+    sold && `🛒 נמכרו: ${sold}`,
     `🛒 לרכישה: ${esc(p.promotion_link)}`,
     "",
     `🔎 מחפשים משהו אחר? 👈 ${esc(GROUP_LINK)}`,
@@ -64,15 +66,15 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
   for (let step = 1; step <= TOPICS.length; step++) {
     const topic = ((state.topic ?? -1) + step) % TOPICS.length;
     const [words, category] = TOPICS[topic];
-    let list = candidates(await search(words, { hot: true, category, shorten: false }), posted);
-    if (list.length < 3) list = candidates(await search(words, { hot: true, shorten: false }), posted); // the category may be wrong
+    let list = candidates(await search(words, { category, shorten: false }), posted);
+    if (list.length < 3) list = candidates(await search(words, { shorten: false }), posted); // the category may be wrong
     if (!list.length) {
-      log(`no good hot item for "${words}", trying the next topic`);
+      log(`no good item for "${words}", trying the next topic`);
       continue;
     }
     list = list.slice(0, TO_AI);
     const choice = await pick(list);
-    const [p] = await shorten([list[choice?.i ?? 0]]); // hot-list links are ~1 KB; on failure the long one is kept
+    const [p] = await shorten([list[choice?.i ?? 0]]); // search links are ~1 KB; on failure the long one is kept
     const caption = formatDeal(p, choice ?? {});
     if (api) {
       try {

@@ -34,7 +34,7 @@ test("formatDeal: AI headline, name, benefits and warning, price, trust, short l
   assert.match(text, /<b>מנורת לילה חכמה<\/b>/);
   assert.equal(text.match(/✅/g).length, 3);
   assert.match(text, /⚠️ לא לשימוש בחוץ/);
-  assert.match(text, /👍 משוב חיובי: 98% · 🛒 נמכרו: מעל 800/);
+  assert.match(text, /👍 משוב חיובי: 98%\n\u200f🛒 נמכרו: מעל 800/, "sold on its own line under the feedback");
   assert.match(text, /₪29\.90/);
   assert.match(text, /50% הנחה/);
   assert.match(text, /s\.click\.aliexpress\.com\/e\/a/);
