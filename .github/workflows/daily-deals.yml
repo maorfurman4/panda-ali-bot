@@ -1,0 +1,39 @@
+# The daily-deals bot: posts one hot AliExpress deal to its own channel, 5 times a day. No server; a failed run emails the owner.
+# GitHub may start a scheduled run up to ~30 minutes late.
+name: Daily deals
+
+on:
+  schedule:
+    - cron: "0 7,10,13,16,19 * * *" # 09:00, 12:00, 15:00, 18:00, 21:00 Israel winter time (an hour later in summer)
+  workflow_dispatch:
+
+concurrency: daily-deals # two runs at once could post the same item
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # Posted product ids + last topic, carried from run to run (a cache entry is immutable, so each run saves a new one).
+      - uses: actions/cache@v4
+        with:
+          path: deals-state.json
+          key: deals-state-${{ github.run_id }}
+          restore-keys: deals-state-
+      - name: Post a deal
+        # Until the owner adds the new bot's secrets, skip quietly (a dry run would only spend AI money).
+        run: |
+          if [ -z "$DEALS_BOT_TOKEN" ]; then echo "DEALS_BOT_TOKEN not set yet; skipping"; exit 0; fi
+          npm run deal
+        env:
+          DEALS_BOT_TOKEN: ${{ secrets.DEALS_BOT_TOKEN }}
+          DEALS_CHAT_ID: ${{ secrets.DEALS_CHAT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
+          ALI_APP_SECRET: ${{ secrets.ALI_APP_SECRET }}
+          ALI_TRACKING_ID: ${{ secrets.ALI_TRACKING_ID }}

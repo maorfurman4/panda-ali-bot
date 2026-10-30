@@ -10,7 +10,8 @@
     "eval:search": "node --env-file-if-exists=.env scripts/eval-search.js",
     "eval:advice": "node --env-file-if-exists=.env scripts/eval-advice.js",
     "eval:categories": "node --env-file-if-exists=.env scripts/eval-categories.js",
-    "eval:personas": "node --env-file-if-exists=.env scripts/eval-personas.js"
+    "eval:personas": "node --env-file-if-exists=.env scripts/eval-personas.js",
+    "deal": "node --env-file-if-exists=.env scripts/daily-deal.js"
   },
   "engines": {
     "node": ">=22"

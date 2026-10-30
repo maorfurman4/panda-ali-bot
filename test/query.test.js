@@ -229,7 +229,7 @@ test("relevance: no products -> no AI call", async () => {
 });
 
 // ---- shopping advisor (multi-step questions) + "why it fits" ----
-import { createAdvisor, createExplainer, createTitler } from "../query.js";
+import { createAdvisor, createExplainer, createTitler, createDealPicker } from "../query.js";
 
 const ASK = {
   status: "ask",
@@ -325,4 +325,19 @@ test("validateIntent: a named product the model still asks about is searched dir
   assert.equal(validateIntent({ ...ask, corrected_he: "מתנה לאמא", keywords_en: "gift for mom" }).status, "clarify", "gifts keep the advisor");
   assert.equal(validateIntent({ ...ask, corrected_he: "כבל", keywords_en: "" }).status, "clarify", "no keywords: ask");
   assert.equal(validateIntent({ ...ask, corrected_he: "מוצר למטבח", keywords_en: "kitchen gadgets" }).status, "clarify", "'a product for the kitchen' is vague");
+});
+
+test("deal picker: the chosen product with its post text; bad optional parts dropped, null on a bad pick", async () => {
+  const products = [{ product_title: "Phone screen protector" }, { product_title: "SoundPEATS wireless earbuds" }];
+  const answer = { i: 1, emoji: "🎧", headline: "סוף לכבלים מסתבכים", name: "SoundPEATS אוזניות אלחוטיות", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות", "השם צריך להיות קצר"], warning: null };
+  const api = openai(answer);
+  assert.deepEqual(await createDealPicker({ fetch: api.fetch, env: ENV })(products), {
+    i: 1, name: "SoundPEATS אוזניות אלחוטיות", emoji: "🎧", headline: "סוף לכבלים מסתבכים", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות"], warning: null,
+  });
+  assert.equal(api.requests[0].body.input[0].content, "0. Phone screen protector\n1. SoundPEATS wireless earbuds");
+  assert.equal((await createDealPicker({ fetch: openai({ ...answer, emoji: "x" }).fetch, env: ENV })(products)).emoji, null, "not an emoji");
+  assert.equal(await createDealPicker({ fetch: openai({ ...answer, i: 5 }).fetch, env: ENV })(products), null, "number out of range");
+  assert.equal(await createDealPicker({ fetch: openai({ ...answer, name: "השם צריך להיות קצר" }).fetch, env: ENV })(products), null, "meta-commentary");
+  assert.equal(await createDealPicker({ fetch: openai({}, { status: 500 }).fetch, env: ENV })(products), null);
+  assert.equal(await createDealPicker({ fetch: async () => assert.fail("no key"), env: {} })(products), null);
 });

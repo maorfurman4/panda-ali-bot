@@ -52,6 +52,7 @@ export async function apiCall(method, params, { fetch = globalThis.fetch, env = 
   return out.result;
 }
 
+// deps.hot: AliExpress's hot-products list instead (higher commission than product.query, checked 2026-10-30).
 // deps.page / deps.sort ("relevance") / deps.category: other result lists for the same words (see pickProducts).
 // deps.minIls / deps.maxIls: optional shekel range, filtered by AliExpress itself (in agorot, on the sale price;
 // verified live 2026-10-24: 40 of 50 knife sets in 300–600 ₪ vs 0 without). The caller still post-filters exactly.
@@ -61,7 +62,7 @@ export async function searchProducts(query, deps = {}) {
   let result;
   try {
     result = await apiCall(
-      "aliexpress.affiliate.product.query",
+      deps.hot ? "aliexpress.affiliate.hotproduct.query" : "aliexpress.affiliate.product.query", // hot: Advanced API, approved 2026-10-30
       {
         keywords: query,
         tracking_id: env.ALI_TRACKING_ID,
