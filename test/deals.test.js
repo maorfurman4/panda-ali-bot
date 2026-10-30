@@ -37,8 +37,8 @@ test("formatDeal: AI headline, name, benefits and warning, price, trust, short l
   assert.match(text, /👍 משוב חיובי: 98%\n\u200f📦 נמכרו: מעל 800/, "sold on its own line under the feedback");
   assert.match(text, /₪29\.90/);
   assert.match(text, /50% הנחה/);
-  assert.match(text, /s\.click\.aliexpress\.com\/e\/a/);
-  assert.match(text, /t\.me\/panda_deals_il/);
+  assert.match(text, /🛒 <a href="https:\/\/s\.click\.aliexpress\.com\/e\/a">לרכישה בעלי אקספרס ←<\/a>/);
+  assert.match(text, /<a href="https:\/\/t\.me\/panda_deals_il">מחפשים משהו אחר\? הבוט שלנו ימצא לכם<\/a>/);
   const plain = formatDeal(item("b"));
   assert.match(plain, /🔥 <b>הדיל של עכשיו<\/b>/, "no AI -> the plain card");
   assert.match(plain, /מנורת לילה LED חכמה b/, "no AI name -> the seller title");
@@ -54,6 +54,7 @@ test("postDeal: next topic in turn, the AI's pick, remembers what it posted", as
   assert.deepEqual(searches, [TOPICS[1]]);
   assert.equal(sent[0][0], -100);
   assert.equal(sent[0][1], "https://ae01.alicdn.com/2.jpg");
+  assert.deepEqual(sent[0][2].reply_markup.inline_keyboard, [[{ text: "🛒 לקנייה בעלי אקספרס", url: "https://s.click.aliexpress.com/e/2" }]], "a buy button under the post");
   assert.deepEqual(state, { topic: 1, posted: ["9", "2"] });
 });
 

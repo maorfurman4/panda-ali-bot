@@ -21,6 +21,7 @@ const MIN_FEEDBACK = 95;
 // top 28,689 vs 3,045, median 10,789 vs 401; checked 2026-10-30), for 7% commission instead of ~8%.
 const MIN_SOLD = 500;
 const TO_AI = 8; // the AI chooses among the 8 best sellers only, so every post is a top seller
+export const BUY_LABEL = "🛒 לקנייה בעלי אקספרס";
 const KEEP_POSTED = 500; // product ids remembered so a deal isn't posted twice
 
 // Posting hours (Israel time) by kind of day (owner: more posts on sale days, the most on the big shopping days).
@@ -86,9 +87,10 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning } 
     vatLine(p),
     ratingText(p),
     sold && `📦 נמכרו: ${sold}`, // 🛒 is the buy line
-    `🛒 לרכישה: ${esc(p.promotion_link)}`,
+    // Short clickable text, not the bare URL (it wrapped over two lines); the same link is also the button under the post.
+    `🛒 <a href="${esc(p.promotion_link)}">לרכישה בעלי אקספרס ←</a>`,
     "",
-    `🔎 מחפשים משהו אחר? 👈 ${esc(GROUP_LINK)}`,
+    `🔎 <a href="${esc(GROUP_LINK)}">מחפשים משהו אחר? הבוט שלנו ימצא לכם</a>`,
   ].filter((l) => typeof l === "string" && (l === "" || l.trim()));
   return lines.map((l) => RLM + l).join("\n");
 }
@@ -111,11 +113,12 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     const [p] = await shorten([list[choice?.i ?? 0]]); // search links are ~1 KB; on failure the long one is kept
     const caption = formatDeal(p, choice ?? {}, banner);
     if (api) {
+      const extra = { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: BUY_LABEL, url: p.promotion_link }]] } };
       try {
-        await api.sendPhoto(chatId, p.product_main_image_url, { caption, parse_mode: "HTML" });
+        await api.sendPhoto(chatId, p.product_main_image_url, { caption, ...extra });
       } catch (e) {
         log(`photo failed (${e.description ?? e.message}), sending text`);
-        await api.sendMessage(chatId, caption, { parse_mode: "HTML" });
+        await api.sendMessage(chatId, caption, { ...extra, link_preview_options: { is_disabled: true } });
       }
     } else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
