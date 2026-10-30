@@ -170,13 +170,16 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
     return out;
   };
   const broader = Boolean(fallback && fallback !== keywords);
-  // Both searches run together and ONE AI call judges both pools: no second check, ~1.5 s less.
-  const [main, wide] = await Promise.allSettled([find(keywords, LISTS), broader ? find(fallback, [{}]) : Promise.resolve([])]);
+  // Both searches run together and ONE AI call judges both pools: no second check, ~1.5 s less. The AI's other wording
+  // joins the broader pool from the start (free): strong items are often titled another way ("detangling brush" for a comb).
+  const other = live && alt && alt !== keywords;
+  const [main, wide, reworded] = await Promise.allSettled([find(keywords, LISTS), broader ? find(fallback, [{}]) : Promise.resolve([]), other ? find(alt, [{}]) : Promise.resolve([])]);
   if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
   if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
   const first = main.status === "fulfilled" ? main.value : [];
   const seen = new Set(first.map(keyOf));
-  const more = (wide.status === "fulfilled" ? wide.value : []).filter((p) => !seen.has(keyOf(p)));
+  const got = (r) => (r.status === "fulfilled" ? r.value : []);
+  const more = [...got(reworded), ...got(wide)].filter((p) => !seen.has(keyOf(p)) && seen.add(keyOf(p)));
   let exact = first.length >= limit ? first : first.concat(more); // demo mode (no AI): the broader search only tops up
   let partial = [];
   if (live) {

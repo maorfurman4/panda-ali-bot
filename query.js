@@ -264,6 +264,10 @@ or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 A novelty, prank, costume or party version of the item (a mustache or vampire pacifier, a joke mug) is partial, not exact,
 unless the shopper asked for a funny or party one.
+The request is everyday Hebrew: the item type is what an Israeli means by the word ("מסרק לשיער" covers hair combs AND
+hair brushes, so an anti-static or detangling hair brush is exact; "תחתית לסיר" covers any heat-resistant pad or trivet for pots). An item that does the requested job with an
+extra feature (a massage, anti-static, detangling or foldable comb) is still the item: exact. A head, nozzle, sprayer,
+extender or aerator that attaches to the item is an add-on, not the item (a faucet sprayer head is not a faucet).
 Styles and close variants of the item count. When the request names a brand, items that show that brand are exact;
 the same item without the brand (or of another brand) is partial, never left out for lacking the brand. Merchandise of a
 person or band who shares the brand's name (a "Zara Larsson" T-shirt for "Zara") is not the brand: it counts only as
@@ -518,9 +522,11 @@ export function createDealPicker({ fetch = globalThis.fetch, env = process.env, 
     if (!products.length || !env.OPENAI_API_KEY) return null;
     try {
       const list = products.map((p, i) => `${i}. ${clean(p.product_title, 160)}`).join("\n");
-      const fit = await ask(DEAL_FIT_SYSTEM, (topic ? `Topic: ${clean(topic, 60)}\n` : "") + list, "deal_fit", DEAL_FIT_SCHEMA);
-      const fits = Array.isArray(fit?.fits) ? fit.fits : [];
-      if (fits.length !== products.length) return console.warn("AI deal fit failed validation"), null;
+      const fit = await ask(DEAL_FIT_SYSTEM, (topic ? `Topic: ${clean(topic, 60)}\n` : "") + `${products.length} products:\n` + list, "deal_fit", DEAL_FIT_SCHEMA);
+      // A short or long answer still says which listed products fit (it came back one short on 2 of 5 posts, 2026-10-30);
+      // a missing answer counts as "no".
+      const fits = Array.isArray(fit?.fits) ? fit.fits.slice(0, products.length) : null;
+      if (!fits) return console.warn("AI deal fit failed validation"), null;
       const i = fits.indexOf(true);
       if (i === -1) return { none: true }; // nothing on the list is the topic's item
       const title = products[i].product_title ?? "";

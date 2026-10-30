@@ -1077,13 +1077,14 @@ test("blocked words are refused even when the AI says 'ok' (it did for 'וייפ
   assert.deepEqual(sent().map((m) => m.body), [NOT_ALLOWED]);
 });
 
-test("second chance: too few matches -> the AI's other wording is searched and only new candidates get one more check", async () => {
+test("the AI's other wording is searched from the start and judged in the same single check", async () => {
   const queries = [], checks = [];
   const search = async (q) => (queries.push(q), q === "silicone pacifier" ? [product(7), product(8), product(9)] : [product(1), product(2)]);
   const relevant = async (r, p) => (checks.push(r.en), { exact: p.filter((x) => /_p[789]$/.test(x.promotion_link)), partial: [] });
   const ctx = setup({ search, relevant, live: true, understand: async () => intent({ keywords_en: "baby pacifier", alt_en: "silicone pacifier" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מוצץ לתינוק"));
-  assert.deepEqual(checks, ["baby pacifier", "silicone pacifier"]);
+  assert.ok(queries.includes("silicone pacifier"));
+  assert.deepEqual(checks, ["baby pacifier"], "one AI check: the other wording's items were already in its pool");
   assert.deepEqual(shownIds(ctx.sent()[0]).sort(), ["7", "8", "9"]);
   const strong = setup({ search: async () => SIX, live: true, relevant: async (r, p) => (checks.push(r.en), { exact: p, partial: [] }), understand: async () => intent({ alt_en: "earphones" }) });
   checks.length = 0;

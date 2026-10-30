@@ -336,11 +336,12 @@ test("deal picker: the most sold product the AI says is the topic's item, writte
     i: 1, name: "SoundPEATS אוזניות אלחוטיות", emoji: "🎧", headline: "סוף לכבלים מסתבכים", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות"], warning: null,
   });
   assert.equal(api.requests.length, 2);
-  assert.equal(api.requests[0].body.input[0].content, "Topic: wireless earbuds\n0. Cable organizer winder\n1. SoundPEATS wireless earbuds\n2. Lenovo LP40 earbuds");
+  assert.equal(api.requests[0].body.input[0].content, "Topic: wireless earbuds\n3 products:\n0. Cable organizer winder\n1. SoundPEATS wireless earbuds\n2. Lenovo LP40 earbuds");
   assert.equal(api.requests[1].body.input[0].content, "SoundPEATS wireless earbuds", "the post is written from the chosen title alone");
   assert.equal(api.requests[0].body.max_output_tokens, 800, "a whole post needs more room than a search answer");
   assert.deepEqual(await createDealPicker({ fetch: openai({ ...answer, fits: [false, false, false] }).fetch, env: ENV })(products, "x"), { none: true });
-  assert.equal(await createDealPicker({ fetch: openai({ ...answer, fits: [true] }).fetch, env: ENV })(products), null, "one answer per product");
+  assert.equal((await createDealPicker({ fetch: openai({ ...answer, fits: [false, true] }).fetch, env: ENV })(products)).i, 1, "a short answer still picks");
+  assert.deepEqual(await createDealPicker({ fetch: openai({ ...answer, fits: [false] }).fetch, env: ENV })(products), { none: true }, "missing answers count as no");
   assert.equal((await createDealPicker({ fetch: openai({ ...answer, emoji: "x" }).fetch, env: ENV })(products)).emoji, null, "not an emoji");
   assert.deepEqual(await createDealPicker({ fetch: openai({ ...answer, name: "השם צריך להיות קצר" }).fetch, env: ENV })(products), { i: 1 }, "a bad name keeps the pick, drops the text");
   const gun = await createDealPicker({ fetch: openai({ ...answer, fits: [true], benefits: ["4 ראשים מתחלפים", "סוללה ל-60 שעות", "קלות"] }).fetch, env: ENV })([{ product_title: "Massage gun 8 heads, 60 hours battery" }]);
