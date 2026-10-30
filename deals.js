@@ -2,24 +2,29 @@
 // It has no server: scripts/daily-deal.js runs it from a scheduled GitHub Action (see .github/workflows/daily-deals.yml).
 import { searchProducts, shortenLinks, promoNames, promoProducts } from "./aliexpress.js";
 import { pickDeal as defaultPick } from "./query.js";
-import { RLM, esc, shortTitle, soldText, priceLine, discountLine, vatLine, ratingText, parseEvaluateRate, rankProducts, dedupeProducts, isPartFor, GROUP_LINK } from "./format.js";
+import { RLM, esc, shortTitle, soldText, priceLine, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK } from "./format.js";
 
-// One topic per post, in turn. Neighbours differ in kind so the channel doesn't see three gadgets in a row.
-// [English search words, AliExpress main category]
+// One topic per post, in turn. Every topic was measured on 2026-10-30: the median sales of its top 3 items that pass our
+// filters were at least ~9,000 (weak topics such as building blocks at 3,000 were dropped; 150 topics tested). Each row
+// mixes kinds so the channel doesn't see three gadgets in a row. [English search words, AliExpress main category]
 export const TOPICS = [
-  ["wireless earbuds", 44], ["kitchen gadgets", 15], ["car phone holder", 34], ["led strip lights", 39], ["massage gun", 66],
-  ["power bank", 509], ["camping lantern", 18], ["electric screwdriver", 1420], ["laptop backpack", 1524], ["building blocks toy", 26],
-  ["smart watch", 44], ["kitchen storage organizer", 15], ["car vacuum cleaner", 34], ["night light", 39], ["hair clipper", 66],
-  ["fast charger usb c", 509], ["resistance bands", 18], ["tool set", 1420], ["travel organizer bag", 1524], ["rc car", 26],
-  ["bluetooth speaker", 44], ["silicone baking mold", 15], ["dash cam", 34], ["smart plug", 13], ["makeup brush set", 66],
-  ["magsafe phone case", 509], ["bike light", 18], ["wifi security camera", 30], ["wireless mouse", 7], ["baby toys", 1501],
-  ["mini projector", 44], ["electric milk frother", 6], ["shower head", 13], ["mechanical keyboard", 7], ["handheld vacuum", 6],
+  ["wireless earbuds", 44], ["kitchen storage organizer", 15], ["car trunk organizer", 34], ["night light", 39], ["makeup brush set", 66],
+  ["fast charger usb c", 509], ["resistance bands", 18], ["tool set", 1420], ["travel organizer bag", 1524], ["fidget toy", 26],
+  ["bluetooth speaker", 44], ["oil sprayer", 15], ["windshield sun shade", 34], ["led flashlight", 39], ["nail clipper set", 66],
+  ["usb c cable", 509], ["bike light", 18], ["screwdriver bits set", 1420], ["card holder wallet", 1524], ["hair clip", 200000297],
+  ["micro sd memory card", 7], ["vegetable chopper", 15], ["car air freshener", 34], ["solar garden light", 39], ["teeth whitening", 66],
+  ["smart plug", 13], ["hiking backpack", 1524], ["socks", 200574005], ["gel pen", 21], ["cutting board", 15],
+  ["wireless mouse", 7], ["knife sharpener", 15], ["tire inflator", 34], ["string lights", 39], ["massager", 66],
+  ["usb hub", 7], ["cleaning mop", 15], ["usb fan", 6], ["nail art", 66], ["storage box", 15],
+  ["shower head", 13], ["kitchen gadgets", 15], ["sleep eye mask", 66], ["clothes hanger", 15], ["door seal strip", 13],
+  ["umbrella", 15], ["thermometer", 66], ["cat toy", 15],
 ];
 
 const MIN_FEEDBACK = 95;
 // The regular search sorted by sales holds the real best sellers: 10x the sales of the "hot products" list (earbuds:
 // top 28,689 vs 3,045, median 10,789 vs 401; checked 2026-10-30), for 7% commission instead of ~8%.
-const MIN_SOLD = 500;
+const MIN_SOLD = 3000; // owner: only the strongest products
+const MIN_SOLD_SALE = 500; // AliExpress's sale lists sell less (median ~1,300) and are curated by AliExpress itself
 const TO_AI = 3; // the AI chooses among the 3 best sellers only (it picked #8 of 8 when given 8; owner: the strongest products)
 export const BUY_LABEL = "🛒 לקנייה בעלי אקספרס";
 const KEEP_POSTED = 500; // product ids remembered so a deal isn't posted twice
@@ -57,19 +62,19 @@ export function saleBanner(sale, { day, md }) {
   return `🛍️ מבצעי ${sale.label}${days === 1 ? " · מחר!" : days > 1 ? ` · עוד ${days} ימים!` : ""}`;
 }
 
-// Proven, complete, not-yet-posted items, best first.
-export function candidates(products, posted = []) {
+// Proven, complete, not-yet-posted items, most sold first (feedback is only a floor: 6,600 sold beats 4,900).
+export function candidates(products, posted = [], minSold = MIN_SOLD) {
   const seen = new Set(posted.map(String));
   const good = products.filter(
     (p) =>
       parseEvaluateRate(p.evaluate_rate) >= MIN_FEEDBACK &&
-      Number(p.lastest_volume) >= MIN_SOLD &&
+      Number(p.lastest_volume) >= minSold &&
       /^https:\/\//.test(p.promotion_link ?? "") &&
       p.product_main_image_url &&
       !seen.has(String(p.product_id)) &&
       !isPartFor(p.product_title),
   );
-  return dedupeProducts(rankProducts(good));
+  return dedupeProducts(good.toSorted((a, b) => Number(b.lastest_volume) - Number(a.lastest_volume)));
 }
 
 // AI parts (headline, benefits, warning) are optional: without them the post is the plain card under "הדיל של עכשיו".
@@ -97,13 +102,13 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning } 
 
 // One post. state = { posted: [product ids], topic: index of the last topic used, ... }; returns the new state, or the
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, banner = null, steps = TOPICS.length, log = console.log } = {}) {
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, banner = null, steps = TOPICS.length, minSold = MIN_SOLD, log = console.log } = {}) {
   const posted = state.posted ?? [];
   for (let step = 1; step <= steps; step++) {
     const topic = ((state.topic ?? -1) + step) % TOPICS.length;
     const [words, category] = TOPICS[topic];
-    let list = candidates(await search(words, { category, shorten: false }), posted);
-    if (list.length < 3) list = candidates(await search(words, { shorten: false }), posted); // the category may be wrong
+    let list = candidates(await search(words, { category, shorten: false }), posted, minSold);
+    if (list.length < 3) list = candidates(await search(words, { shorten: false }), posted, minSold); // the category may be wrong
     if (!list.length) {
       log(`no good item for "${words}", trying the next topic`);
       continue;
@@ -148,7 +153,7 @@ export async function runDeals(state, { now = new Date(), force = false, names =
   let next = state;
   if (sale && turn % 2 === 0) {
     const list = sale.lists[(turn / 2) % sale.lists.length];
-    next = await postDeal(state, { ...deps, log, banner, steps: 3, search: (_words, d) => promo(list, d) });
+    next = await postDeal(state, { ...deps, log, banner, steps: 3, minSold: MIN_SOLD_SALE, search: (_words, d) => promo(list, d) });
     if (next !== state) log(`from the sale list "${list}"`);
   }
   if (next === state) next = await postDeal(state, { ...deps, log, banner });

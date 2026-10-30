@@ -6,7 +6,7 @@ const item = (id, extra = {}) => ({
   product_id: id,
   product_title: `מנורת לילה LED חכמה ${id}`,
   evaluate_rate: "97.5%",
-  lastest_volume: 800,
+  lastest_volume: 8000,
   promotion_link: `https://s.click.aliexpress.com/e/${id}`,
   product_main_image_url: `https://ae01.alicdn.com/${id}.jpg`,
   target_sale_price: "29.90",
@@ -19,12 +19,18 @@ test("candidates: only proven, complete, not-yet-posted items", () => {
     item("ok"),
     item("lowfb", { evaluate_rate: "91%" }),
     item("nofb", { evaluate_rate: "" }),
-    item("few", { lastest_volume: 10 }),
+    item("few", { lastest_volume: 2500 }),
     item("nolink", { promotion_link: "" }),
     item("part", { product_title: "חלקי חילוף לשואב רובוטי" }),
     item("old"),
   ];
   assert.deepEqual(candidates(list, ["old"]).map((p) => p.product_id), ["ok"]);
+  assert.deepEqual(candidates([item("few", { lastest_volume: 2500 })], [], 500).map((p) => p.product_id), ["few"], "sale lists use a lower floor");
+});
+
+test("candidates: most sold first; feedback is only a floor", () => {
+  const list = [item("a", { lastest_volume: 4900, evaluate_rate: "98%" }), item("b", { lastest_volume: 6600, evaluate_rate: "95%" }), item("c", { lastest_volume: 30000 })];
+  assert.deepEqual(candidates(list).map((p) => p.product_id), ["c", "b", "a"]);
 });
 
 test("formatDeal: AI headline, name, benefits and warning, price, trust, short link and the search group link", () => {
@@ -34,7 +40,7 @@ test("formatDeal: AI headline, name, benefits and warning, price, trust, short l
   assert.match(text, /<b>מנורת לילה חכמה<\/b>/);
   assert.equal(text.match(/✅/g).length, 3);
   assert.match(text, /⚠️ לא לשימוש בחוץ/);
-  assert.match(text, /👍 משוב חיובי: 98%\n\u200f📦 נמכרו: מעל 800/, "sold on its own line under the feedback");
+  assert.match(text, /👍 משוב חיובי: 98%\n\u200f📦 נמכרו: מעל 8,000/, "sold on its own line under the feedback");
   assert.match(text, /₪29\.90/);
   assert.match(text, /50% הנחה/);
   assert.match(text, /🛒 <a href="https:\/\/s\.click\.aliexpress\.com\/e\/a">לרכישה בעלי אקספרס ←<\/a>/);
