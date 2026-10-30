@@ -57,7 +57,7 @@ test("postDeal: next topic in turn, the AI's pick, remembers what it posted", as
   const api = { sendPhoto: async (...a) => sent.push(a) };
   const search = async (words, deps) => (searches.push([words, deps.category]), [item("1"), item("2"), item("3")]);
   const state = await postDeal({ topic: 0, posted: ["9"] }, { api, chatId: -100, search, shorten: async (ps) => ps, pick: async () => ({ i: 1, name: "מנורה", benefits: [] }), log: () => {} });
-  assert.deepEqual(searches, [TOPICS[1]]);
+  assert.deepEqual(searches, [TOPICS[1], [TOPICS[1][0], undefined]], "in the category and anywhere");
   assert.equal(sent[0][0], -100);
   assert.equal(sent[0][1], "https://ae01.alicdn.com/2.jpg");
   assert.deepEqual(sent[0][2].reply_markup.inline_keyboard, [[{ text: "🛒 לקנייה בעלי אקספרס", url: "https://s.click.aliexpress.com/e/2" }]], "a buy button under the post");

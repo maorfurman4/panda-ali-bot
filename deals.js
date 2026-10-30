@@ -25,7 +25,7 @@ const MIN_FEEDBACK = 95;
 // top 28,689 vs 3,045, median 10,789 vs 401; checked 2026-10-30), for 7% commission instead of ~8%.
 const MIN_SOLD = 3000; // owner: only the strongest products
 const MIN_SOLD_SALE = 500; // AliExpress's sale lists sell less (median ~1,300) and are curated by AliExpress itself
-const TO_AI = 3; // the AI chooses among the 3 best sellers only (it picked #8 of 8 when given 8; owner: the strongest products)
+const TO_AI = 5; // best sellers the AI sees; it takes the first that IS the topic's item (told to pick "appealing", it took #8 of 8)
 export const BUY_LABEL = "🛒 לקנייה בעלי אקספרס";
 const KEEP_POSTED = 500; // product ids remembered so a deal isn't posted twice
 
@@ -107,8 +107,9 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
   for (let step = 1; step <= steps; step++) {
     const topic = ((state.topic ?? -1) + step) % TOPICS.length;
     const [words, category] = TOPICS[topic];
-    let list = candidates(await search(words, { category, shorten: false }), posted, minSold);
-    if (list.length < 3) list = candidates(await search(words, { shorten: false }), posted, minSold); // the category may be wrong
+    // With and without the category: the strongest USB-C cable (54,790 sold) is listed outside "Phones" (2026-10-30).
+    const [inCategory, anywhere] = await Promise.all([search(words, { category, shorten: false }), search(words, { shorten: false })]);
+    let list = candidates([...inCategory, ...anywhere], posted, minSold);
     if (!list.length) {
       log(`no good item for "${words}", trying the next topic`);
       continue;

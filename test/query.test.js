@@ -327,24 +327,27 @@ test("validateIntent: a named product the model still asks about is searched dir
   assert.equal(validateIntent({ ...ask, corrected_he: "מוצר למטבח", keywords_en: "kitchen gadgets" }).status, "clarify", "'a product for the kitchen' is vague");
 });
 
-test("deal picker: the chosen product with its post text; bad optional parts dropped, null on a bad pick", async () => {
-  const products = [{ product_title: "Phone screen protector", lastest_volume: 900 }, { product_title: "SoundPEATS wireless earbuds", lastest_volume: 700 }];
-  const answer = { i: 1, emoji: "🎧", headline: "סוף לכבלים מסתבכים", name: "SoundPEATS אוזניות אלחוטיות", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות", "השם צריך להיות קצר"], warning: null };
+test("deal picker: the most sold product the AI says is the topic's item, written from its own title only", async () => {
+  const products = [{ product_title: "Cable organizer winder" }, { product_title: "SoundPEATS wireless earbuds" }, { product_title: "Lenovo LP40 earbuds" }];
+  // The fake answers every call with the same object: step 1 reads `fits`, step 2 the post fields.
+  const answer = { fits: [false, true, true], emoji: "🎧", headline: "סוף לכבלים מסתבכים", name: "SoundPEATS אוזניות אלחוטיות", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות", "השם צריך להיות קצר"], warning: null };
   const api = openai(answer);
-  assert.deepEqual(await createDealPicker({ fetch: api.fetch, env: ENV })(products), {
+  assert.deepEqual(await createDealPicker({ fetch: api.fetch, env: ENV })(products, "wireless earbuds"), {
     i: 1, name: "SoundPEATS אוזניות אלחוטיות", emoji: "🎧", headline: "סוף לכבלים מסתבכים", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות"], warning: null,
   });
-  assert.equal(api.requests[0].body.input[0].content, "0. Phone screen protector (sold 900)\n1. SoundPEATS wireless earbuds (sold 700)");
+  assert.equal(api.requests.length, 2);
+  assert.equal(api.requests[0].body.input[0].content, "Topic: wireless earbuds\n0. Cable organizer winder\n1. SoundPEATS wireless earbuds\n2. Lenovo LP40 earbuds");
+  assert.equal(api.requests[1].body.input[0].content, "SoundPEATS wireless earbuds", "the post is written from the chosen title alone");
   assert.equal(api.requests[0].body.max_output_tokens, 800, "a whole post needs more room than a search answer");
+  assert.deepEqual(await createDealPicker({ fetch: openai({ ...answer, fits: [false, false, false] }).fetch, env: ENV })(products, "x"), { none: true });
+  assert.equal(await createDealPicker({ fetch: openai({ ...answer, fits: [true] }).fetch, env: ENV })(products), null, "one answer per product");
   assert.equal((await createDealPicker({ fetch: openai({ ...answer, emoji: "x" }).fetch, env: ENV })(products)).emoji, null, "not an emoji");
-  const topical = openai({ ...answer, i: -1 });
-  assert.deepEqual(await createDealPicker({ fetch: topical.fetch, env: ENV })(products, "power bank"), { none: true }, "nothing is the topic's item");
-  assert.match(topical.requests[0].body.input[0].content, /^Topic: power bank\n0\. /);
-  const mixed = await createDealPicker({ fetch: openai({ ...answer, benefits: ["4 ראשים מתחלפים", "סוללה ל-60 שעות", "קלות"] }).fetch, env: ENV })([products[0], { product_title: "Massage gun 8 heads, 60 hours battery" }]);
-  assert.deepEqual(mixed.benefits, ["סוללה ל-60 שעות", "קלות"], "a number from another product is dropped");
+  assert.deepEqual(await createDealPicker({ fetch: openai({ ...answer, name: "השם צריך להיות קצר" }).fetch, env: ENV })(products), { i: 1 }, "a bad name keeps the pick, drops the text");
+  const gun = await createDealPicker({ fetch: openai({ ...answer, fits: [true], benefits: ["4 ראשים מתחלפים", "סוללה ל-60 שעות", "קלות"] }).fetch, env: ENV })([{ product_title: "Massage gun 8 heads, 60 hours battery" }]);
+  assert.deepEqual(gun.benefits, ["סוללה ל-60 שעות", "קלות"], "a number the title doesn't have is dropped");
+  const cable = await createDealPicker({ fetch: openai({ ...answer, fits: [true], benefits: ["לסמסונג, אייפון ומקבוק", "מתאים לגלקסי", "טעינה מהירה"] }).fetch, env: ENV })([{ product_title: "כבל USB-C עבור סמסונג גלקסי S24" }]);
+  assert.deepEqual(cable.benefits, ["מתאים לגלקסי", "טעינה מהירה"], "a device the title doesn't name is dropped");
   assert.equal((await createDealPicker({ fetch: openai({ ...answer, headline: "הגאדג'ט שכל מטבח צריך" }).fetch, env: ENV })(products)).headline, "הגאדג'ט שכל מטבח צריך", "ad Hebrew kept");
-  assert.equal(await createDealPicker({ fetch: openai({ ...answer, i: 5 }).fetch, env: ENV })(products), null, "number out of range");
-  assert.equal(await createDealPicker({ fetch: openai({ ...answer, name: "השם צריך להיות קצר" }).fetch, env: ENV })(products), null, "meta-commentary");
   assert.equal(await createDealPicker({ fetch: openai({}, { status: 500 }).fetch, env: ENV })(products), null);
   assert.equal(await createDealPicker({ fetch: async () => assert.fail("no key"), env: {} })(products), null);
 });
