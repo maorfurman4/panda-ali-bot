@@ -85,7 +85,7 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning } 
     discountLine(p),
     vatLine(p),
     ratingText(p),
-    sold && `🛒 נמכרו: ${sold}`,
+    sold && `📦 נמכרו: ${sold}`, // 🛒 is the buy line
     `🛒 לרכישה: ${esc(p.promotion_link)}`,
     "",
     `🔎 מחפשים משהו אחר? 👈 ${esc(GROUP_LINK)}`,

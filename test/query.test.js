@@ -336,6 +336,7 @@ test("deal picker: the chosen product with its post text; bad optional parts dro
   });
   assert.equal(api.requests[0].body.input[0].content, "0. Phone screen protector\n1. SoundPEATS wireless earbuds");
   assert.equal((await createDealPicker({ fetch: openai({ ...answer, emoji: "x" }).fetch, env: ENV })(products)).emoji, null, "not an emoji");
+  assert.equal((await createDealPicker({ fetch: openai({ ...answer, headline: "הגאדג'ט שכל מטבח צריך" }).fetch, env: ENV })(products)).headline, "הגאדג'ט שכל מטבח צריך", "ad Hebrew kept");
   assert.equal(await createDealPicker({ fetch: openai({ ...answer, i: 5 }).fetch, env: ENV })(products), null, "number out of range");
   assert.equal(await createDealPicker({ fetch: openai({ ...answer, name: "השם צריך להיות קצר" }).fetch, env: ENV })(products), null, "meta-commentary");
   assert.equal(await createDealPicker({ fetch: openai({}, { status: 500 }).fetch, env: ENV })(products), null);
