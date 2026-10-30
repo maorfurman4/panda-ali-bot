@@ -466,7 +466,7 @@ protector, component, adult, medical or weapon item. Then write, in Hebrew:
 - emoji: one emoji that shows the item
 - headline: a catchy opening line of up to 7 words that makes people stop scrolling. Vary the style; "נמאס לכם" at most
   rarely. Styles: a question ("מחפשים מתנה שכיף לפתוח?"), what it changes ("סוף לחושך בארון"), a bold claim from the title
-  ("42,000 קונים כבר בחרו בזה"), a use moment ("לטיול הבא שלכם"). It must NOT repeat or rephrase the name, and is
+  ("הלהיט שכולם קונים"), a use moment ("לטיול הבא שלכם"). No numbers in the headline. It must NOT repeat or rephrase the name, and is
   never about the price
 - name: what the item IS, in 2-6 Hebrew words; keep the brand and model if the title has them, after the Hebrew item word
   ("פנס קמפינג FLEXTAIL ZERO"). If it fits only one device or car model, the name says so ("מחזיק טלפון לטסלה 3/Y"). A holder or mount is named by
