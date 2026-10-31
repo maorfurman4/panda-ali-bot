@@ -135,7 +135,7 @@ test("card layout: query header, each detail on its own line, visible link per p
     "🔎 <b>אוזניות</b>",
     "",
     "🥇 <b>אוזניות אלחוטיות Baseus Bowie E1…</b>",
-    "💰 מחיר: <b>₪39.90</b>",
+    "💰 מחיר: החל מ-<b>₪39.90</b>",
     "🏷️ במקום <s>₪69.90</s> · 43% הנחה 🔥",
     "⭐ דירוג: 4.8 (1,234 ביקורות)",
     "🛒 נמכרו: מעל 5,200",
@@ -268,4 +268,23 @@ test("offTheme: holiday items are left out unless the request names a holiday", 
   assert.equal(offTheme("כיסוי כרית חג המולד סנטה", "כרית נוי"), true);
   assert.equal(offTheme("כיסוי כרית חג המולד סנטה", "כרית לחג המולד"), false);
   assert.equal(offTheme("כיסוי כרית בוהו לבן קרם", "כרית נוי"), false);
+});
+
+test("modelKey and varied: one model once, at most 2 alike per card (the third waits for the next card)", async () => {
+  const { modelKey, varied } = await import("../format.js");
+  assert.equal(modelKey("Lenovo LP40 Pro - אוזניות TWS"), modelKey("Lenovo LP40 Pro - אוזניות בלוטות'"));
+  assert.notEqual(modelKey("מטען רכב USB-C"), modelKey("מטען רכב 5 יציאות"));
+  const n = (short_he, id) => ({ short_he, id });
+  const lamps = [n("מנורת לילה עם חיישן תנועה", 1), n("מנורת לילה חיישן תנועה USB-C", 2), n("מנורת לילה חיישן תנועה", 3), n("מנורת לילה RGB 13 צבעים", 4), n("מנורת לילה מגע לחדר", 5)];
+  assert.deepEqual(varied(lamps, "מנורת לילה", 4).map((p) => p.id), [1, 2, 4, 5, 3]);
+  const chargers = [n("מטען רכב USB-C", 1), n("מטען רכב 5 יציאות", 2), n("מטען רכב תצוגה דיגיטלית", 3), n("מטען רכב Baseus 30W", 4)];
+  assert.deepEqual(varied(chargers, "מטען לרכב", 4).map((p) => p.id), [1, 2, 3, 4], "different kinds keep their order");
+});
+
+test("specialKind: gaming, shower, hydroponic, keffiyeh, Tesla-only are special unless asked", async () => {
+  const { specialKind } = await import("../format.js");
+  assert.equal(specialKind("עכבר גיימינג אלחוטי ATTACK SHARK X8", "עכבר אלחוטי wireless mouse"), true);
+  assert.equal(specialKind("עכבר גיימינג אלחוטי", "עכבר גיימינג"), false);
+  assert.equal(specialKind("רמקול למקלחת עמיד במים", "רמקול בלוטוס"), true);
+  assert.equal(specialKind("UGREEN עכבר אלחוטי ארגונומי שקט", "עכבר אלחוטי"), false);
 });

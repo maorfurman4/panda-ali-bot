@@ -51,6 +51,9 @@ import {
   CLARIFY_EXPIRED,
   ADVICE_EMPTY,
   offTheme,
+  specialKind,
+  modelKey,
+  varied,
 } from "./format.js";
 
 const GROUP_RESULTS = 4;
@@ -244,6 +247,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const keep = (p) => !suspicious(p) && !overpriced(p) && !offTheme(p.product_title, `${context} ${keywords}`);
   exact = exact.filter(keep);
   partial = partial.filter(keep);
+  const special = exact.filter((p) => specialKind(p.product_title, `${context} ${keywords}`));
+  if (special.length) (exact = exact.filter((p) => !special.includes(p))), (partial = [...special, ...partial]);
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
   // "ergonomic Logitech mouse"). brandOnly is the brand name, or true when unknown.
   const ofBrand = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
@@ -531,9 +536,10 @@ export function createBot({
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
         const [linked, names] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null)]);
         found = linked.map((p, i) => (names?.[i] ? { ...p, short_he: names[i] } : p));
-        // Same model in another color gets the same short name (KZ EDX Pro X twice): with enough results, keep the first.
-        // With few results a second seller of the same model stays (see pickProducts).
-        if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he === p.short_he) === i);
+        // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
+        // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
+        if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && modelKey(q.short_he) === modelKey(p.short_he)) === i);
+        found = varied(found, context, limit);
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
       }
@@ -562,7 +568,7 @@ export function createBot({
     const shownText = shown.map((p) => `${p.short_he || shortTitle(p.product_title)} (${soldText(p.lastest_volume) ?? 0} נמכרו)`).join(" · ");
     cards.set(id, { userId: requester(ctx), header, replyToId, rest, voters: new Set(), at: now(), shownText });
     const closest = !shown.some((p) => p.match !== "partial"); // e.g. a brand AliExpress doesn't carry
-    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest });
+    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2 });
     const keyboard = [
       [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
       [{ text: MORE_LABEL, callback_data: `m:${id}` }], // nothing left -> the press answers "אין עוד תוצאות"

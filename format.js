@@ -67,10 +67,44 @@ const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|repla
 // itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
 const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;
 const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
+// The same model under two names ("Lenovo LP40 Pro - אוזניות TWS" and "Lenovo LP40 Pro - אוזניות בלוטות'", 2026-11-01):
+// the brand + model before " - " when it holds a model number, else the whole name.
+export function modelKey(name = "") {
+  const head = name.split(" - ")[0];
+  return (/[a-z]/i.test(head) && /\d/.test(head) ? head : name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+// A card holds at most 2 near-identical items (3 motion-sensor night lights of 4, 2026-11-01); the third waits for the
+// next card. Alike = two shared words (3-letter stems) beyond the request's own words.
+const STOP_WORDS = new Set(["עם", "של", "לכל", "for", "and", "wit"]);
+export function varied(products, request = "", limit = 4) {
+  const stem = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "").slice(0, 3);
+  const asked = new Set(request.split(/\s+/).map(stem));
+  const words = (p) => new Set((p.short_he ?? "").split(/\s+/).map(stem).filter((s) => s.length === 3 && !STOP_WORDS.has(s) && !asked.has(s)));
+  const alike = (a, b) => [...a].filter((w) => b.has(w)).length >= 2;
+  const rest = products.map((p) => ({ p, w: words(p) }));
+  const out = [];
+  while (rest.length) {
+    const card = [];
+    for (let i = 0; i < rest.length && card.length < limit; ) {
+      if (card.filter((c) => alike(c.w, rest[i].w)).length >= 2) i++;
+      else card.push(...rest.splice(i, 1));
+    }
+    while (card.length < limit && rest.length) card.push(rest.shift()); // only alike ones left: better than a short card
+    out.push(...card.map((c) => c.p));
+  }
+  return out;
+}
+
 // Holiday-themed items the AI sometimes keeps as "close" (Halloween and Snoopy covers for "כרית נוי לסלון", 2026-11-01):
 // left out unless the request names a holiday.
 const HOLIDAY = /halloween|ליל כל הקדושים|האלווין|הלווין|christmas|xmas|חג המולד|כריסמס|סנטה|santa|easter|פסחא|thanksgiving/i;
 export const offTheme = (title, request = "") => HOLIDAY.test(title ?? "") && !HOLIDAY.test(request);
+
+// Specialized kinds a general request doesn't mean; the AI still called gaming mice exact for "עכבר אלחוטי" (2026-11-01),
+// so the code moves them to "close" unless the request names the kind.
+const SPECIAL_KINDS = [/gaming|gamer|e-?sports|גיימינג|גיימר/i, /shower|מקלחת|אמבטיה/i, /hydroponic|הידרופוני/i, /keffiyeh|kufiya|כאפי|קפיה/i, /tesla|טסלה/i];
+export const specialKind = (title, request = "") => SPECIAL_KINDS.some((k) => k.test(title ?? "") && !k.test(request));
 
 // Items mostly sold as their cover: for "כרית נוי" a cushion cover IS the item (45x45 covers were dropped, 2026-11-01).
 const SOLD_AS_COVER = /^(?:כיסוי|כיסויי|ציפית|ציפיות)\s+ל?(כרית|כריות|שמיכ|פוך|דובה)/;
@@ -132,9 +166,10 @@ export function ratingText(p) {
 
 const salePrice = (p) => formatPrice(p.target_sale_price ?? p.sale_price, p.target_sale_price_currency ?? p.sale_price_currency);
 
-export function priceLine(p) {
+// from: the search price is the cheapest variant (a ₪15.59 rug is the 60 cm one, 2026-11-01), so the card says "החל מ".
+export function priceLine(p, { from = false } = {}) {
   const price = salePrice(p);
-  return price ? `💰 מחיר: <b>${esc(price)}</b>` : null;
+  return price ? `💰 מחיר: ${from ? "החל מ-" : ""}<b>${esc(price)}</b>` : null;
 }
 
 // Original price + 🔥 badge only for 5% ≤ discount < 80% (higher means an inflated "original").
@@ -149,6 +184,8 @@ export function discountLine(p) {
 }
 
 export const CLOSEST_NOTE = "לא מצאתי התאמה מדויקת, אלה הכי קרובים 👇";
+// Almost nothing found (real wall mirrors: only acrylic stickers, 2026-11-01): AliExpress often doesn't ship it to Israel.
+export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
 // Israel: personal imports above $75 pay 18% VAT, collected by AliExpress at checkout (the $75 cap is back since June 2026).
 // shortcut: compares the item price only, at a fixed rate; the real check is the whole order's value.
@@ -158,8 +195,8 @@ export function vatLine(p) {
   return (p.target_sale_price_currency ?? p.sale_price_currency) === "ILS" && n > VAT_FREE_ILS ? "🧾 מעל 75$: יתווסף מע״מ 18% בקופה" : null;
 }
 
-function buildCard(products, query, demo, reasons, closest) {
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [CLOSEST_NOTE] : [])];
+function buildCard(products, query, demo, reasons, closest, rare) {
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
@@ -170,7 +207,7 @@ function buildCard(products, query, demo, reasons, closest) {
         `${p.pretty ? "✨" : p.brandSlot ? "🏷️" : MEDALS[products.slice(0, i).filter((q) => !q.pretty && !q.brandSlot).length]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
         p.pretty && "✨ מהיפים ביותר בחיפוש",
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
-        priceLine(p),
+        priceLine(p, { from: true }),
         discountLine(p),
         vatLine(p),
         // Trust badges ride on the rating line (a line each would push the 4th product past the caption limit).
@@ -185,10 +222,10 @@ function buildCard(products, query, demo, reasons, closest) {
 }
 
 // Result card for up to 5 products; drops trailing products until the caption fits Telegram's limit.
-export function formatCard(products, { query, demo = false, reasons = null, closest = false }) {
+export function formatCard(products, { query, demo = false, reasons = null, closest = false, rare = false }) {
   let n = Math.min(products.length, MEDALS.length);
   let card;
-  do card = buildCard(products.slice(0, n--), query, demo, reasons, closest);
+  do card = buildCard(products.slice(0, n--), query, demo, reasons, closest, rare);
   while (n > 0 && parsedLength(card.caption) > CAPTION_MAX);
   return card;
 }
