@@ -261,3 +261,11 @@ test("isPartFor: for a cushion request, a cushion cover is the item (mostly sold
   assert.equal(isPartFor("כיסוי כרית מלבני 30x50", "מטען לרכב"), true, "a cushion cover for another request is still a part-like title");
   assert.equal(isPartFor("כיסוי סיליקון לאייפון 15", "אייפון 15"), true);
 });
+
+test("offTheme: holiday items are left out unless the request names a holiday", async () => {
+  const { offTheme } = await import("../format.js");
+  assert.equal(offTheme("1pc/4pcs halloween כיסוי כרית", "כרית נוי לסלון"), true);
+  assert.equal(offTheme("כיסוי כרית חג המולד סנטה", "כרית נוי"), true);
+  assert.equal(offTheme("כיסוי כרית חג המולד סנטה", "כרית לחג המולד"), false);
+  assert.equal(offTheme("כיסוי כרית בוהו לבן קרם", "כרית נוי"), false);
+});

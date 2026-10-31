@@ -33,8 +33,12 @@ export function parseEvaluateRate(value) {
 }
 
 // Best first: recent sales (log scale) weighted by positive feedback; ties keep the API order.
+// AliExpress Choice items come from this one store in the API ("Stone's Store"; the item page says "Choice · AliExpress
+// commitment": fast delivery, free returns, refund if late; checked 2026-11-01). They get a small push (≈1.5× the sales).
+export const CHOICE_SHOP_ID = "1103573332";
+export const isChoice = (p) => String(p.shop_id ?? "") === CHOICE_SHOP_ID;
 export function rankProducts(products) {
-  const score = (p) => Math.log10((Number(p.lastest_volume) || 0) + 1) * ((parseEvaluateRate(p.evaluate_rate) ?? 90) / 100);
+  const score = (p) => Math.log10((Number(p.lastest_volume) || 0) + 1) * ((parseEvaluateRate(p.evaluate_rate) ?? 90) / 100) * (isChoice(p) ? 1.05 : 1);
   return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
@@ -63,6 +67,11 @@ const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|repla
 // itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
 const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;
 const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
+// Holiday-themed items the AI sometimes keeps as "close" (Halloween and Snoopy covers for "כרית נוי לסלון", 2026-11-01):
+// left out unless the request names a holiday.
+const HOLIDAY = /halloween|ליל כל הקדושים|האלווין|הלווין|christmas|xmas|חג המולד|כריסמס|סנטה|santa|easter|פסחא|thanksgiving/i;
+export const offTheme = (title, request = "") => HOLIDAY.test(title ?? "") && !HOLIDAY.test(request);
+
 // Items mostly sold as their cover: for "כרית נוי" a cushion cover IS the item (45x45 covers were dropped, 2026-11-01).
 const SOLD_AS_COVER = /^(?:כיסוי|כיסויי|ציפית|ציפיות)\s+ל?(כרית|כריות|שמיכ|פוך|דובה)/;
 export function isPartFor(title, request = "") {
@@ -157,14 +166,15 @@ function buildCard(products, query, demo, reasons, closest) {
     lines.push(
       "",
       ...[
-        // A ✨ pick isn't ranked by sales, so it has no medal; the medals count the best sellers only (🥇 ✨ 🥈 ✨).
-        `${p.pretty ? "✨" : MEDALS[products.slice(0, i).filter((q) => !q.pretty).length]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
+        // A ✨ or 🏷️ pick isn't ranked by sales, so it has no medal; the medals count the best sellers only (🥇 ✨ 🥈 ✨).
+        `${p.pretty ? "✨" : p.brandSlot ? "🏷️" : MEDALS[products.slice(0, i).filter((q) => !q.pretty && !q.brandSlot).length]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
         p.pretty && "✨ מהיפים ביותר בחיפוש",
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
         priceLine(p),
         discountLine(p),
         vatLine(p),
-        ratingText(p),
+        // Trust badges ride on the rating line (a line each would push the 4th product past the caption limit).
+        [ratingText(p), isChoice(p) && "✅ Choice", p.brandTag === "official" ? "🏷️ חנות רשמית" : p.brandTag === "known" && "🏷️ מותג מוכר"].filter(Boolean).join(" · ") || null,
         sold ? `🛒 נמכרו: ${sold}` : `${p.lastest_volume}` === "0" && "🆕 עוד לא נקנה", // never-sold come last; the buyer should know (unknown: no line)
         link && `🔗 ${esc(link)}`,
       ].filter(Boolean),

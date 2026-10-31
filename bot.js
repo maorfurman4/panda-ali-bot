@@ -50,6 +50,7 @@ import {
   CLARIFY_NOT_YOURS,
   CLARIFY_EXPIRED,
   ADVICE_EMPTY,
+  offTheme,
 } from "./format.js";
 
 const GROUP_RESULTS = 4;
@@ -71,6 +72,9 @@ const TRUSTED_FEEDBACK = 92; // ≈4.6-4.7 stars; 95 (≈4.8) pushed down 45% of
 const STYLE_PHOTOS = 16;
 const STYLE_MIN_SOLD = 100;
 const STYLE_MIN_FEEDBACK = 90;
+// Each card holds one item of a trusted brand when there is one: an official brand store, or a well-known brand the title
+// check names (Baseus, Ugreen, Anker…), with ≥100 sold and ≥92% feedback (owner request, 2026-11-01).
+const BRAND_MIN_SOLD = 100;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
 const FOOD_WORDS = /חטיף|ממתק|שוקולד|סוכרי|עוגיות|\bתה\b|קפה טחון|פולי קפה|אוכל|מזון|תבלין|דבש|אגוזים|food|snack|candy|tea\b/i;
 const RESULTS_TTL_MS = 6 * 60 * 60_000; // shortcut: prices may drift a little within 6 h; shorten if that matters
@@ -159,7 +163,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, look = null, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, look = null, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -187,7 +191,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Every other wording the AI gave (the sellers' names, every common meaning of the words) is searched from the start too,
   // free and in parallel: strong items often hide under another name ("detangling brush" for a comb, "car air freshener"
   // for "מטהר אוויר לרכב", 2026-10-30/31). ONE AI call then judges the pool.
-  const wordings = live ? [...new Set([alt, ...terms].filter((t) => t && t !== keywords))] : [];
+  // The trusted brands the AI names for the item are searched as "<brand> <item>" too (free): Baseus and Ugreen car chargers
+  // weren't in a pool led by ₪5 no-name ones (2026-11-01).
+  const wordings = live ? [...new Set([alt, ...terms, ...(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`))].filter((t) => t && t !== keywords))] : [];
   const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [{}]))]);
   if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
   if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
@@ -197,6 +203,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const more = inTurn(otherLists, Infinity, new Set(first.map(keyOf)));
   let exact = first.length >= limit ? first : first.concat(more); // demo mode (no AI): the broader search only tops up
   let partial = [];
+  const known = new Set(); // well-known brands, as the title check names them
   if (live) {
     // Every list (the main words' best sellers, page 2, relevance order and category lists; each other wording; the broader
     // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
@@ -209,6 +216,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const none = (o) => !(Array.isArray(o) ? o.length : o.exact.length + o.partial.length);
     if (none(out) && pool.length >= 8 && Date.now() - started < SECOND_CHANCE_BUDGET_MS) out = await judge();
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
+    for (const p of out.brand ?? []) known.add(keyOf(p));
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
     if (alt && exact.length + partial.length < limit && Date.now() - started < SECOND_CHANCE_BUDGET_MS) {
@@ -216,6 +224,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       const fresh = await find(alt, [{}, { sort: "relevance" }, ...inCategory.slice(1)]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
       if (fresh.length) {
         const again = await relevant({ he: context, en: alt, looks, terms: wordings }, fresh.slice(0, RELEVANCE_POOL)).catch(() => ({ exact: [], partial: [] }));
+        for (const p of again.brand ?? []) known.add(keyOf(p));
         exact = exact.concat(again.exact ?? []);
         partial = partial.concat(again.partial ?? []);
       }
@@ -232,13 +241,16 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Suspiciously expensive: over 4× the typical price AND under 10 sold (a ₪4,035 laundry basket, 0 sold, 2026-10-31);
   // a pricey item people do buy stays.
   const overpriced = (p) => median && Number(p.target_sale_price ?? p.sale_price) > median * 4 && Number(p.lastest_volume) < PROVEN_SALES;
-  exact = exact.filter((p) => !suspicious(p) && !overpriced(p));
-  partial = partial.filter((p) => !suspicious(p) && !overpriced(p));
+  const keep = (p) => !suspicious(p) && !overpriced(p) && !offTheme(p.product_title, `${context} ${keywords}`);
+  exact = exact.filter(keep);
+  partial = partial.filter(keep);
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
   // "ergonomic Logitech mouse"). brandOnly is the brand name, or true when unknown.
   const ofBrand = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
   if (brandOnly && exact.length) partial = partial.filter(ofBrand);
-  const tag = (list, match) => list.map((p) => ({ ...p, match })); // the card says so when nothing shown is an exact match
+  const brandTag = (p) => (/official store/i.test(p.shop_name ?? "") ? "official" : known.has(keyOf(p)) ? "known" : null);
+  // match: the card says so when nothing shown is an exact match; brandTag: the card names a trusted brand.
+  const tag = (list, match) => list.map((p) => (brandTag(p) ? { ...p, match, brandTag: brandTag(p) } : { ...p, match }));
   exact = tag(exact, "exact");
   partial = tag(partial, "partial");
   // Proven real matches, then proven close ones, then barely-sold real matches: a 2,775-sold advent calendar the check called
@@ -257,7 +269,17 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // and ₪1,859; the competitor showed both, 2026-10-29). The photo check below still drops identical listings.
   if (ranked.length < limit) ranked = ranked.concat(all.filter((p) => !ranked.includes(p)).slice(0, limit - ranked.length));
   // Photo check on the candidates that can still be shown (2× the need, so removed repeats get refilled).
-  let shown = hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : ranked;
+  let shown = hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : [...ranked];
+  // A card without a trusted-brand item gets the best one from further down, second: 🥇 best seller, 🏷️ brand, 🥈, 🥉.
+  // Before the photo check, so the brand item is looked at too. Style searches keep their own mix (✨).
+  const strongBrand = (p) => p.brandTag && p.match === "exact" && Number(p.lastest_volume) >= BRAND_MIN_SOLD && !(rate(p) < TRUSTED_FEEDBACK);
+  for (let start = 0; !style && !cheapest && start < Math.min(shown.length, limit + extra); start += limit) {
+    if (shown.slice(start, start + limit).some(strongBrand)) continue;
+    const j = shown.findIndex((p, i) => i >= start + limit && strongBrand(p));
+    if (j < 0) break;
+    const [b] = shown.splice(j, 1);
+    shown.splice(start + 1, 0, { ...b, brandSlot: true });
+  }
   // Last look, at the photos of the products about to be shown (a few spare): a title can lie ("kitchen faucet" on a
   // faucet sprayer head, 2026-10-30). A product the photos show isn't the item drops out and the next one moves up.
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
@@ -438,6 +460,7 @@ export function createBot({
         looks: intent?.looks_like ?? null,
         terms: intent?.terms_en ?? [],
         style: intent?.style ?? false,
+        brands: intent?.brands_en ?? [],
         cheapest: CHEAPEST.test(query),
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
@@ -468,7 +491,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], style: intent.style ?? false, cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], style: intent.style ?? false, brands: intent.brands_en ?? [], cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -491,7 +514,7 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], looks = null, style = false, cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], looks = null, style = false, brands = [], cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let found;
@@ -502,7 +525,7 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
@@ -613,7 +636,7 @@ export function createBot({
       // The full understanding of what was chosen (sellers' wordings, the look), as every direct search gets; the advisor's
       // own words stay the main search.
       const more = advice ? await understand(header).catch(() => null) : null;
-      const extra = more?.status === "ok" ? { alt: more.keywords_en, terms: more.terms_en ?? [], looks: more.looks_like ?? null, category: more.category_id ?? null, style: more.style ?? false } : {};
+      const extra = more?.status === "ok" ? { alt: more.keywords_en, terms: more.terms_en ?? [], looks: more.looks_like ?? null, category: more.category_id ?? null, style: more.style ?? false, brands: more.brands_en ?? [] } : {};
       return showResults(ctx, { keywords: session.keywords ?? session.request, fallback: session.broad, header, context, maxPriceIls: session.maxPriceIls, minPriceIls: session.minPriceIls, replyToId: session.replyToId, advice, ...extra });
     });
   }

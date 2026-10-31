@@ -1202,3 +1202,22 @@ test("non-style items keep the usual photo check (4 + 2 spare, no pretty pick)",
   assert.equal(opts.n, 6);
   assert.equal(opts.o, undefined);
 });
+
+test("trusted brands: a card without one gets the best brand item second (🏷️), official stores count; badges on the rating line", async () => {
+  const items = Array.from({ length: 12 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 500), evaluate_rate: "98%" }));
+  items[9] = { ...items[9], product_title: "Baseus car charger 65W" }; // #10, a well-known brand the title check names
+  items[11] = { ...items[11], shop_name: "UGREEN Official Store" }; // #12, an official store
+  items[2] = { ...items[2], shop_id: 1103573332 }; // #3, AliExpress Choice
+  const relevant = async (_r, p) => ({ exact: p, partial: [], brand: p.filter((x) => /Baseus/.test(x.product_title)) });
+  const ctx = setup({ search: async () => items, live: true, relevant });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מטען לרכב"));
+  const msg = ctx.sent()[0];
+  assert.deepEqual(shownIds(msg), ["3", "10", "1", "2"], "Choice (#3, 8,000 sold) edges past 9,000 sold: ≈1.5× the sales");
+  const caption = msg.caption ?? msg.text;
+  assert.deepEqual([...caption.matchAll(/(🥇|🥈|🥉|4️⃣|✨|🏷️) <b>/gu)].map((m) => m[1]), ["🥇", "🏷️", "🥈", "🥉"]);
+  assert.match(caption, /🏷️ מותג מוכר/);
+  assert.match(caption, /98% · ✅ Choice/);
+  const more = await ctx.bot.handleUpdate(callbackUpdate(msg.reply_markup.inline_keyboard.flat().find((b) => /עוד/.test(b.text)).callback_data)).then(() => ctx.sent().at(-1));
+  assert.deepEqual(shownIds(more).slice(0, 2), ["4", "12"], "the next card gets the official store");
+  assert.match(more.caption ?? more.text, /🏷️ חנות רשמית/);
+});
