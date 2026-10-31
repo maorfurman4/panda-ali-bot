@@ -34,6 +34,9 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
   soft fabric band". When the words cover two products (a car freshener or a car air purifier), it describes both. It tells
   the later product check what to accept, so it never excludes what terms_en or alt_en names. null only when there is
   nothing to confuse it with.
+- style = true when shoppers choose this item mainly by how it looks (clothing, bags, shoes, jewelry, watches, hats and
+  scarves, home decor, bedding, curtains); false for things bought for what they do (electronics, tools, chargers, kitchen
+  gadgets), even good-looking ones.
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:
@@ -82,6 +85,7 @@ const SCHEMA = {
     fallback_en: { type: ["string", "null"] },
     looks_like: { type: ["string", "null"] },
     terms_en: { type: "array", items: { type: "string" } },
+    style: { type: "boolean" },
     clarify_question_he: { type: ["string", "null"] },
     options: {
       type: ["array", "null"],
@@ -93,7 +97,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "category_id", "alt_en", "fallback_en", "looks_like", "terms_en", "clarify_question_he", "options"],
+  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "category_id", "alt_en", "fallback_en", "looks_like", "terms_en", "style", "clarify_question_he", "options"],
   additionalProperties: false,
 };
 
@@ -145,6 +149,7 @@ export function validateIntent(o) {
   const seen = new Set([base.keywords_en, base.alt_en].filter(Boolean).map((t) => t.toLowerCase()));
   const terms = (Array.isArray(o.terms_en) ? o.terms_en : []).map((t) => clean(t, 80)).filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, 3);
   if (terms.length) base.terms_en = terms;
+  if (o.style === true) base.style = true;
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
@@ -280,6 +285,8 @@ When the request names the device or brand the item is FOR ("filter for Melitta 
 for Corolla"), it is exact only if the title names that device or brand (or lists it among compatible models); a generic
 or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
+A version made for someone else is partial, not exact: a children's, girls' or baby version when the request isn't for
+kids (flower straw bags for little girls for "תיק קש"), a men's version for a women's request and the reverse.
 A novelty, prank, costume or party version of the item (a mustache or vampire pacifier, a joke mug) is partial, not exact,
 unless the shopper asked for a funny or party one.
 An "Also searched as" line lists the other names and meanings of the same request: a product that IS what one of them names
@@ -309,13 +316,27 @@ const RELEVANCE_SCHEMA = {
   additionalProperties: false,
 };
 
+// Style items (bags, clothes, jewelry, decor): the same photo look also names the prettiest and the plain-looking ones.
+const styleNote = (n) => `
+Shoppers choose this item by its looks, so also judge the photos as a stylish Israeli shopper would:
+- pretty = up to ${n} products, best first, that look the most attractive: well made, current, nicely photographed, the one
+  she would want to own.
+- plain = products that look cheap, dated, flimsy or badly made, or childish when the request isn't for kids.
+Both only from the products you keep (exact or partial).`;
+const STYLE_SCHEMA = {
+  ...RELEVANCE_SCHEMA,
+  properties: { ...RELEVANCE_SCHEMA.properties, pretty: { type: "array", items: { type: "integer" } }, plain: { type: "array", items: { type: "integer" } } },
+  required: ["exact", "partial", "pretty", "plain"],
+};
+
 // Splits products into { exact, partial } matches (API order), dropping spare parts for the item.
 // On an AI failure nothing is called exact: products come back as "partial" (the card then says "no exact match").
 // Only the request text, product titles and (for colors/patterns) product photos are sent.
 export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.env, onUsage = () => {} } = {}) {
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI relevance filter failed (${reason}); showing unchecked results as close matches`);
   // photos: judge from the photos too, not only titles (the final photo check of the products about to be shown).
-  return async function filterRelevant(request, products, { photos = false } = {}) {
+  // pick: also name up to this many prettiest products and the plain-looking ones ({ pretty, plain }, style items only).
+  return async function filterRelevant(request, products, { photos = false, pick = 0 } = {}) {
     if (!products.length || !env.OPENAI_API_KEY) return { exact: products, partial: [] };
     const also = (request.terms ?? []).map((t) => clean(t, 80)).filter(Boolean);
     const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})` + (also.length ? `\nAlso searched as: ${also.join("; ")}` : "") + (request.looks ? `\nLooks like: ${clean(request.looks, 200)}` : "");
@@ -323,7 +344,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_220x220.jpg`, detail: "low" }] : []);
     const titles = [head, ...lines].join("\n");
     const withPhotos = [{ type: "input_text", text: head }, ...products.flatMap((p, i) => [{ type: "input_text", text: lines[i] }, ...photo(p)])];
-    const ask = (content) => requestJson({ fetch, env, model: env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL, instructions: RELEVANCE_SYSTEM, content, name: "relevant_products", schema: RELEVANCE_SCHEMA, onUsage });
+    const ask = (content) => requestJson({ fetch, env, model: env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL, instructions: pick ? RELEVANCE_SYSTEM + styleNote(pick) : RELEVANCE_SYSTEM, content, name: "relevant_products", schema: pick ? STYLE_SCHEMA : RELEVANCE_SCHEMA, onUsage });
     // Spare parts for the item: the model often keeps them, so a deterministic title check drops them too.
     const parts = new Set(products.flatMap((p, i) => (isPartFor(p.product_title, request.he) ? [i] : [])));
     const unchecked = (reason) => (warn(reason), { exact: [], partial: products.filter((_, i) => !parts.has(i)) });
@@ -334,7 +355,10 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
       if (!ints(out?.exact) || !ints(out?.partial)) return unchecked("response failed validation");
       const exact = new Set(out.exact.filter((i) => !parts.has(i)));
       const partial = new Set(out.partial.filter((i) => !exact.has(i) && !parts.has(i)));
-      return { exact: products.filter((_, i) => exact.has(i)), partial: products.filter((_, i) => partial.has(i)) };
+      const result = { exact: products.filter((_, i) => exact.has(i)), partial: products.filter((_, i) => partial.has(i)) };
+      if (!pick) return result;
+      const kept = (a) => (ints(a) ? a.filter((i) => exact.has(i) || partial.has(i)) : []);
+      return { ...result, pretty: [...new Set(kept(out.pretty))].slice(0, pick).map((i) => products[i]), plain: kept(out.plain).map((i) => products[i]) };
     } catch (e) {
       return unchecked(e.message);
     }

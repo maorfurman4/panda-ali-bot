@@ -374,3 +374,19 @@ test("deal picker: the most sold product the AI says is the topic's item, writte
   assert.equal(await createDealPicker({ fetch: openai({}, { status: 500 }).fetch, env: ENV })(products), null);
   assert.equal(await createDealPicker({ fetch: async () => assert.fail("no key"), env: {} })(products), null);
 });
+
+test("style: validateIntent keeps style only when true; the pick asks for pretty and plain, kept items only", async () => {
+  assert.equal(validateIntent({ ...STRICT_OK, style: true }).style, true);
+  assert.equal(validateIntent({ ...STRICT_OK, style: false }).style, undefined);
+  const api = openai({ exact: [0, 1], partial: [2], pretty: [1, 3, 1, 0], plain: [2] });
+  const out = await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "תיק קש", en: "straw bag" }, items, { photos: true, pick: 2 });
+  assert.deepEqual(out.pretty.map((p) => p.product_id), ["1", "0"], "unknown (3) dropped, repeats once, at most 2");
+  assert.deepEqual(out.plain.map((p) => p.product_id), ["2"]);
+  const body = api.requests[0].body;
+  assert.deepEqual(body.text.format.schema.required, ["exact", "partial", "pretty", "plain"]);
+  assert.match(body.instructions, /pretty = up to 2 products/);
+  const plainApi = openai({ exact: [0], partial: [] });
+  const plainOut = await createRelevanceFilter({ fetch: plainApi.fetch, env: ENV })({ he: "מטען", en: "charger" }, items);
+  assert.equal(plainOut.pretty, undefined);
+  assert.doesNotMatch(plainApi.requests[0].body.instructions, /pretty =/);
+});

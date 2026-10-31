@@ -1166,3 +1166,36 @@ test("'הכי זול': the matches are shown cheapest first", async () => {
   const normal = await run("חפש לי מטען", { result: items, live: true });
   assert.notDeepEqual(shownIds(normal.sent()[0]), ["2", "4", "3", "1"], "without 'הכי זול' the usual ranking");
 });
+
+test("style items: best sellers and the prettiest take turns (✨ marked), plain-looking ones go last, 16 photos looked at", async () => {
+  // 20 straw bags by sales; #2 has 92% feedback and the most sales (a fine pick for style), #3 sold only 5 (left out of the style look).
+  const items = Array.from({ length: 20 }, (_, i) => product(i + 1, { lastest_volume: String(i === 2 ? 5 : i === 1 ? 20000 : 9000 - i * 100), evaluate_rate: i === 1 ? "92.4%" : "98.0%" }));
+  let asked;
+  const look = async (_r, p, opts) => {
+    const id = (x) => x.promotion_link.split("_p")[1];
+    asked = { n: p.length, pick: opts?.pick, ids: p.map(id) };
+    const by = (n) => p.find((x) => id(x) === n);
+    return { exact: p, partial: [], pretty: [by("9"), by("1"), by("12")], plain: [by("4")] };
+  };
+  const understand = async () => ({ status: "ok", corrected_he: "תיק קש", keywords_en: "straw bag", max_price_ils: null, style: true });
+  const ctx = setup({ search: async () => items, live: true, look, understand });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי תיק קש"));
+  assert.equal(asked.n, 16);
+  assert.equal(asked.pick, 6, "two per card of 4, for the card and both 'עוד' pages");
+  assert.ok(asked.ids.includes("2") && !asked.ids.includes("3"), "92% feedback is in; 5 sold is out");
+  const caption = ctx.sent()[0].caption ?? ctx.sent()[0].text;
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "9", "1", "12"], "seller, prettiest, seller, next prettiest (#1 is both: once, as a seller)");
+  assert.equal((caption.match(/✨ מהיפים ביותר/g) ?? []).length, 2);
+  const plainOnly = setup({ search: async () => items, live: true, understand, look: async (_r, p) => ({ exact: p, partial: [], pretty: [], plain: [p[0]] }) });
+  await plainOnly.bot.handleUpdate(textUpdate("חפש לי תיק קש"));
+  assert.deepEqual(shownIds(plainOnly.sent()[0]), ["1", "4", "5", "6"], "a plain-looking best seller moves down");
+});
+
+test("non-style items keep the usual photo check (4 + 2 spare, no pretty pick)", async () => {
+  const items = Array.from({ length: 8 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100) }));
+  let opts;
+  const ctx = setup({ search: async () => items, live: true, look: async (_r, p, o) => ((opts = { n: p.length, o }), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מטען"));
+  assert.equal(opts.n, 6);
+  assert.equal(opts.o, undefined);
+});

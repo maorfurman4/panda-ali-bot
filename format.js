@@ -150,6 +150,7 @@ function buildCard(products, query, demo, reasons, closest) {
       "",
       ...[
         `${MEDALS[i]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
+        p.pretty && "✨ מהיפים ביותר בחיפוש",
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
         priceLine(p),
         discountLine(p),

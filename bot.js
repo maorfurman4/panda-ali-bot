@@ -64,6 +64,12 @@ const PROVEN_SALES = 10;
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
 const SECOND_CHANCE_BUDGET_MS = 7000; // a slow AliExpress day: show what was found rather than wait another ~5 s (18-24 s outliers seen)
 const TRUSTED_FEEDBACK = 95;
+// Style items (bags, clothes, jewelry, decor): the card mixes the best sellers with the prettiest. The photo look sees this
+// many matches (the card and both "עוד" pages, with spares), from those with ≥20 sold and ≥90% positive feedback (≈4.5
+// stars): a 92% designer straw bag with 301 sold is a fine pick, not a never-sold one (2026-11-01).
+const STYLE_PHOTOS = 16;
+const STYLE_MIN_SOLD = 20;
+const STYLE_MIN_FEEDBACK = 90;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
 const FOOD_WORDS = /חטיף|ממתק|שוקולד|סוכרי|עוגיות|\bתה\b|קפה טחון|פולי קפה|אוכל|מזון|תבלין|דבש|אגוזים|food|snack|candy|tea\b/i;
 const RESULTS_TTL_MS = 6 * 60 * 60_000; // shortcut: prices may drift a little within 6 h; shorten if that matters
@@ -152,7 +158,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, look = null, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, look = null, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -254,7 +260,30 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Last look, at the photos of the products about to be shown (a few spare): a title can lie ("kitchen faucet" on a
   // faucet sprayer head, 2026-10-30). A product the photos show isn't the item drops out and the next one moves up.
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
-  if (live && look && shown.length) {
+  const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
+  if (styled.length >= limit) {
+    // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
+    const head = styled.slice(0, STYLE_PHOTOS);
+    const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head, { pick: Math.ceil((limit + extra) / 2) }).catch(() => null);
+    const keys = (list) => new Set((list ?? []).map(keyOf));
+    const ok = keys([...(seen?.exact ?? []), ...(seen?.partial ?? [])]), plain = keys(seen?.plain);
+    const kept = head.filter((p) => ok.has(keyOf(p)));
+    if (kept.length) {
+      const byKey = new Map(kept.map((p) => [keyOf(p), p]));
+      const pretty = (seen.pretty ?? []).map((p) => byKey.get(keyOf(p))).filter((p) => p && !plain.has(keyOf(p)));
+      const sellers = kept.filter((p) => !plain.has(keyOf(p)));
+      // Taken in turn; an item already in (a best seller that is also among the prettiest) shows once, and its turn passes
+      // to the next one of the same kind. When one kind runs out, the other fills the card.
+      const mixed = [];
+      const next = (list) => list.find((p) => !mixed.some((m) => keyOf(m) === keyOf(p)));
+      for (let turn = 0; ; turn++) {
+        const list = (turn % 2 ? [pretty, sellers] : [sellers, pretty]).find(next);
+        if (!list) break;
+        mixed.push(list === pretty ? { ...next(list), pretty: true } : next(list));
+      }
+      shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))];
+    }
+  } else if (live && look && shown.length) {
     const head = shown.slice(0, limit + PHOTO_SPARE);
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head).catch(() => null);
     if (seen) {
@@ -290,7 +319,7 @@ export function createBot({
   convert = convertToAffiliate,
   understand = understandQuery,
   relevant = filterRelevant,
-  look = (request, products) => filterRelevant(request, products, { photos: true }),
+  look = (request, products, opts = {}) => filterRelevant(request, products, { photos: true, ...opts }),
   advise = nextAdvice,
   explain = explainFit,
   title = shortTitles,
@@ -405,6 +434,7 @@ export function createBot({
         alt: intent?.alt_en ?? null,
         looks: intent?.looks_like ?? null,
         terms: intent?.terms_en ?? [],
+        style: intent?.style ?? false,
         cheapest: CHEAPEST.test(query),
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
@@ -435,7 +465,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], style: intent.style ?? false, cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -458,7 +488,7 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], looks = null, cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], looks = null, style = false, cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let found;
@@ -469,7 +499,7 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
@@ -580,7 +610,7 @@ export function createBot({
       // The full understanding of what was chosen (sellers' wordings, the look), as every direct search gets; the advisor's
       // own words stay the main search.
       const more = advice ? await understand(header).catch(() => null) : null;
-      const extra = more?.status === "ok" ? { alt: more.keywords_en, terms: more.terms_en ?? [], looks: more.looks_like ?? null, category: more.category_id ?? null } : {};
+      const extra = more?.status === "ok" ? { alt: more.keywords_en, terms: more.terms_en ?? [], looks: more.looks_like ?? null, category: more.category_id ?? null, style: more.style ?? false } : {};
       return showResults(ctx, { keywords: session.keywords ?? session.request, fallback: session.broad, header, context, maxPriceIls: session.maxPriceIls, minPriceIls: session.minPriceIls, replyToId: session.replyToId, advice, ...extra });
     });
   }
