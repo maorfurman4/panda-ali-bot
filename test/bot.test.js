@@ -927,10 +927,10 @@ test("links that aren't AliExpress products: a short help in private (or after a
   assert.equal(words.sent()[0].method, "sendPhoto", "a real request that mentions a site is still searched");
 });
 
-test("private chat: nobody is served, the owner included; an invitation to the group (/myid and the owner's /status still work)", async () => {
-  const owner = setup({ adminId: "5", privateChat: false, healthChecks: async () => [], search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+test("private chat: only the owner is served (to try searches unseen); others get an invitation to the group (/myid still works)", async () => {
+  const owner = setup({ adminId: "5", privateChat: false, healthChecks: async () => [], search: async () => SIX });
   await owner.bot.handleUpdate(textUpdate("חפש לי אוזניות", { chat: "private", userId: 5 }));
-  assert.equal(owner.sent()[0].body, PRIVATE_INVITE, "the owner too");
+  assert.equal(owner.sent()[0].method, "sendPhoto", "the owner gets real results in private");
   await owner.bot.handleUpdate(textUpdate("/status", { chat: "private", userId: 5 }));
   assert.match(owner.sent().at(-1).body, /מצב הבוט/);
   const ctx = setup({ adminId: "1", privateChat: false, search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });

@@ -340,12 +340,13 @@ export function createBot({
 }) {
   const bot = new Bot(token, botInfo ? { botInfo } : {});
   const moderation = createModeration({ now });
-  // The bot lives in OUR group only (owner request). Other groups are ignored completely. In private nobody is served,
-  // the owner included, except /status (owner) and /myid; everyone gets an invitation to the group.
+  // The bot lives in OUR group only (owner request). Other groups are ignored completely. In private only the owner is
+  // served (to try searches without the group seeing, 2026-11-01); everyone else gets /myid and an invitation to the group.
+  const isOwner = (ctx) => Boolean(adminId) && String(ctx.from?.id) === String(adminId);
   bot.use(async (ctx, next) => {
     const type = ctx.chat?.type;
     if (type === "group" || type === "supergroup") return groupId == null || String(ctx.chat.id) === String(groupId) ? next() : undefined;
-    if (type !== "private" || privateChat) return next();
+    if (type !== "private" || privateChat || isOwner(ctx)) return next();
     if (ctx.callbackQuery) return ctx.answerCallbackQuery({ text: PRIVATE_BUTTON });
     if (/^\/(?:myid|status)\b/.test(ctx.message?.text ?? "")) return next();
     if (ctx.message) return reply(ctx, PRIVATE_INVITE, { reply_markup: { inline_keyboard: [[{ text: "🐼 להצטרפות לקבוצה", url: GROUP_LINK }]] } });
