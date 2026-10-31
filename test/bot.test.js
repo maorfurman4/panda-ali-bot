@@ -1115,16 +1115,6 @@ test("🐼 on a card reports the request and what was shown", async () => {
   assert.match(reports[0][1], /לא זה" על: "[^"]+"\nהוצג: .+נמכרו/);
 });
 
-test("a slow extra list doesn't hold up the search; the main list is always awaited", async () => {
-  const slow = new Promise((resolve) => setTimeout(() => resolve([product(9)]), 5000).unref());
-  const search = async (q, o) => (q === "slow wording" ? slow : o.page || o.sort ? [] : SIX);
-  const t = Date.now();
-  const ctx = setup({ search, live: true, relevant: async (_r, p) => ({ exact: p, partial: [] }), understand: async () => intent({ terms_en: ["slow wording"] }) });
-  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
-  assert.ok(Date.now() - t < 4500, `took ${Date.now() - t} ms`);
-  assert.ok(shownIds(ctx.sent()[0]).length >= 1);
-});
-
 test("links are shortened only for the products a card can show (not every search result)", async () => {
   const seen = [];
   const ctx = setup({ search: async (q, o) => (assert.equal(o.shorten, false), SIX), shorten: async (p) => (seen.push(p.length), p) });

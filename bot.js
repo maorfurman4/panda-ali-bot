@@ -58,7 +58,6 @@ const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
-const LIST_WAIT_MS = 3500; // the extra AliExpress lists get this long; the main best-seller list is always awaited
 const RELEVANCE_POOL = 48; // titles only on gpt-5.4: ~$0.008 per check; up to 10 lists (main sorts, other wordings) share it
 const PROVEN_SALES = 10;
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
@@ -163,14 +162,8 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   const inCategory = category ? [{ category }, { category, sort: "relevance" }] : [];
   const LISTS = live ? [{}, { page: 2 }, { sort: "relevance" }, ...inCategory] : [{}];
   // Each list ranked on its own (best sellers first), then lists mixed in turn: every list's top items get in.
-  // waitUntil: a list still running then counts as empty (keepFirst: never the main list), so one slow AliExpress answer
-  // (4.1 s of an otherwise ~6 s search, 2026-10-31) doesn't hold up the reply.
-  const fetchLists = async (q, lists, { waitUntil = null, keepFirst = false } = {}) => {
-    const late = (i) =>
-      waitUntil && !(keepFirst && i === 0)
-        ? new Promise((_, reject) => setTimeout(() => reject(new Error("slow list skipped")), Math.max(0, waitUntil - Date.now())).unref?.())
-        : null;
-    const got = await Promise.allSettled(lists.map((v, i) => Promise.race([search(q, { minIls: minPriceIls, maxIls: maxPriceIls, shorten: false, ...v }), late(i)].filter(Boolean))));
+  const fetchLists = async (q, lists) => {
+    const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls, shorten: false, ...v })));
     if (got.every((r) => r.status === "rejected")) throw got[0].reason;
     return got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []));
   };
@@ -187,8 +180,7 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   // free and in parallel: strong items often hide under another name ("detangling brush" for a comb, "car air freshener"
   // for "מטהר אוויר לרכב", 2026-10-30/31). ONE AI call then judges the pool.
   const wordings = live ? [...new Set([alt, ...terms].filter((t) => t && t !== keywords))] : [];
-  const waitUntil = live ? started + LIST_WAIT_MS : null;
-  const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS, { waitUntil, keepFirst: true }), broader ? fetchLists(fallback, [{}], { waitUntil }) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [{}], { waitUntil }))]);
+  const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [{}]))]);
   if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
   if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
   const mainLists = main.status === "fulfilled" ? main.value : [];
