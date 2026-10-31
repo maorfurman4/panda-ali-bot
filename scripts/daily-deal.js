@@ -19,5 +19,5 @@ if (token && !chatId) {
   chatId = chat.id;
   console.log(`channel found: ${chat.title} (${chatId}); save this id as the DEALS_CHAT_ID secret`);
 }
-const next = await runDeals(state, { api: token ? new Api(token) : null, chatId, force: process.env.DEALS_FORCE === "true" });
+const next = await runDeals(state, { api: token ? new Api(token) : null, chatId, force: process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
 await writeFile(file, JSON.stringify(next));

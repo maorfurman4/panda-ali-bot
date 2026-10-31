@@ -245,3 +245,15 @@ test("specialFor: Thursday's third post is the perfect set", () => {
   assert.deepEqual(specialFor({ hour: 12, wd: 4 }, "normal", null), { set: true });
   assert.equal(specialFor({ hour: 15, wd: 4 }, "normal", null), null);
 });
+
+test("runDeals: a manual run can choose a special post any day", async () => {
+  const d = deps();
+  const searched = [];
+  d.opts.search = async (w, o) => (searched.push([w, o.maxIls]), [item("s1"), item("s2"), item("s3")]);
+  await runDeals({ posted: [] }, { ...d.opts, now: at("2026-11-03T08:05:00Z"), force: true, special: "sun" }); // a Tuesday
+  assert.match(d.sent[0], /💸 מתחת ל-10 ₪/);
+  assert.equal(searched[0][1], 10);
+  const h = deps();
+  await runDeals({ posted: [] }, { ...h.opts, now: at("2026-10-31T08:05:00Z"), force: true, special: "holiday" }); // Hanukkah is 35 days away
+  assert.match(h.sent[0], /🕎 לקראת חנוכה/);
+});

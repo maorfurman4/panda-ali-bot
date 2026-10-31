@@ -66,8 +66,8 @@ const hebrewDate = new Intl.DateTimeFormat("en-u-ca-hebrew", { timeZone: "Asia/J
 const civilDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem", month: "2-digit", day: "2-digit" });
 
 // The nearest holiday from tomorrow to LEAD_DAYS ahead, with the days left, or null.
-export function upcomingHoliday(now = new Date()) {
-  for (let days = 1; days <= LEAD_DAYS; days++) {
+export function upcomingHoliday(now = new Date(), lead = LEAD_DAYS) {
+  for (let days = 1; days <= lead; days++) {
     const d = new Date(now.getTime() + days * 864e5);
     const heb = Object.fromEntries(hebrewDate.formatToParts(d).map((x) => [x.type, x.value]));
     const [month, day] = civilDate.format(d).split("-");
@@ -276,7 +276,8 @@ export async function postSet(state, { api, chatId, search = searchProducts, sho
 // One hourly run: posts only at this kind of day's hours (force: post now). One post a day may be a holiday or series
 // item (specialFor). On sale days every other post comes from
 // AliExpress's sale list (in turn when there are several), falling back to the best sellers; every post gets the banner.
-export async function runDeals(state, { now = new Date(), force = false, names = promoNames, promo = promoProducts, log = console.log, ...deps } = {}) {
+// special: a manual run's choice of post ("set", "sun", "wed", "fri", "holiday"), to see one in the channel any day.
+export async function runDeals(state, { now = new Date(), force = false, special: forced = null, names = promoNames, promo = promoProducts, log = console.log, ...deps } = {}) {
   const t = israelTime(now);
   const sale = activeSale(await names().catch((e) => (log(`sale lists unavailable (${e.message})`), [])), t.md);
   const kind = PEAK_DAYS[t.md] ? "peak" : sale ? "sale" : "normal";
@@ -289,7 +290,12 @@ export async function runDeals(state, { now = new Date(), force = false, names =
   const turn = state.saleTurn ?? 0;
   let next = state;
   // One post a day for the coming holiday and one for the weekly series; if nothing fits, the usual post goes out.
-  const special = specialFor(t, kind, upcomingHoliday(now));
+  const wd = { sun: 0, wed: 3, fri: 5, set: SET_DAY }[forced];
+  const special = forced === "holiday"
+    ? specialFor({ ...t, hour: SCHEDULE[kind].at(-2) }, kind, upcomingHoliday(now, 365))
+    : forced && wd != null
+      ? specialFor({ ...t, wd, hour: SCHEDULE[kind][2] }, kind, null)
+      : specialFor(t, kind, upcomingHoliday(now));
   if (special?.set) {
     next = await postSet(state, { ...deps, log });
     if (next !== state) return { ...next, slot };
