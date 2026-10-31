@@ -46,9 +46,11 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Brands: when the shopper names a brand (Nike, Zara, Dior, Rolex, Xiaomi, Lenovo, Apple…), keep it in keywords_en, as shoppers do on AliExpress ("נייקי אייר מקס" -> "Nike Air Max", "נעליים של UGG" -> "UGG boots", "בושם של דיור" -> "Dior perfume", "שעון רולקס" -> "Rolex watch", "בגדים של זארה" -> "Zara women clothing"). fallback_en = the same item WITHOUT the brand name, always ("Zara men clothing" -> fallback "men casual shirts"; "Dior perfume" -> "women perfume long lasting"), because AliExpress often has few or no items of a big brand. Compatibility brands stay too ("כיסוי לאייפון" -> "iPhone case").
 - status "not_allowed" for products the group bot must not search: weapons (switchblades "סכין קפיצית", brass knuckles "אגרופן", real or replica guns "אקדח", tasers), drugs, medicines and diet pills ("תרופה להרזיה"), vapes and e-cigarettes, sex and adult products, and hidden cameras or trackers meant to secretly watch or follow a person ("מצלמה נסתרת לשירותים").
   Allowed (status "ok"): kitchen and chef knives, folding multitools, toy guns ("אקדח מים" -> "water gun toy", "רובה נרף" -> "foam blaster toy"), security and dash cameras, GPS trackers for keys, bags or cars.
-- Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "חכה לדייג" (a fishing rod), "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
+- Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "חכה לדייג" (a fishing rod), "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product, with one exception: words that commonly
+  name two different products an Israeli could mean ("מטהר אוויר לרכב" is a car scent freshener OR an electric car air
+  purifier). Then status "clarify" with keywords_en "" and a short question whose 2 options are those two products.
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies ("מגפיים לבנות" -> "girls boots kids"); only "לתינוק"/"לתינוקת" means babies.
-- status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"). For a gift, one of the options or questions should be the budget: give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
+- status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית") or for the two-products case above. For a gift, one of the options or questions should be the budget: give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
 - floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "אופניים חשמליים" -> 1200, "כיסא גיימינג" -> 250, "שולחן מחשב" -> 150, "שלט לפלייסטיישן" -> 60, "סלסלה לפיקניק" -> 60, "מיקרוגל" -> 150, "מקרר" -> 400, "מכונת כביסה" -> 500, "מזגן" -> 600, "מכונת קפה" -> 120); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
 - min_price_ils / max_price_ils = numbers only when the request states a shekel range or limit ("עד 50 שקל" -> max 50, "בין 80 ל-150" -> min 80, max 150, "עד 20 דולר" -> max 74), otherwise null.
 - The request may be a whole chat sentence (e.g. "מישהו מכיר מטען טוב לרכב?"): extract only the product into corrected_he/keywords_en.
@@ -201,8 +203,8 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
 
   return async function understand(query) {
     const text = query.normalize("NFC").replace(/\s+/g, " ").trim();
-    // Plain English is already searchable: skip the AI call (saves latency and cost).
-    if (/^[\x20-\x7E]+$/.test(text) && /[a-z]/i.test(text)) return { status: "ok", corrected_he: text, keywords_en: text, max_price_ils: null };
+    // English goes through the AI too (≈0.05¢): skipping it lost the look description, the other wording and the Hebrew
+    // header ("advent calendar gift box" found 3 weak partial matches, 2026-10-31).
 
     const key = text.toLowerCase();
     const hit = cache.get(key);

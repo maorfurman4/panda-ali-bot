@@ -79,14 +79,19 @@ test("fail-open: returns null on missing key, HTTP error, timeout, bad JSON, sch
   for (const w of warnings) assert.doesNotMatch(w, /סוד_123|אושניות|sk-test/);
 });
 
-test("plain English queries skip the AI", async () => {
-  const fetch = async () => assert.fail("English needs no AI call");
-  assert.deepEqual(await createUnderstander({ fetch, env: ENV })(" wireless earbuds "), {
-    status: "ok",
-    corrected_he: "wireless earbuds",
-    keywords_en: "wireless earbuds",
-    max_price_ils: null,
-  });
+test("plain English queries go through the AI too (look description, other wording, Hebrew header)", async () => {
+  const api = openai({ ...STRICT_OK, corrected_he: "לוח אדוונט", keywords_en: "christmas advent calendar box", looks_like: "a box with 24 numbered doors" });
+  const r = await createUnderstander({ fetch: api.fetch, env: ENV })(" advent calendar gift box ");
+  assert.equal(api.requests.length, 1);
+  assert.equal(api.requests[0].body.input[0].content, "advent calendar gift box");
+  assert.equal(r.looks_like, "a box with 24 numbered doors");
+});
+
+test("validateIntent keeps a two-products question (no keywords) instead of searching", () => {
+  const ask = { ...STRICT_OK, status: "clarify", corrected_he: "מטהר אוויר לרכב", keywords_en: "", clarify_question_he: "איזה סוג?", options: [{ label_he: "ריח לרכב", keywords_en: "car air freshener" }, { label_he: "מכשיר טיהור", keywords_en: "car air purifier" }] };
+  const r = validateIntent(ask);
+  assert.equal(r.status, "clarify");
+  assert.equal(r.options.length, 2);
 });
 
 test("cache: two identical (normalized) queries make one AI call; it expires after 24 h", async () => {
