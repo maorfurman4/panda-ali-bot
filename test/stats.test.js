@@ -86,3 +86,23 @@ test("nightly digest: the day's counts and 🐼 searches since the previous dige
   t += 1; stats.count("search");
   assert.doesNotMatch(stats.digest(), /מגפיים לבנות/, "only new 🐼 searches");
 });
+
+test("report: a bad search goes to the owner at once (at most 20 a day) and into the digest", () => {
+  let t = Date.UTC(2026, 9, 31, 10);
+  const sent = [];
+  const stats = createStats({ now: () => t, notify: (m) => sent.push(m) });
+  t += 1; // after the start
+  stats.count("search");
+  stats.report("thumbsDown", '🐼 "לא זה" על: "מסרק"');
+  stats.report("noResults", '😕 בלי תוצאות: "פמוט"');
+  assert.deepEqual(sent, ['🐼 "לא זה" על: "מסרק"', '😕 בלי תוצאות: "פמוט"']);
+  t += 1;
+  const digest = stats.digest();
+  assert.match(digest, /חיפושים שקיבלו 🐼[\s\S]*מסרק/);
+  assert.match(digest, /חיפושים בלי תוצאות:[\s\S]*פמוט/);
+  for (let i = 0; i < 30; i++) stats.report("noResults", `x${i}`);
+  assert.equal(sent.length, 20, "capped at 20 a day");
+  t += 24 * 3600_000;
+  stats.report("noResults", "next day");
+  assert.equal(sent.at(-1), "next day");
+});

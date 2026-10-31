@@ -10,6 +10,8 @@ import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
 import { createUnderstander } from "./query.js";
 import {
+  shortTitle,
+  soldText,
   filterProducts,
   rankProducts,
   dedupeProducts,
@@ -56,6 +58,7 @@ const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
+const LIST_WAIT_MS = 3500; // the extra AliExpress lists get this long; the main best-seller list is always awaited
 const RELEVANCE_POOL = 48; // titles only on gpt-5.4: ~$0.008 per check; up to 10 lists (main sorts, other wordings) share it
 const PROVEN_SALES = 10;
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
@@ -160,8 +163,14 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   const inCategory = category ? [{ category }, { category, sort: "relevance" }] : [];
   const LISTS = live ? [{}, { page: 2 }, { sort: "relevance" }, ...inCategory] : [{}];
   // Each list ranked on its own (best sellers first), then lists mixed in turn: every list's top items get in.
-  const fetchLists = async (q, lists) => {
-    const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls, shorten: false, ...v })));
+  // waitUntil: a list still running then counts as empty (keepFirst: never the main list), so one slow AliExpress answer
+  // (4.1 s of an otherwise ~6 s search, 2026-10-31) doesn't hold up the reply.
+  const fetchLists = async (q, lists, { waitUntil = null, keepFirst = false } = {}) => {
+    const late = (i) =>
+      waitUntil && !(keepFirst && i === 0)
+        ? new Promise((_, reject) => setTimeout(() => reject(new Error("slow list skipped")), Math.max(0, waitUntil - Date.now())).unref?.())
+        : null;
+    const got = await Promise.allSettled(lists.map((v, i) => Promise.race([search(q, { minIls: minPriceIls, maxIls: maxPriceIls, shorten: false, ...v }), late(i)].filter(Boolean))));
     if (got.every((r) => r.status === "rejected")) throw got[0].reason;
     return got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []));
   };
@@ -178,7 +187,8 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   // free and in parallel: strong items often hide under another name ("detangling brush" for a comb, "car air freshener"
   // for "מטהר אוויר לרכב", 2026-10-30/31). ONE AI call then judges the pool.
   const wordings = live ? [...new Set([alt, ...terms].filter((t) => t && t !== keywords))] : [];
-  const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [{}]))]);
+  const waitUntil = live ? started + LIST_WAIT_MS : null;
+  const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS, { waitUntil, keepFirst: true }), broader ? fetchLists(fallback, [{}], { waitUntil }) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [{}], { waitUntil }))]);
   if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
   if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
   const mainLists = main.status === "fulfilled" ? main.value : [];
@@ -464,6 +474,7 @@ export function createBot({
     }
     if (!found.length) {
       stats.count("noResults");
+      stats.report("noResults", `😕 בלי תוצאות: "${header}" (חיפשתי: ${keywords})`);
       const food = FOOD_WORDS.test(`${header} ${keywords}`) && !/מטחנ|כוס|ספל|קופס|grinder|mug|cup|box/i.test(`${header} ${keywords}`);
       return ctx.reply(food ? NO_FOOD : NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
@@ -477,7 +488,9 @@ export function createBot({
     for (const [key, c] of cards) if (now() - c.at > CARD_TTL_MS) cards.delete(key);
     if (cards.size >= CARDS_MAX) cards.delete(cards.keys().next().value);
     const id = (++cardSeq).toString(36);
-    cards.set(id, { userId: requester(ctx), header, replyToId, rest, voters: new Set(), at: now() });
+    // What the card showed, so a 🐼 report says what went wrong, not only what was asked.
+    const shownText = shown.map((p) => `${p.short_he || shortTitle(p.product_title)} (${soldText(p.lastest_volume) ?? 0} נמכרו)`).join(" · ");
+    cards.set(id, { userId: requester(ctx), header, replyToId, rest, voters: new Set(), at: now(), shownText });
     const closest = !shown.some((p) => p.match !== "partial"); // e.g. a brand AliExpress doesn't carry
     const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest });
     const keyboard = [
@@ -654,7 +667,7 @@ export function createBot({
     if (card?.voters.has(ctx.from.id)) return ctx.answerCallbackQuery({ text: VOTED });
     card?.voters.add(ctx.from.id);
     stats.count(vote === "u" ? "thumbsUp" : "thumbsDown");
-    if (vote === "d" && card) stats.remember("thumbsDown", card.header);
+    if (vote === "d" && card) stats.report("thumbsDown", `🐼 "לא זה" על: "${card.header}"\nהוצג: ${card.shownText}`);
     return ctx.answerCallbackQuery({ text: VOTE_THANKS });
   });
   bot.on("callback_query:data", (ctx) => ctx.answerCallbackQuery()); // never leave a button spinning
