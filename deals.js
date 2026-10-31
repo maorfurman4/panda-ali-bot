@@ -197,7 +197,8 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
   const posted = state.posted ?? [];
   const cap = maxIls ? { maxIls } : {};
   for (let step = 1; step <= steps; step++) {
-    const topic = ((state[topicKey] ?? -1) + step) % topics.length;
+    // A series' first post starts where the main rotation is, so it doesn't open with the same topic (earbuds) as the rest.
+    const topic = ((state[topicKey] ?? state.topic ?? -1) + step) % topics.length;
     const [words, category] = topics[topic];
     // With and without the category: the strongest USB-C cable (54,790 sold) is listed outside "Phones" (2026-10-30).
     const [inCategory, anywhere] = await Promise.all([category ? search(words, { category, shorten: false, ...cap }) : Promise.resolve([]), search(words, { shorten: false, ...cap })]);
