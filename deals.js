@@ -22,7 +22,7 @@ export const TOPICS = [
   ["umbrella", 15], ["thermometer", 66], ["cat toy", 15],
 ];
 
-const MIN_FEEDBACK = 95;
+const MIN_FEEDBACK = 93; // ≈4.7 stars; 95 (≈4.8) left out 45% of strong sellers (2026-11-01)
 // The regular search sorted by sales holds the real best sellers: 10x the sales of the "hot products" list (earbuds:
 // top 28,689 vs 3,045, median 10,789 vs 401; checked 2026-10-30), for 7% commission instead of ~8%.
 const MIN_SOLD = 3000; // owner: only the strongest products

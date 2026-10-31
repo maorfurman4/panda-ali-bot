@@ -248,3 +248,9 @@ test("VAT note: items above $75 (≈₪277) pay 18% VAT at checkout; cheaper or 
   assert.equal(vatLine({ sale_price: "300", sale_price_currency: "USD" }), null);
   assert.ok(isPartFor("כיסוי אוניברסלי לכיסא משרדי", "כיסא גיימינג"), "a chair cover isn't a chair (4-letter stem)");
 });
+
+test("dedupe: one store's listings with the same sales count (from 300 sold) are the same product", () => {
+  const p = (id, shop, sold) => ({ product_id: id, product_title: `תיק קש ${id}`, shop_id: shop, lastest_volume: String(sold) });
+  const out = dedupeProducts([p("a", 1, 2835), p("b", 1, 2835), p("c", 2, 2835), p("d", 3, 52), p("e", 3, 52)]).map((x) => x.product_id);
+  assert.deepEqual(out, ["a", "c", "d", "e"], "another store or a small count is not a twin");
+});

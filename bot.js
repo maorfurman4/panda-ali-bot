@@ -63,12 +63,13 @@ const RELEVANCE_POOL = 48; // titles only on gpt-5.4: ~$0.008 per check; up to 1
 const PROVEN_SALES = 10;
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
 const SECOND_CHANCE_BUDGET_MS = 7000; // a slow AliExpress day: show what was found rather than wait another ~5 s (18-24 s outliers seen)
-const TRUSTED_FEEDBACK = 95;
+const TRUSTED_FEEDBACK = 92; // ≈4.6-4.7 stars; 95 (≈4.8) pushed down 45% of strong sellers (1,953 products, 2026-11-01)
 // Style items (bags, clothes, jewelry, decor): the card mixes the best sellers with the prettiest. The photo look sees this
 // many matches (the card and both "עוד" pages, with spares), from those with ≥20 sold and ≥90% positive feedback (≈4.5
-// stars): a 92% designer straw bag with 301 sold is a fine pick, not a never-sold one (2026-11-01).
+// stars): a 92% designer straw bag with 301 sold is a fine pick, not a never-sold one. A ✨ pick with 20 sold was too few
+// to trust (2026-11-01), so 100.
 const STYLE_PHOTOS = 16;
-const STYLE_MIN_SOLD = 20;
+const STYLE_MIN_SOLD = 100;
 const STYLE_MIN_FEEDBACK = 90;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
 const FOOD_WORDS = /חטיף|ממתק|שוקולד|סוכרי|עוגיות|\bתה\b|קפה טחון|פולי קפה|אוכל|מזון|תבלין|דבש|אגוזים|food|snack|candy|tea\b/i;
@@ -220,7 +221,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       }
     }
   }
-  // Trusted products first (≥10 sold and ≥95% positive feedback, the safe bar in buyer guides), so a card isn't led by unknown
+  // Trusted products first (≥10 sold and ≥92% positive feedback, ≈4.6 stars; checked against the site's stars), so a card isn't led by unknown
   // or so-so sellers.
   const rate = (p) => parseFloat(p.evaluate_rate);
   const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && !(rate(p) < TRUSTED_FEEDBACK);

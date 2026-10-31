@@ -38,14 +38,18 @@ export function rankProducts(products) {
   return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
-// The same product from several sellers counts once (the first, i.e. best-ranked, stays). Two keys: brand + model
-// ("BINNUNE BW06", "Lenovo GM2") and the start of the normalized title.
+// The same product from several sellers counts once (the first, i.e. best-ranked, stays). Three keys: brand + model
+// ("BINNUNE BW06", "Lenovo GM2"), the start of the normalized title, and one store's listings with the same sales count
+// (a straw bag listed twice by one store, 2,835 sold each, 2026-11-01). From 300 sold: two different items of one store
+// share a small count (52 and 52 seen).
+const TWIN_MIN_SOLD = 300;
 export function dedupeProducts(products) {
   const seen = new Set();
   return products.filter((p) => {
     const t = cleanTitle(p.product_title).toLowerCase(); // "2025 – מגפי…" and "2026 – מגפי…" are the same product
     const model = t.match(/\b[a-z]{3,}\s+(?:[a-z]+\d|\d+[a-z])[a-z0-9]*\b/)?.[0];
-    const keys = [model && `m:${model}`, `t:${t.replace(/[^\p{L}\p{N}]+/gu, "").slice(0, 24)}`].filter(Boolean);
+    const twin = p.shop_id && Number(p.lastest_volume) >= TWIN_MIN_SOLD && `s:${p.shop_id}:${p.lastest_volume}`;
+    const keys = [model && `m:${model}`, `t:${t.replace(/[^\p{L}\p{N}]+/gu, "").slice(0, 24)}`, twin].filter(Boolean);
     if (keys.some((k) => seen.has(k))) return false;
     keys.forEach((k) => seen.add(k));
     return true;

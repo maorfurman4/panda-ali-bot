@@ -994,11 +994,11 @@ test("help in Hebrew: 'עזרה', 'איך זה עובד?' and the like show the 
   assert.notEqual(chat.sent()[0]?.body, HELP);
 });
 
-test("trusted sellers first: ≥10 sold AND ≥95% positive feedback lead; 90-94% sellers come after", async () => {
-  const items = [product(1, { evaluate_rate: "91%", lastest_volume: "5000" }), product(2, { evaluate_rate: "97%", lastest_volume: "300" }), product(3, { evaluate_rate: "96%", lastest_volume: "200" })];
+test("trusted sellers first: ≥10 sold AND ≥92% positive feedback (≈4.6 stars) lead; 90-91% sellers come after", async () => {
+  const items = [product(1, { evaluate_rate: "91%", lastest_volume: "5000" }), product(2, { evaluate_rate: "97%", lastest_volume: "300" }), product(3, { evaluate_rate: "93%", lastest_volume: "2000" })];
   const ctx = setup({ search: async () => items, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
-  assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "3", "1"]);
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "2", "1"], "a 4.7-star item with 2,000 sold is trusted");
 });
 
 test("suspiciously cheap and barely sold items are dropped; cheap but proven ones stay", async () => {
