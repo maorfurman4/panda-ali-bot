@@ -415,6 +415,14 @@ test("advisor (private): a choice asks the next question in the same message, th
   assert.equal(explained.length, 1);
 });
 
+test("advisor: the chosen request gets the full understanding too (sellers' wordings searched)", async () => {
+  const understand = async (q) => (q.includes("·") ? intent({ keywords_en: "silver pendant necklace", terms_en: ["women silver chain"] }) : CLARIFY);
+  const ctx = await adviceSetup({ understand, live: true, advise: async () => ({ status: "done", keywords_en: "silver necklace", max_price_ils: 150 }) });
+  await press(ctx, ctx.buttons[0]);
+  assert.ok(ctx.spy.queries.includes("silver necklace"), "the advisor's words stay the main search");
+  assert.ok(ctx.spy.queries.includes("women silver chain") && ctx.spy.queries.includes("silver pendant necklace"));
+});
+
 test("advisor: at most 3 questions, then it searches with the last choice's keywords", async () => {
   const ctx = await adviceSetup({ advise: async () => BUDGET });
   await press(ctx, ctx.buttons[0]); // answer 1 -> question 2
@@ -788,12 +796,15 @@ test("the main search failing still shows the broader search's results; both fai
   assert.equal(both.sent()[0].body, SEARCH_ERROR);
 });
 
-test("proven products (≥10 sold) lead the card, then exact ones that sold at least once; never-sold ones only fill in", async () => {
+test("proven exact first, then proven close ones, then exact ones with a few sales; never-sold ones only fill in", async () => {
   const items = [product(1, { lastest_volume: "0" }), product(2, { lastest_volume: "3" }), product(3, { lastest_volume: "500" }), product(4, { lastest_volume: "40" }), product(5, { lastest_volume: "12" })];
   const relevant = async (_r, p) => ({ exact: p.filter((x) => /_p(1|2|3)$/.test(x.promotion_link)), partial: p.filter((x) => /_p(4|5)$/.test(x.promotion_link)) });
   const ctx = setup({ search: async () => items, relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
-  assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "2", "4", "5"], "proven exact, exact with a few sales, then proven partial; the never-sold exact is left out");
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "4", "5", "2"], "proven exact, proven partial, then exact with a few sales; the never-sold exact is left out");
+  const noProvenExact = setup({ search: async () => items, live: true, relevant: async (_r, p) => ({ exact: p.filter((x) => /_p(1|2)$/.test(x.promotion_link)), partial: p.filter((x) => /_p(3|4|5)$/.test(x.promotion_link)) }) });
+  await noProvenExact.bot.handleUpdate(textUpdate("חפש לי משהו"));
+  assert.equal(shownIds(noProvenExact.sent()[0])[0], "2", "no proven exact match: the best one that sold still leads");
 });
 
 test("an AI verdict of 'nothing fits' on a full pool is asked once more; a second empty verdict stands", async () => {
@@ -1129,6 +1140,15 @@ test("photo check: a product whose photo isn't the item drops out and the next o
   const allNo = setup({ search: async () => items, live: true, look: async () => ({ exact: [], partial: [] }) });
   await allNo.bot.handleUpdate(textUpdate("חפש לי ברז"));
   assert.deepEqual(shownIds(allNo.sent()[0]), ["1", "2", "3", "4"], "everything rejected is an odd verdict: keep the list");
+});
+
+test("an overpriced item with under 10 sales is dropped; a pricey one people buy stays", async () => {
+  const p = (n, price, sold) => product(n, { target_sale_price: String(price), lastest_volume: String(sold) });
+  const items = [p(1, 40, 900), p(2, 45, 800), p(3, 50, 700), p(4, 42, 600), p(5, 4000, 0), p(6, 900, 300)];
+  const ctx = setup({ search: async () => items, live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי סל כביסה"));
+  const ids = shownIds(ctx.sent()[0]);
+  assert.ok(!ids.includes("5"), "₪4,000 and never sold");
 });
 
 test("links are shortened only for the products a card can show (not every search result)", async () => {

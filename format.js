@@ -155,7 +155,7 @@ function buildCard(products, query, demo, reasons, closest) {
         discountLine(p),
         vatLine(p),
         ratingText(p),
-        sold && `🛒 נמכרו: ${sold}`,
+        sold ? `🛒 נמכרו: ${sold}` : `${p.lastest_volume}` === "0" && "🆕 עוד לא נקנה", // never-sold come last; the buyer should know (unknown: no line)
         link && `🔗 ${esc(link)}`,
       ].filter(Boolean),
     );

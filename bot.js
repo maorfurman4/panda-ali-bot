@@ -222,8 +222,11 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const prices = [...exact, ...partial].map((p) => Number(p.target_sale_price ?? p.sale_price)).filter((n) => n > 0).sort((a, b) => a - b);
   const median = prices.length >= 4 ? prices[Math.floor(prices.length / 2)] : 0;
   const suspicious = (p) => median && Number(p.target_sale_price ?? p.sale_price) < median / 4 && Number(p.lastest_volume) < 100;
-  exact = exact.filter((p) => !suspicious(p));
-  partial = partial.filter((p) => !suspicious(p));
+  // Suspiciously expensive: over 4× the typical price AND under 10 sold (a ₪4,035 laundry basket, 0 sold, 2026-10-31);
+  // a pricey item people do buy stays.
+  const overpriced = (p) => median && Number(p.target_sale_price ?? p.sale_price) > median * 4 && Number(p.lastest_volume) < PROVEN_SALES;
+  exact = exact.filter((p) => !suspicious(p) && !overpriced(p));
+  partial = partial.filter((p) => !suspicious(p) && !overpriced(p));
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
   // "ergonomic Logitech mouse"). brandOnly is the brand name, or true when unknown.
   const ofBrand = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
@@ -231,10 +234,14 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const tag = (list, match) => list.map((p) => ({ ...p, match })); // the card says so when nothing shown is an exact match
   exact = tag(exact, "exact");
   partial = tag(partial, "partial");
-  // A real match that has sold at least once beats a popular close one (Logitech Lift, 6 sold, before an M750 that only
-  // calls itself ergonomic); never-sold real matches still come after proven close ones.
+  // Proven real matches, then proven close ones, then barely-sold real matches: a 2,775-sold advent calendar the check called
+  // "close" beat ones with 5 sales (2026-10-31). But when no real match is proven, the best one that has sold still leads
+  // (Logitech Lift, 6 sold, before an M750 that only calls itself ergonomic). Never-sold items come last.
   const sold = (p) => Number(p.lastest_volume) >= 1 && !(rate(p) < TRUSTED_FEEDBACK);
-  const tiers = [exact.filter(proven), exact.filter((p) => !proven(p) && sold(p)), partial.filter(proven), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
+  const exactProven = exact.filter(proven);
+  const exactSold = rankProducts(exact.filter((p) => !proven(p) && sold(p)));
+  const lead = exactProven.length ? [] : exactSold.slice(0, 1);
+  const tiers = [exactProven, lead, partial.filter(proven), exactSold.slice(lead.length), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
   const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
   const all = cheapest ? [...byPrice(exact), ...byPrice(partial)] : tiers.flatMap(rankProducts);
@@ -569,9 +576,13 @@ export function createBot({
     if (edit) await ctx.editMessageText(chosenText(header), { parse_mode: "HTML" }).catch(() => {}); // no reply_markup = buttons removed
     const advice = session.history.length ? { request: session.request, history: session.history } : null;
     const context = advice ? `${session.request} (${session.history.map((h) => h.a).join(", ")})` : session.request;
-    return withTyping(ctx, () =>
-      showResults(ctx, { keywords: session.keywords ?? session.request, fallback: session.broad, header, context, maxPriceIls: session.maxPriceIls, minPriceIls: session.minPriceIls, replyToId: session.replyToId, advice }),
-    );
+    return withTyping(ctx, async () => {
+      // The full understanding of what was chosen (sellers' wordings, the look), as every direct search gets; the advisor's
+      // own words stay the main search.
+      const more = advice ? await understand(header).catch(() => null) : null;
+      const extra = more?.status === "ok" ? { alt: more.keywords_en, terms: more.terms_en ?? [], looks: more.looks_like ?? null, category: more.category_id ?? null } : {};
+      return showResults(ctx, { keywords: session.keywords ?? session.request, fallback: session.broad, header, context, maxPriceIls: session.maxPriceIls, minPriceIls: session.minPriceIls, replyToId: session.replyToId, advice, ...extra });
+    });
   }
 
   async function runConvert(ctx, url) {

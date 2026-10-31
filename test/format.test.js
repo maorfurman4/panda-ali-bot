@@ -164,6 +164,11 @@ test("card: missing details drop their own line; ranks 4–5 use keycaps", () =>
   assert.match(five.caption, /5️⃣ /);
 });
 
+test("card: a never-sold item says so", () => {
+  assert.match(formatCard([full(1, { lastest_volume: "0" })], { query: "x" }).caption, /🆕 עוד לא נקנה/);
+  assert.doesNotMatch(formatCard([full(1, { lastest_volume: "40" })], { query: "x" }).caption, /עוד לא נקנה/);
+});
+
 test("caption stays ≤ 1024 parsed chars with the longest realistic titles; extra items are dropped", () => {
   const long = (n) => full(n, { product_title: "ש".repeat(200) + " Xiaomi Redmi " + "ב".repeat(200), target_sale_price: "1234.56", target_original_price: "9999.99" });
   const five = formatCard([1, 2, 3, 4, 5].map(long), { query: "ק".repeat(80), demo: true });
