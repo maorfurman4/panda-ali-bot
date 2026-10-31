@@ -87,11 +87,16 @@ test("plain English queries go through the AI too (look description, other wordi
   assert.equal(r.looks_like, "a box with 24 numbered doors");
 });
 
-test("validateIntent keeps a two-products question (no keywords) instead of searching", () => {
-  const ask = { ...STRICT_OK, status: "clarify", corrected_he: "מטהר אוויר לרכב", keywords_en: "", clarify_question_he: "איזה סוג?", options: [{ label_he: "ריח לרכב", keywords_en: "car air freshener" }, { label_he: "מכשיר טיהור", keywords_en: "car air purifier" }] };
-  const r = validateIntent(ask);
-  assert.equal(r.status, "clarify");
-  assert.equal(r.options.length, 2);
+test("relevance: the other wordings reach the check as 'Also searched as'", async () => {
+  const api = openai({ exact: [0], partial: [] });
+  await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "מטהר אוויר לרכב", en: "car air purifier", terms: ["car air freshener", "car aromatherapy diffuser"] }, [{ product_title: "Car air freshener jar" }]);
+  assert.match(api.requests[0].body.input[0].content, /^Request: "מטהר אוויר לרכב" \(car air purifier\)\nAlso searched as: car air freshener; car aromatherapy diffuser\n0\. /);
+});
+
+test("validateIntent keeps up to 3 more seller wordings, without repeats of the main or other wording", () => {
+  const r = validateIntent({ ...STRICT_OK, keywords_en: "car air purifier", alt_en: "car air cleaner", terms_en: ["car air freshener", "Car Air Purifier", "car aromatherapy diffuser", "car air freshener", "car negative ion purifier", "x5"] });
+  assert.deepEqual(r.terms_en, ["car air freshener", "car aromatherapy diffuser", "car negative ion purifier"]);
+  assert.equal(validateIntent({ ...STRICT_OK, terms_en: [] }).terms_en, undefined);
 });
 
 test("cache: two identical (normalized) queries make one AI call; it expires after 24 h", async () => {

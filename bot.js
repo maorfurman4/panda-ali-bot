@@ -56,7 +56,7 @@ const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
-const RELEVANCE_POOL = 36; // titles only on gpt-5.4: ~$0.006 per check; 3 mixed lists need the extra room
+const RELEVANCE_POOL = 48; // titles only on gpt-5.4: ~$0.008 per check; up to 10 lists (main sorts, other wordings) share it
 const PROVEN_SALES = 10;
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
 const SECOND_CHANCE_BUDGET_MS = 7000; // a slow AliExpress day: show what was found rather than wait another ~5 s (18-24 s outliers seen)
@@ -149,7 +149,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -159,34 +159,40 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   // the 4,026-sold S1 Lite appeared, 2026-10-29), but a wrong category finds nothing (Ruckus): so two extra lists, never the only ones.
   const inCategory = category ? [{ category }, { category, sort: "relevance" }] : [];
   const LISTS = live ? [{}, { page: 2 }, { sort: "relevance" }, ...inCategory] : [{}];
-  const find = async (q, lists) => {
+  // Each list ranked on its own (best sellers first), then lists mixed in turn: every list's top items get in.
+  const fetchLists = async (q, lists) => {
     const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls, shorten: false, ...v })));
     if (got.every((r) => r.status === "rejected")) throw got[0].reason;
-    const ranked = got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []));
-    const seen = new Set(), out = [];
-    for (let i = 0; i < Math.max(...ranked.map((l) => l.length)); i++) {
-      for (const l of ranked) if (l[i] && !seen.has(keyOf(l[i]))) seen.add(keyOf(l[i])) && out.push(l[i]);
+    return got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []));
+  };
+  const inTurn = (ranked, max = Infinity, seen = new Set()) => {
+    const out = [];
+    for (let i = 0; i < Math.max(0, ...ranked.map((l) => l.length)) && out.length < max; i++) {
+      for (const l of ranked) if (l[i] && !seen.has(keyOf(l[i])) && out.length < max) seen.add(keyOf(l[i])) && out.push(l[i]);
     }
     return out;
   };
+  const find = async (q, lists) => inTurn(await fetchLists(q, lists));
   const broader = Boolean(fallback && fallback !== keywords);
-  // Both searches run together and ONE AI call judges both pools: no second check, ~1.5 s less. The AI's other wording
-  // joins the broader pool from the start (free): strong items are often titled another way ("detangling brush" for a comb).
-  const other = live && alt && alt !== keywords;
-  const [main, wide, reworded] = await Promise.allSettled([find(keywords, LISTS), broader ? find(fallback, [{}]) : Promise.resolve([]), other ? find(alt, [{}]) : Promise.resolve([])]);
+  // Every other wording the AI gave (the sellers' names, every common meaning of the words) is searched from the start too,
+  // free and in parallel: strong items often hide under another name ("detangling brush" for a comb, "car air freshener"
+  // for "מטהר אוויר לרכב", 2026-10-30/31). ONE AI call then judges the pool.
+  const wordings = live ? [...new Set([alt, ...terms].filter((t) => t && t !== keywords))] : [];
+  const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [{}]))]);
   if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
   if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
-  const first = main.status === "fulfilled" ? main.value : [];
-  const seen = new Set(first.map(keyOf));
-  const got = (r) => (r.status === "fulfilled" ? r.value : []);
-  const more = [...got(reworded), ...got(wide)].filter((p) => !seen.has(keyOf(p)) && seen.add(keyOf(p)));
+  const mainLists = main.status === "fulfilled" ? main.value : [];
+  const otherLists = [...reworded, wide].flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+  const first = inTurn(mainLists);
+  const more = inTurn(otherLists, Infinity, new Set(first.map(keyOf)));
   let exact = first.length >= limit ? first : first.concat(more); // demo mode (no AI): the broader search only tops up
   let partial = [];
   if (live) {
-    // The main search's mixed lists fill the pool; the broader one gets at least a quarter, or whatever room is left.
-    const fromMore = Math.min(more.length, Math.max(RELEVANCE_POOL - first.length, Math.round(RELEVANCE_POOL / 4)));
-    const pool = first.slice(0, RELEVANCE_POOL - fromMore).concat(more.slice(0, fromMore));
-    const judge = () => relevant({ he: context, en: keywords, looks }, pool).catch(() => ({ exact: [], partial: pool }));
+    // Every list (the main words' best sellers, page 2, relevance order and category lists; each other wording; the broader
+    // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
+    // wordings pushed out the strong gaming headsets, 2026-10-31).
+    const pool = inTurn([...mainLists, ...otherLists], RELEVANCE_POOL);
+    const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();
     // "Nothing fits" on a full pool is often a one-off AI verdict on a vague request ("מתקן להחזקת מסך לרכב": 0 of 36 in the
     // group, 9 fitting holders on a rerun, 2026-10-29), so it is asked once more (≈0.7¢, only on these rare searches).
@@ -199,7 +205,7 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
       const known = new Set([...first, ...more].map(keyOf));
       const fresh = await find(alt, [{}, { sort: "relevance" }, ...inCategory.slice(1)]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
       if (fresh.length) {
-        const again = await relevant({ he: context, en: alt, looks }, fresh.slice(0, RELEVANCE_POOL)).catch(() => ({ exact: [], partial: [] }));
+        const again = await relevant({ he: context, en: alt, looks, terms: wordings }, fresh.slice(0, RELEVANCE_POOL)).catch(() => ({ exact: [], partial: [] }));
         exact = exact.concat(again.exact ?? []);
         partial = partial.concat(again.partial ?? []);
       }
@@ -374,6 +380,7 @@ export function createBot({
         fallback: intent?.fallback_en,
         alt: intent?.alt_en ?? null,
         looks: intent?.looks_like ?? null,
+        terms: intent?.terms_en ?? [],
         cheapest: CHEAPEST.test(query),
         header: intent?.corrected_he || query,
         maxPriceIls: intent?.max_price_ils ?? null,
@@ -404,7 +411,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -427,7 +434,7 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, alt = null, looks = null, cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], looks = null, cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     stats.count("search");
     let found;
@@ -438,7 +445,7 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.

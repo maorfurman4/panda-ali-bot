@@ -503,7 +503,7 @@ test("relevance filter decides which products are shown, using the corrected Heb
   const relevant = async (req, products) => (calls.push(req), products.filter((p) => /model (2|5)/.test(p.product_title)));
   const ctx = setup({ search: async () => SIX, understand: async () => intent({ looks_like: "two small in-ear buds in a case" }), relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אושניות"));
-  assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds", looks: "two small in-ear buds in a case" }]);
+  assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds", looks: "two small in-ear buds in a case", terms: [] }]);
   assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "5"]);
 });
 
@@ -613,11 +613,11 @@ test("too few relevant results -> a second, broader search fills up to 4 (no dup
   assert.equal(shownIds(ctx.sent()[0]).length, 4);
 });
 
-test("enough relevant results -> the early broader search is never AI-checked or shown", async () => {
+test("the broader search runs alongside, in the same single AI check; its weaker item isn't shown when enough are better", async () => {
   const queries = [];
   const checked = [];
   const relevant = async (r, p) => (checked.push(r.en), { exact: p, partial: [] });
-  const ctx = setup({ search: async (q) => (queries.push(q), q === "earphones" ? [product(9)] : SIX), relevant, live: true, understand: async () => intent({ fallback_en: "earphones" }) });
+  const ctx = setup({ search: async (q) => (queries.push(q), q === "earphones" ? [product(9, { lastest_volume: "1" })] : SIX), relevant, live: true, understand: async () => intent({ fallback_en: "earphones" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
   assert.deepEqual([...new Set(queries)], ["wireless earbuds", "earphones"], "both start together (3 lists for the main words)");
   assert.deepEqual(checked, ["wireless earbuds"], "one AI check only");
@@ -648,12 +648,12 @@ test("no-results message no longer claims English works better", () => {
 });
 
 
-test("at most 36 candidates go to the relevance check (keeps it fast)", async () => {
+test("at most 48 candidates go to the relevance check (keeps it fast)", async () => {
   const many = Array.from({ length: 60 }, (_, i) => product(i + 1, { lastest_volume: String(1000 - i) }));
   let sentToAi = 0;
   const ctx = setup({ search: async () => many, relevant: async (_r, p) => ((sentToAi = p.length), p), live: true });
   await ctx.bot.handleUpdate(textUpdate("/search x"));
-  assert.equal(sentToAi, 36);
+  assert.equal(sentToAi, 48);
 });
 
 
@@ -1090,6 +1090,18 @@ test("the AI's other wording is searched from the start and judged in the same s
   checks.length = 0;
   await strong.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
   assert.equal(checks.length, 1, "enough matches: no second check");
+});
+
+test("every seller wording the AI gave is searched at once and judged in the same single check", async () => {
+  const queries = [], checks = [];
+  const byQuery = { "car air purifier": [product(1)], "car air freshener": [product(7), product(8)], "car aromatherapy diffuser": [product(9)] };
+  const search = async (q) => (queries.push(q), byQuery[q] ?? []);
+  const relevant = async (r, p) => (checks.push(r.en), { exact: p, partial: [] });
+  const ctx = setup({ search, relevant, live: true, understand: async () => intent({ keywords_en: "car air purifier", terms_en: ["car air freshener", "car aromatherapy diffuser"] }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מטהר אוויר לרכב"));
+  assert.ok(queries.includes("car air freshener") && queries.includes("car aromatherapy diffuser"));
+  assert.equal(checks.length, 1);
+  assert.deepEqual(shownIds(ctx.sent()[0]).sort(), ["1", "7", "8", "9"]);
 });
 
 test("links are shortened only for the products a card can show (not every search result)", async () => {

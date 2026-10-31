@@ -25,9 +25,15 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות"), keeping every feature the shopper named, negations too ("קשת לשיער לא גומייה" keeps "לא גומייה"), always in Hebrew even when the shopper wrote another language ("auriculares" -> "אוזניות", "чехол для айфона" -> "כיסוי לאייפון"); brand and model names stay as written.
 - Take the home shopper's meaning, the everyday product sold to households, over a commercial or industrial one that
   shares the words ("לוח מחורץ"/"לוח מחורר" -> "pegboard wall organizer", not shop slatwall panels).
+- terms_en = 2-3 more English searches the way AliExpress sellers title this item, each different from keywords_en and
+  alt_en, together covering every common meaning of the words: "מטהר אוויר לרכב" -> ["car air freshener", "car aromatherapy
+  diffuser", "car negative ion air purifier"]; "מסרק לשיער" -> ["detangling hair brush", "wide tooth comb"]. Strong sellers
+  often hide under the other names, and all of them are searched. [] for a brand-and-model request.
 - looks_like = one short English sentence on what the item physically looks like, and what it is NOT (the look-alikes a
   search returns): "קשת לשיער" -> "a rigid C-shaped hoop worn over the top of the head; not an elastic hair tie, scrunchie or
-  soft fabric band". It tells the later product check what to accept. null only when there is nothing to confuse it with.
+  soft fabric band". When the words cover two products (a car freshener or a car air purifier), it describes both. It tells
+  the later product check what to accept, so it never excludes what terms_en or alt_en names. null only when there is
+  nothing to confuse it with.
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:
@@ -46,11 +52,9 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Brands: when the shopper names a brand (Nike, Zara, Dior, Rolex, Xiaomi, Lenovo, Apple…), keep it in keywords_en, as shoppers do on AliExpress ("נייקי אייר מקס" -> "Nike Air Max", "נעליים של UGG" -> "UGG boots", "בושם של דיור" -> "Dior perfume", "שעון רולקס" -> "Rolex watch", "בגדים של זארה" -> "Zara women clothing"). fallback_en = the same item WITHOUT the brand name, always ("Zara men clothing" -> fallback "men casual shirts"; "Dior perfume" -> "women perfume long lasting"), because AliExpress often has few or no items of a big brand. Compatibility brands stay too ("כיסוי לאייפון" -> "iPhone case").
 - status "not_allowed" for products the group bot must not search: weapons (switchblades "סכין קפיצית", brass knuckles "אגרופן", real or replica guns "אקדח", tasers), drugs, medicines and diet pills ("תרופה להרזיה"), vapes and e-cigarettes, sex and adult products, and hidden cameras or trackers meant to secretly watch or follow a person ("מצלמה נסתרת לשירותים").
   Allowed (status "ok"): kitchen and chef knives, folding multitools, toy guns ("אקדח מים" -> "water gun toy", "רובה נרף" -> "foam blaster toy"), security and dash cameras, GPS trackers for keys, bags or cars.
-- Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "חכה לדייג" (a fishing rod), "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product, with one exception: words that commonly
-  name two different products an Israeli could mean ("מטהר אוויר לרכב" is a car scent freshener OR an electric car air
-  purifier). Then status "clarify" with keywords_en "" and a short question whose 2 options are those two products.
+- Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "חכה לדייג" (a fishing rod), "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies ("מגפיים לבנות" -> "girls boots kids"); only "לתינוק"/"לתינוקת" means babies.
-- status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית") or for the two-products case above. For a gift, one of the options or questions should be the budget: give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
+- status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"). For a gift, one of the options or questions should be the budget: give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says. Otherwise set clarify_question_he and options to null.
 - floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "אופניים חשמליים" -> 1200, "כיסא גיימינג" -> 250, "שולחן מחשב" -> 150, "שלט לפלייסטיישן" -> 60, "סלסלה לפיקניק" -> 60, "מיקרוגל" -> 150, "מקרר" -> 400, "מכונת כביסה" -> 500, "מזגן" -> 600, "מכונת קפה" -> 120); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
 - min_price_ils / max_price_ils = numbers only when the request states a shekel range or limit ("עד 50 שקל" -> max 50, "בין 80 ל-150" -> min 80, max 150, "עד 20 דולר" -> max 74), otherwise null.
 - The request may be a whole chat sentence (e.g. "מישהו מכיר מטען טוב לרכב?"): extract only the product into corrected_he/keywords_en.
@@ -77,6 +81,7 @@ const SCHEMA = {
     alt_en: { type: ["string", "null"] },
     fallback_en: { type: ["string", "null"] },
     looks_like: { type: ["string", "null"] },
+    terms_en: { type: "array", items: { type: "string" } },
     clarify_question_he: { type: ["string", "null"] },
     options: {
       type: ["array", "null"],
@@ -88,7 +93,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "category_id", "alt_en", "fallback_en", "looks_like", "clarify_question_he", "options"],
+  required: ["status", "corrected_he", "keywords_en", "min_price_ils", "max_price_ils", "floor_price_ils", "brand", "category_id", "alt_en", "fallback_en", "looks_like", "terms_en", "clarify_question_he", "options"],
   additionalProperties: false,
 };
 
@@ -137,6 +142,9 @@ export function validateIntent(o) {
   if (alt && alt.toLowerCase() !== base.keywords_en.toLowerCase()) base.alt_en = alt;
   const looks = clean(o.looks_like, 200);
   if (looks) base.looks_like = looks;
+  const seen = new Set([base.keywords_en, base.alt_en].filter(Boolean).map((t) => t.toLowerCase()));
+  const terms = (Array.isArray(o.terms_en) ? o.terms_en : []).map((t) => clean(t, 80)).filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, 3);
+  if (terms.length) base.terms_en = terms;
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
@@ -274,6 +282,9 @@ or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 A novelty, prank, costume or party version of the item (a mustache or vampire pacifier, a joke mug) is partial, not exact,
 unless the shopper asked for a funny or party one.
+An "Also searched as" line lists the other names and meanings of the same request: a product that IS what one of them names
+is the requested item (for "מטהר אוויר לרכב" also searched as "car air freshener", a car scent freshener is exact), even
+when the "Looks like" line says otherwise. Features the request names still count.
 A "Looks like" line, when given, defines the item: a product that doesn't look like that, or is one of the things it
 says the item is NOT, is not the item (for a hair headband, elastic hair ties are left out).
 The request is everyday Hebrew: the item type is what an Israeli means by the word ("מסרק לשיער" covers hair combs AND
@@ -303,7 +314,8 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI relevance filter failed (${reason}); showing unchecked results as close matches`);
   return async function filterRelevant(request, products) {
     if (!products.length || !env.OPENAI_API_KEY) return { exact: products, partial: [] };
-    const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})` + (request.looks ? `\nLooks like: ${clean(request.looks, 200)}` : "");
+    const also = (request.terms ?? []).map((t) => clean(t, 80)).filter(Boolean);
+    const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})` + (also.length ? `\nAlso searched as: ${also.join("; ")}` : "") + (request.looks ? `\nLooks like: ${clean(request.looks, 200)}` : "");
     const lines = products.map((p, i) => `${i}. ${clean(p.product_title, 120)}`);
     const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_220x220.jpg`, detail: "low" }] : []);
     const titles = [head, ...lines].join("\n");
