@@ -70,3 +70,21 @@ export function createStats({ now = Date.now, notify = null } = {}) {
 }
 
 export const stats = createStats();
+
+// The money lines of the nightly digest (sent at 02:30, so "yesterday" is the day that just ended, Israel dates):
+// affiliate orders yesterday and this month, and a note once the SKU API is approved. Amounts are USD cents.
+export async function moneyReport({ listOrders, skuApproved, now = Date.now }) {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(now() - 86_400_000);
+  const [orders, sku] = await Promise.all([listOrders(`${day.slice(0, 8)}01 00:00:00`, `${day} 23:59:59`).catch(() => null), skuApproved().catch(() => null)]);
+  const usd = (list, key) => `$${(list.reduce((s, o) => s + Number(key(o) ?? 0), 0) / 100).toFixed(2)}`;
+  const commission = (o) => o.estimated_finished_commission ?? o.estimated_paid_commission;
+  const lines = [];
+  if (!orders) lines.push("💵 לא הצלחתי לבדוק הזמנות הלילה");
+  else {
+    const fresh = orders.filter((o) => String(o.created_time).startsWith(day));
+    lines.push(`💵 הזמנות אתמול: ${fresh.length}${fresh.length ? ` (עמלה צפויה ${usd(fresh, commission)})` : ""}`);
+    lines.push(`📅 החודש: ${orders.length} הזמנות · ${usd(orders, (o) => o.paid_amount)} קניות · עמלה צפויה ${usd(orders, commission)}`);
+  }
+  if (sku) lines.push(`🔓 ה-SKU של עלי אקספרס אושר! אפשר להוסיף "החל מ-₪X" לפוסטים ולתוצאות`);
+  return lines.join("\n");
+}

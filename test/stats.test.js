@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createStats } from "../stats.js";
+import { createStats, moneyReport } from "../stats.js";
 import { setup, textUpdate } from "./helpers.js";
 
 test("stats: counters and last error per kind", () => {
@@ -105,4 +105,23 @@ test("report: a bad search goes to the owner at once (at most 20 a day) and into
   t += 24 * 3600_000;
   stats.report("noResults", "next day");
   assert.equal(sent.at(-1), "next day");
+});
+
+test("moneyReport: yesterday's and this month's orders in dollars, and the SKU note once approved", async () => {
+  const now = () => Date.parse("2026-11-01T00:30:00Z"); // 02:30 Israel on Nov 1: yesterday is Oct 31
+  let range;
+  const listOrders = async (start, end) => {
+    range = [start, end];
+    return [
+      { created_time: "2026-10-21 01:41:11", paid_amount: "1129", estimated_paid_commission: "101" },
+      { created_time: "2026-10-31 20:00:00", paid_amount: "4067", estimated_paid_commission: "284" },
+    ];
+  };
+  const text = await moneyReport({ listOrders, skuApproved: async () => false, now });
+  assert.deepEqual(range, ["2026-10-01 00:00:00", "2026-10-31 23:59:59"]);
+  assert.match(text, /הזמנות אתמול: 1 \(עמלה צפויה \$2\.84\)/);
+  assert.match(text, /החודש: 2 הזמנות · \$51\.96 קניות · עמלה צפויה \$3\.85/);
+  assert.doesNotMatch(text, /SKU/);
+  assert.match(await moneyReport({ listOrders: async () => [], skuApproved: async () => true, now }), /הזמנות אתמול: 0\n.*\n🔓 ה-SKU/);
+  assert.match(await moneyReport({ listOrders: async () => { throw new Error("down"); }, skuApproved: async () => null, now }), /לא הצלחתי לבדוק הזמנות/);
 });

@@ -14,7 +14,7 @@ if (WEBHOOK_URL && !/^[A-Za-z0-9_-]{1,256}$/.test(WEBHOOK_SECRET ?? "")) {
 // Imported after the checks so a missing token always gives the clear message above.
 const { createBot } = await import("./bot.js");
 const { createApp } = await import("./server.js");
-const { isMockMode } = await import("./aliexpress.js");
+const { isMockMode, listOrders, skuApproved } = await import("./aliexpress.js");
 
 if (isMockMode()) {
   console.warn("⚠️ Mock mode: ALI_APP_KEY / ALI_APP_SECRET / ALI_TRACKING_ID are not all set. Replies use [דמו] products and fake links.");
@@ -25,7 +25,7 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 const mode = WEBHOOK_URL ? "webhook" : "polling";
-const { stats } = await import("./stats.js");
+const { stats, moneyReport } = await import("./stats.js");
 const bot = createBot({ token: BOT_TOKEN });
 const app = createApp({ bot, mode, webhookSecret: mode === "webhook" ? WEBHOOK_SECRET : undefined });
 
@@ -53,9 +53,14 @@ if (mode === "webhook") {
   const { isAwakeHour, isDigestTime } = await import("./server.js");
   setInterval(() => {
     if (isAwakeHour()) fetch(`${WEBHOOK_URL.replace(/\/+$/, "")}/health`).catch(() => {});
+    if (!process.env.ADMIN_USER_ID || !isDigestTime()) return;
     // shortcut: the digest covers what's in memory since the last digest or restart; a deploy that day resets it.
-    const text = process.env.ADMIN_USER_ID && isDigestTime() ? stats.digest() : null;
-    if (text) bot.api.sendMessage(process.env.ADMIN_USER_ID, text).catch(() => {});
+    const text = stats.digest();
+    // Orders and SKU come from AliExpress, so they go out even on a night with no searches.
+    (isMockMode() ? Promise.resolve(null) : moneyReport({ listOrders, skuApproved }).catch(() => null)).then((money) => {
+      const msg = [text, money].filter(Boolean).join("\n\n");
+      if (msg) bot.api.sendMessage(process.env.ADMIN_USER_ID, msg).catch(() => {});
+    });
   }, 10 * 60_000).unref();
 } else {
   await bot.api.deleteWebhook().catch((e) => fail("deleteWebhook failed", e));

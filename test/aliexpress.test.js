@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { sign, apiCall, isMockMode, searchProducts, generateAffiliateLink } from "../aliexpress.js";
+import { sign, apiCall, isMockMode, searchProducts, generateAffiliateLink, listOrders, skuApproved } from "../aliexpress.js";
 
 const LIVE_ENV = { ALI_APP_KEY: "123", ALI_APP_SECRET: "s3cret", ALI_TRACKING_ID: "panda_bot" };
 const noSleep = async () => {};
@@ -187,4 +187,25 @@ test("if shortening fails, the original promotion links are kept (search still w
   });
   const products = await searchProducts("earbuds", { fetch, env: LIVE_ENV, sleep: async () => {} });
   assert.equal(products[0].promotion_link, "https://s.click.aliexpress.com/s/long");
+});
+
+test("listOrders asks every live status (one per call), treats 405 as none, and throws on real errors", async () => {
+  const asked = [];
+  const fetch = async (url, init) => {
+    const { status } = Object.fromEntries(new URLSearchParams(init.body));
+    asked.push(status);
+    if (status === "Payment Completed") return json({ resp_result: { resp_code: 200, result: { orders: { order: [{ order_id: 1 }, { order_id: 2 }] } } } });
+    return json({ resp_result: { resp_code: 405, resp_msg: "The result is empty" } });
+  };
+  assert.deepEqual(await listOrders("2026-10-01 00:00:00", "2026-10-31 23:59:59", { fetch, env: LIVE_ENV }), [{ order_id: 1 }, { order_id: 2 }]);
+  assert.deepEqual(asked.sort(), ["Buyer Confirmed Receipt", "Completed Settlement", "Payment Completed"]);
+  const broken = async () => json({ error_response: { code: "IncompleteSignature", msg: "bad" } });
+  await assert.rejects(listOrders("a", "b", { fetch: broken, env: LIVE_ENV, sleep: noSleep }), /IncompleteSignature/);
+});
+
+test("skuApproved: false on InsufficientPermission, true on success, null when the check fails", async () => {
+  const answer = (body) => async () => json(body);
+  assert.equal(await skuApproved({ fetch: answer({ error_response: { code: "InsufficientPermission", msg: "no" } }), env: LIVE_ENV }), false);
+  assert.equal(await skuApproved({ fetch: answer({ resp_result: { resp_code: 200, result: {} } }), env: LIVE_ENV }), true);
+  assert.equal(await skuApproved({ fetch: async () => { throw new Error("network down"); }, env: LIVE_ENV }), null);
 });

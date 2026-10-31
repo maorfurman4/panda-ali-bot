@@ -117,6 +117,33 @@ export async function promoProducts(name, deps = {}) {
   }
 }
 
+// Affiliate orders created between two "YYYY-MM-DD HH:mm:ss" times, on the clock created_time shows (checked live
+// 2026-10-31). The API needs exactly one status per call, so every live status is asked at once.
+// shortcut: first 50 orders per status; add page_no when sales pass that.
+const ORDER_STATUSES = ["Payment Completed", "Buyer Confirmed Receipt", "Completed Settlement"];
+export async function listOrders(start, end, deps = {}) {
+  const lists = await Promise.all(
+    ORDER_STATUSES.map((status) =>
+      apiCall("aliexpress.affiliate.order.list", { start_time: start, end_time: end, status, page_size: "50" }, deps).then(
+        (r) => [].concat(r.orders?.order ?? []),
+        (e) => {
+          if (e.code === "resp_code 405") return []; // "the result is empty"
+          throw e;
+        },
+      ),
+    ),
+  );
+  return lists.flat();
+}
+
+// Whether the SKU Dimension API (per-variant "from ₪X" prices) is approved yet: true / false, null if the check failed.
+// The product is a real one from our first orders; the permission error comes before any product check.
+export const skuApproved = (deps = {}) =>
+  apiCall("aliexpress.affiliate.product.sku.detail.get", { product_id: "1005009775708321", ship_to_country: "IL", target_currency: "ILS", target_language: "HE" }, deps).then(
+    () => true,
+    (e) => (e.code === "InsufficientPermission" ? false : null),
+  );
+
 const itemUrl = (p) => `https://www.aliexpress.com/item/${p.product_id}.html`;
 
 // product.query promotion links are ~1 KB long (risky for Telegram URL buttons): swap them for short
