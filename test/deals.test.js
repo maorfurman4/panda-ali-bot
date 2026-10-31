@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { candidates, formatDeal, postDeal, runDeals, activeSale, saleBanner, israelTime, TOPICS } from "../deals.js";
+import { candidates, formatDeal, postDeal, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS } from "../deals.js";
 
 const item = (id, extra = {}) => ({
   product_id: id,
@@ -91,7 +91,7 @@ const SALE = ["1101-1118 11.11 Sale - Bestsellers", "1101-1118 11.11 Sale - Big 
 const at = (iso) => new Date(iso); // UTC; Israel is UTC+2 in winter
 
 test("israelTime, activeSale and saleBanner: Israel's clock, the dated sale lists, the countdown and the peak day", () => {
-  assert.deepEqual(israelTime(at("2026-11-03T07:30:00Z")), { day: "2026-11-03", md: "11-03", hour: 9 });
+  assert.deepEqual(israelTime(at("2026-11-03T07:30:00Z")), { day: "2026-11-03", md: "11-03", hour: 9, wd: 2 });
   assert.equal(activeSale(SALE, "10-31"), null);
   assert.deepEqual(activeSale(SALE, "11-03"), { label: "11.11", lists: SALE.slice(0, 2) });
   assert.equal(saleBanner(activeSale(SALE, "11-03"), { day: "2026-11-03", md: "11-03" }), "🛍️ מבצעי 11.11 · עוד 8 ימים!");
@@ -148,7 +148,7 @@ test("runDeals: on sale days more hours, every other post from the sale lists in
 
 test("runDeals: a sale list with nothing good falls back to the best sellers; the peak day posts at its extra hours", async () => {
   const d = deps({ sale: SALE, promoEmpty: true });
-  const state = await runDeals({ posted: [] }, { ...d.opts, now: at("2026-11-11T08:05:00Z") }); // 10:00 on 11.11
+  const state = await runDeals({ posted: [] }, { ...d.opts, now: at("2026-11-11T09:05:00Z") }); // 11:00 on 11.11, an extra peak hour
   assert.deepEqual(d.used, [SALE[0], "search"]);
   assert.match(d.sent[0], /🔥 היום זה 11\.11!/);
   assert.equal(state.saleTurn, 1);
@@ -189,4 +189,35 @@ test("postDeal media: the seller's video first, else a collage of 4 of the produ
   const plain = await run(item("a", { lastest_volume: 90000 }));
   assert.deepEqual(plain.map((s) => s[0]), ["photo"]);
   assert.equal(plain[0][2], "https://ae01.alicdn.com/a.jpg", "too few photos for a collage: the main photo");
+});
+
+test("upcomingHoliday: by the Hebrew calendar, from 30 days ahead; back to school by the civil date", () => {
+  assert.equal(upcomingHoliday(at("2026-10-31T10:00:00Z")), null);
+  assert.deepEqual([upcomingHoliday(at("2026-11-06T10:00:00Z")).name, upcomingHoliday(at("2026-11-06T10:00:00Z")).days], ["חנוכה", 29]);
+  assert.equal(upcomingHoliday(at("2027-02-25T10:00:00Z")).name, "פורים", "14 Adar II in a leap year");
+  assert.equal(upcomingHoliday(at("2027-08-10T10:00:00Z")).name, "החזרה ללימודים");
+});
+
+test("specialFor: the holiday item is the day's second-to-last post, the weekly series its third", () => {
+  const holiday = { name: "חנוכה", emoji: "🕎", days: 12, topics: [["hanukkah menorah", null]] };
+  const tue = { hour: 21, wd: 2 };
+  assert.match(specialFor(tue, "normal", holiday).banner, /🕎 לקראת חנוכה · עוד 12 ימים/);
+  assert.equal(specialFor({ hour: 22, wd: 2 }, "peak", holiday).key, "holidayTopic", "peak days: 22:00");
+  assert.equal(specialFor({ hour: 12, wd: 2 }, "normal", holiday), null, "Tuesday has no series");
+  const sunday = specialFor({ hour: 12, wd: 0 }, "normal", null);
+  assert.deepEqual([sunday.banner, sunday.maxIls], ["💸 מתחת ל-10 ₪", 10]);
+  const wed = specialFor({ hour: 11, wd: 3 }, "sale", null);
+  assert.equal(wed.banner, "⚡ גאדג'ט השבוע");
+  assert.ok(wed.topics.every(([, c]) => [44, 509, 7, 6, 39].includes(c)));
+});
+
+test("runDeals: the holiday post walks its own topics with a price floor of its own and the holiday banner", async () => {
+  const d = deps();
+  const searched = [];
+  d.opts.search = async (w, o) => (searched.push([w, o.maxIls]), [item("h1"), item("h2"), item("h3")]);
+  const state = await runDeals({ posted: [] }, { ...d.opts, now: at("2026-11-20T19:05:00Z") }); // Friday 21:00, Hanukkah in 15 days
+  assert.equal(searched[0][0], "hanukkah menorah");
+  assert.match(d.sent[0], /🕎 לקראת חנוכה · עוד 15 ימים/);
+  assert.equal(state.holidayTopic, 0);
+  assert.equal(state.topic, undefined, "the main rotation keeps its place");
 });

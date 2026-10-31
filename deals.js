@@ -27,6 +27,7 @@ const MIN_FEEDBACK = 95;
 // top 28,689 vs 3,045, median 10,789 vs 401; checked 2026-10-30), for 7% commission instead of ~8%.
 const MIN_SOLD = 3000; // owner: only the strongest products
 const MIN_SOLD_SALE = 500; // AliExpress's sale lists sell less (median ~1,300) and are curated by AliExpress itself
+const MIN_SOLD_HOLIDAY = 300; // holiday items (menorahs, costumes) are seasonal and sell less than everyday best sellers
 const TO_AI = 5; // best sellers the AI sees; it takes the first that IS the topic's item (told to pick "appealing", it took #8 of 8)
 export const BUY_LABEL = "🛒 לקנייה בעלי אקספרס";
 const KEEP_POSTED = 500; // product ids remembered so a deal isn't posted twice
@@ -39,11 +40,62 @@ export const PEAK_DAYS = { "11-11": "11.11", "11-27": "בלאק פריידיי",
 
 export function israelTime(now = new Date()) {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", hourCycle: "h23" })
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", hourCycle: "h23", weekday: "short" })
       .formatToParts(now)
       .map((x) => [x.type, x.value]),
   );
-  return { day: `${parts.year}-${parts.month}-${parts.day}`, md: `${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+  const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(parts.weekday);
+  return { day: `${parts.year}-${parts.month}-${parts.day}`, md: `${parts.month}-${parts.day}`, hour: Number(parts.hour), wd };
+}
+
+// Holidays by their Hebrew date (Intl's Hebrew calendar), so the dates never need updating; back to school by the civil
+// date. From LEAD_DAYS before, one post a day is a holiday item (owner: a month ahead, for AliExpress delivery times).
+// shortcut: the holiday topics are a first guess; check their sales like TOPICS when a holiday comes close.
+const LEAD_DAYS = 30;
+export const HOLIDAYS = [
+  { month: /^Kislev$/, day: 25, name: "חנוכה", emoji: "🕎", topics: [["hanukkah menorah", null], ["led candle lights", 39], ["kids board game", 26], ["string lights", 39]] },
+  { month: /^Adar( II)?$/, day: 14, name: "פורים", emoji: "🎭", topics: [["kids costume", 26], ["party mask", 26], ["face paint kids", 66], ["party wig", null]] },
+  { month: /^Nisan$/, day: 15, name: "פסח", emoji: "🍷", topics: [["kitchen storage containers", 15], ["tablecloth", 15], ["cleaning brush set", 15], ["wine glasses", 15]] },
+  { month: /^Sivan$/, day: 6, name: "שבועות", emoji: "🌾", topics: [["flower crown", 200000297], ["picnic blanket", 18], ["cheese board", 15]] },
+  { month: /^Tishri$/, day: 1, name: "ראש השנה", emoji: "🍎", topics: [["honey dish", 15], ["table decoration", 15], ["gift box set", 15]] },
+  { month: /^Tishri$/, day: 15, name: "סוכות", emoji: "🌿", topics: [["string lights", 39], ["hanging decoration", 15], ["camping chair", 18]] },
+  { month: /^Shevat$/, day: 15, name: "ט״ו בשבט", emoji: "🌳", topics: [["plant pot", 15], ["garden tools set", 15], ["seed starter kit", 15]] },
+  { civil: "09-01", name: "החזרה ללימודים", emoji: "🎒", topics: [["school backpack", 1524], ["pencil case", 21], ["lunch box", 15], ["gel pen", 21]] },
+];
+const hebrewDate = new Intl.DateTimeFormat("en-u-ca-hebrew", { timeZone: "Asia/Jerusalem", month: "long", day: "numeric" });
+const civilDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem", month: "2-digit", day: "2-digit" });
+
+// The nearest holiday from tomorrow to LEAD_DAYS ahead, with the days left, or null.
+export function upcomingHoliday(now = new Date()) {
+  for (let days = 1; days <= LEAD_DAYS; days++) {
+    const d = new Date(now.getTime() + days * 864e5);
+    const heb = Object.fromEntries(hebrewDate.formatToParts(d).map((x) => [x.type, x.value]));
+    const [month, day] = civilDate.format(d).split("-");
+    const h = HOLIDAYS.find((x) => (x.civil ? x.civil === `${month}-${day}` : x.month.test(heb.month) && Number(heb.day) === x.day));
+    if (h) return { ...h, days };
+  }
+  return null;
+}
+
+// The weekly series, one post on its day (owner, 2026-10-31): [weekday 0 = Sunday, banner, topic filter, max price].
+const SERIES = [
+  { wd: 0, banner: "💸 מתחת ל-10 ₪", maxIls: 10 },
+  { wd: 3, banner: "⚡ גאדג'ט השבוע", categories: [44, 509, 7, 6, 39] },
+  { wd: 5, banner: "🕯️ לבית לשבת", categories: [15, 13, 39] },
+];
+
+// What one post of the day is: the holiday item (the day's second-to-last post) and the weekly series (its third post).
+export function specialFor(t, kind, holiday) {
+  const hours = SCHEDULE[kind];
+  if (holiday && t.hour === hours.at(-2)) {
+    return { key: "holidayTopic", topics: holiday.topics, minSold: MIN_SOLD_HOLIDAY, banner: `${holiday.emoji} לקראת ${holiday.name} · עוד ${holiday.days} ימים · מזמינים עכשיו שיגיע בזמן` };
+  }
+  const series = SERIES.find((x) => x.wd === t.wd);
+  if (series && t.hour === hours[2]) {
+    const topics = series.categories ? TOPICS.filter(([, c]) => series.categories.includes(c)) : TOPICS;
+    return { key: `series${series.wd}Topic`, topics, maxIls: series.maxIls ?? null, banner: series.banner };
+  }
+  return null;
 }
 
 // AliExpress dates its sale lists in the name: "1101-1118 11.11 Sale - Bestsellers" runs 1 to 18 November.
@@ -128,13 +180,15 @@ async function sendDeal(api, chatId, p, caption, { collage, log }) {
 
 // One post. state = { posted: [product ids], topic: index of the last topic used, ... }; returns the new state, or the
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, banner = null, steps = TOPICS.length, minSold = MIN_SOLD, log = console.log } = {}) {
+// topics/topicKey: a holiday or series post walks its own list with its own place in state; maxIls: a price cap.
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", steps = topics.length, minSold = MIN_SOLD, maxIls = null, log = console.log } = {}) {
   const posted = state.posted ?? [];
+  const cap = maxIls ? { maxIls } : {};
   for (let step = 1; step <= steps; step++) {
-    const topic = ((state.topic ?? -1) + step) % TOPICS.length;
-    const [words, category] = TOPICS[topic];
+    const topic = ((state[topicKey] ?? -1) + step) % topics.length;
+    const [words, category] = topics[topic];
     // With and without the category: the strongest USB-C cable (54,790 sold) is listed outside "Phones" (2026-10-30).
-    const [inCategory, anywhere] = await Promise.all([search(words, { category, shorten: false }), search(words, { shorten: false })]);
+    const [inCategory, anywhere] = await Promise.all([category ? search(words, { category, shorten: false, ...cap }) : Promise.resolve([]), search(words, { shorten: false, ...cap })]);
     let list = candidates([...inCategory, ...anywhere], posted, minSold);
     if (!list.length) {
       log(`no good item for "${words}", trying the next topic`);
@@ -153,13 +207,14 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     if (api) await sendDeal(api, chatId, p, caption, { collage, log });
     else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
-    return { ...state, topic, posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED) };
+    return { ...state, [topicKey]: topic, posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED) };
   }
   log("no topic gave a good item; nothing posted");
   return state;
 }
 
-// One hourly run: posts only at this kind of day's hours (force: post now). On sale days every other post comes from
+// One hourly run: posts only at this kind of day's hours (force: post now). One post a day may be a holiday or series
+// item (specialFor). On sale days every other post comes from
 // AliExpress's sale list (in turn when there are several), falling back to the best sellers; every post gets the banner.
 export async function runDeals(state, { now = new Date(), force = false, names = promoNames, promo = promoProducts, log = console.log, ...deps } = {}) {
   const t = israelTime(now);
@@ -173,6 +228,13 @@ export async function runDeals(state, { now = new Date(), force = false, names =
   const banner = saleBanner(sale, t);
   const turn = state.saleTurn ?? 0;
   let next = state;
+  // One post a day for the coming holiday and one for the weekly series; if nothing fits, the usual post goes out.
+  const special = specialFor(t, kind, upcomingHoliday(now));
+  if (special) {
+    const { key, ...opts } = special;
+    next = await postDeal(state, { ...deps, log, ...opts, topicKey: key });
+    if (next !== state) return { ...next, slot };
+  }
   if (sale && turn % 2 === 0) {
     const list = sale.lists[(turn / 2) % sale.lists.length];
     next = await postDeal(state, { ...deps, log, banner, steps: 3, minSold: MIN_SOLD_SALE, search: (_words, d) => promo(list, d) });
