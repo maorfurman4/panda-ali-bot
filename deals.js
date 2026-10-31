@@ -1,6 +1,8 @@
 // Daily-deals bot: a separate Telegram bot that posts one best-selling AliExpress product to its own channel, a few times a day.
 // It has no server: scripts/daily-deal.js runs it from a scheduled GitHub Action (see .github/workflows/daily-deals.yml).
+import { InputFile } from "grammy";
 import { searchProducts, shortenLinks, promoNames, promoProducts } from "./aliexpress.js";
+import { makeCollage } from "./collage.js";
 import { pickDeal as defaultPick } from "./query.js";
 import { RLM, esc, shortTitle, soldText, priceLine, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK } from "./format.js";
 
@@ -101,9 +103,32 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning } 
   return lines.map((l) => RLM + l).join("\n");
 }
 
+// The seller's video when there is one (about 1 in 10 top sellers, 2026-10-31; owner: a video shows the real thing), else
+// one collage of 4 of the product's own photos (a single photo keeps the caption and the buy button, an album can't), else
+// the main photo, else text. Every step falls back to the next.
+async function sendDeal(api, chatId, p, caption, { collage, log }) {
+  const extra = { caption, parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: BUY_LABEL, url: p.promotion_link }]] } };
+  if (/^https:\/\//.test(p.product_video_url ?? "")) {
+    try {
+      return await api.sendVideo(chatId, p.product_video_url, extra);
+    } catch (e) {
+      log(`video failed (${e.description ?? e.message}), sending photos`);
+    }
+  }
+  const photos = [...new Set([p.product_main_image_url, ...(p.product_small_image_urls?.string ?? [])])].filter((u) => /^https:\/\//.test(u ?? "")).slice(0, 4);
+  const image = photos.length === 4 ? await collage(photos, { badges: false }).catch(() => null) : null;
+  try {
+    return await api.sendPhoto(chatId, image ? new InputFile(image, "panda-deal.jpg") : p.product_main_image_url, extra);
+  } catch (e) {
+    log(`photo failed (${e.description ?? e.message}), sending text`);
+    const { caption: text, ...rest } = extra;
+    return api.sendMessage(chatId, text, { ...rest, link_preview_options: { is_disabled: true } });
+  }
+}
+
 // One post. state = { posted: [product ids], topic: index of the last topic used, ... }; returns the new state, or the
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, banner = null, steps = TOPICS.length, minSold = MIN_SOLD, log = console.log } = {}) {
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, banner = null, steps = TOPICS.length, minSold = MIN_SOLD, log = console.log } = {}) {
   const posted = state.posted ?? [];
   for (let step = 1; step <= steps; step++) {
     const topic = ((state.topic ?? -1) + step) % TOPICS.length;
@@ -123,15 +148,8 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     }
     const [p] = await shorten([list[choice?.i ?? 0]]); // search links are ~1 KB; on failure the long one is kept
     const caption = formatDeal(p, choice ?? {}, banner);
-    if (api) {
-      const extra = { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: BUY_LABEL, url: p.promotion_link }]] } };
-      try {
-        await api.sendPhoto(chatId, p.product_main_image_url, { caption, ...extra });
-      } catch (e) {
-        log(`photo failed (${e.description ?? e.message}), sending text`);
-        await api.sendMessage(chatId, caption, { ...extra, link_preview_options: { is_disabled: true } });
-      }
-    } else log(`[dry run, nothing sent]\n${caption}`);
+    if (api) await sendDeal(api, chatId, p, caption, { collage, log });
+    else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
     return { ...state, topic, posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED) };
   }

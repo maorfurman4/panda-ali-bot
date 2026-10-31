@@ -153,3 +153,31 @@ test("runDeals: a sale list with nothing good falls back to the best sellers; th
   assert.match(d.sent[0], /🔥 היום זה 11\.11!/);
   assert.equal(state.saleTurn, 1);
 });
+
+test("postDeal media: the seller's video first, else a collage of 4 of the product's photos, else the main photo", async () => {
+  const run = async (product, { videoFails = false } = {}) => {
+    const sent = [];
+    const api = {
+      sendVideo: async (...a) => (sent.push(["video", ...a]), videoFails ? Promise.reject(new Error("too big")) : true),
+      sendPhoto: async (...a) => sent.push(["photo", ...a]),
+    };
+    const collage = async (urls, o) => (sent.push(["collage", urls.length, o.badges]), Buffer.from("jpg"));
+    await postDeal({}, { api, chatId: 1, search: async () => [product, item("b"), item("c")], shorten: async (ps) => ps, pick: async () => null, collage, log: () => {} });
+    return sent;
+  };
+  const photos = { string: ["https://ae01.alicdn.com/1.jpg", "https://ae01.alicdn.com/2.jpg", "https://ae01.alicdn.com/3.jpg", "https://ae01.alicdn.com/4.jpg"] };
+  const video = await run(item("a", { product_video_url: "https://video.aliexpress-media.com/a.mp4", lastest_volume: 90000 }));
+  assert.deepEqual(video.map((s) => s[0]), ["video"]);
+  assert.equal(video[0][2], "https://video.aliexpress-media.com/a.mp4");
+  assert.match(video[0][3].caption, /מנורת לילה/);
+  assert.equal(video[0][3].reply_markup.inline_keyboard[0][0].text, "🛒 לקנייה בעלי אקספרס");
+  const collage = await run(item("a", { product_small_image_urls: photos, lastest_volume: 90000 }));
+  assert.deepEqual(collage.map((s) => s[0]), ["collage", "photo"]);
+  assert.deepEqual(collage[0].slice(1), [4, false], "4 photos, no rank badges");
+  assert.equal(collage[1][2].constructor.name, "InputFile");
+  const fallback = await run(item("a", { product_video_url: "https://video.aliexpress-media.com/a.mp4", product_small_image_urls: photos, lastest_volume: 90000 }), { videoFails: true });
+  assert.deepEqual(fallback.map((s) => s[0]), ["video", "collage", "photo"], "a failed video falls back to the collage");
+  const plain = await run(item("a", { lastest_volume: 90000 }));
+  assert.deepEqual(plain.map((s) => s[0]), ["photo"]);
+  assert.equal(plain[0][2], "https://ae01.alicdn.com/a.jpg", "too few photos for a collage: the main photo");
+});

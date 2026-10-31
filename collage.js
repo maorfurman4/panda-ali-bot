@@ -46,7 +46,8 @@ async function loadTile(url, fetch) {
   }
 }
 
-export async function makeCollage(urls, { fetch = globalThis.fetch } = {}) {
+// badges: false for one product's own photos (the deals channel), where rank numbers would mean nothing.
+export async function makeCollage(urls, { fetch = globalThis.fetch, badges = true } = {}) {
   if (!urls.length) return null;
   const tiles = await Promise.all(urls.map((u) => loadTile(u, fetch)));
   if (!tiles.some(Boolean)) return null;
@@ -59,7 +60,7 @@ export async function makeCollage(urls, { fetch = globalThis.fetch } = {}) {
     const left = (cols - 1 - (i % cols)) * TILE;
     const top = Math.floor(i / cols) * TILE;
     if (tile) layers.push({ input: tile, left, top });
-    layers.push({ input: badge(i + 1, BADGE_COLORS[i]), left: left + TILE - 96, top: top + 12 });
+    if (badges) layers.push({ input: badge(i + 1, BADGE_COLORS[i]), left: left + TILE - 96, top: top + 12 });
   });
 
   return sharp({ create: { width: cols * TILE, height: rows * TILE, channels: 3, background: "#ffffff" } })
