@@ -67,7 +67,7 @@ test("postDeal: next topic in turn, the AI's pick, remembers what it posted", as
 test("postDeal: skips a topic whose best sellers aren't its item (the AI says none)", async () => {
   const sent = [];
   const topics = [];
-  const pick = async (_l, words) => (topics.push(words), topics.length === 1 ? { none: true } : null);
+  const pick = async (_l, words) => (topics.push(words), topics.length === 1 ? { none: true } : { i: 0, name: "מנורה", benefits: [] });
   const search = async () => [item("a"), item("b"), item("c")];
   const state = await postDeal({ topic: 0 }, { api: { sendPhoto: async (...a) => sent.push(a) }, chatId: 1, search, shorten: async (ps) => ps, pick, log: () => {} });
   assert.deepEqual(topics, [TOPICS[1][0], TOPICS[2][0]]);
