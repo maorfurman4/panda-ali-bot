@@ -254,3 +254,10 @@ test("dedupe: one store's listings with the same sales count (from 300 sold) are
   const out = dedupeProducts([p("a", 1, 2835), p("b", 1, 2835), p("c", 2, 2835), p("d", 3, 52), p("e", 3, 52)]).map((x) => x.product_id);
   assert.deepEqual(out, ["a", "c", "d", "e"], "another store or a small count is not a twin");
 });
+
+test("isPartFor: for a cushion request, a cushion cover is the item (mostly sold as covers); for a phone, a cover is still a part", () => {
+  assert.equal(isPartFor("כיסוי כרית 45x45cm איכות גבוהה כיסוי כרית דקורטיבי לסלון", "כרית נוי לסלון"), false);
+  assert.equal(isPartFor("ציפית כרית בוהו לבן קרם", "כריות נוי"), false);
+  assert.equal(isPartFor("כיסוי כרית מלבני 30x50", "מטען לרכב"), true, "a cushion cover for another request is still a part-like title");
+  assert.equal(isPartFor("כיסוי סיליקון לאייפון 15", "אייפון 15"), true);
+});

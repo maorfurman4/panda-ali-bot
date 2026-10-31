@@ -63,10 +63,14 @@ const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|repla
 // itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
 const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;
 const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
+// Items mostly sold as their cover: for "כרית נוי" a cushion cover IS the item (45x45 covers were dropped, 2026-11-01).
+const SOLD_AS_COVER = /^(?:כיסוי|כיסויי|ציפית|ציפיות)\s+ל?(כרית|כריות|שמיכ|פוך|דובה)/;
 export function isPartFor(title, request = "") {
   if (PART_REQUEST.test(request)) return false;
   const t = cleanTitle(title);
   if (PART_TITLE.test(t)) return true;
+  const cover = t.replace(BUNDLE_PREFIX, "").match(SOLD_AS_COVER);
+  if (cover && request.includes(cover[1].slice(0, 3))) return false;
   const first = t.replace(BUNDLE_PREFIX, "").split(/[\s,]/)[0];
   return PART_FIRST_WORDS.test(first) && !request.includes(first.slice(0, 4)); // 4 letters: "כיסוי" isn't "כיסא"
 }

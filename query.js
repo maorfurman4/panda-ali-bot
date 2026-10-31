@@ -287,10 +287,15 @@ or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 A version made for someone else is partial, not exact: a children's, girls' or baby version when the request isn't for
 kids (flower straw bags for little girls for "תיק קש"), a men's version for a women's request and the reverse.
-A plush, stuffed-toy or animal-shaped version is a toy, not the item (a stuffed seal, a moon-and-sun plush or a capybara doll
-is not a decorative sofa pillow), unless the request is for a toy or for kids.
-A Christmas, Halloween, Easter or Thanksgiving themed version (pillow covers with pumpkins or Christmas trees) is partial
-for Israeli shoppers unless the request names the holiday.
+A general request gets the tasteful, everyday version a grown-up buys for a home or outfit. Unless the request names it,
+leave out (neither exact nor partial):
+- plush, stuffed-toy or animal-shaped versions (a stuffed seal, a moon-and-sun plush or a capybara doll is a toy, not a
+  decorative sofa pillow), unless the request is for a toy or for kids;
+- Christmas, Halloween, Easter or Thanksgiving themes (pumpkin or Santa pillow covers);
+- cartoon, anime, kawaii, celebrity, brand-logo, joke or meme prints (Pokemon, Michael Jackson, a "swollen battery" or
+  Samsung-label pillow).
+When an item is mostly sold as its cover (decorative pillows as cushion covers, duvets as duvet covers), the cover is the
+item: exact, not an accessory.
 A novelty, prank, costume or party version of the item (a mustache or vampire pacifier, a joke mug) is partial, not exact,
 unless the shopper asked for a funny or party one.
 An "Also searched as" line lists the other names and meanings of the same request: a product that IS what one of them names
