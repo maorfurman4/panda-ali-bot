@@ -154,6 +154,15 @@ test("runDeals: a sale list with nothing good falls back to the best sellers; th
   assert.equal(state.saleTurn, 1);
 });
 
+test("postDeal: a failed AI call is tried once more", async () => {
+  let calls = 0;
+  const pick = async () => (++calls === 1 ? null : { i: 0, name: "מנורה", benefits: ["אור רך"] });
+  const sent = [];
+  await postDeal({}, { api: { sendPhoto: async (...a) => sent.push(a) }, chatId: 1, search: async () => [item("a"), item("b"), item("c")], shorten: async (ps) => ps, pick, log: () => {} });
+  assert.equal(calls, 2);
+  assert.match(sent[0][2].caption, /✅ אור רך/);
+});
+
 test("postDeal media: the seller's video first, else a collage of 4 of the product's photos, else the main photo", async () => {
   const run = async (product, { videoFails = false } = {}) => {
     const sent = [];

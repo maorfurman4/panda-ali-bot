@@ -141,7 +141,9 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
       continue;
     }
     list = list.slice(0, TO_AI);
-    const choice = await pick(list, words);
+    // A failed AI call (null) is tried once more: it timed out once at 30 s, and the post then went out without its text.
+    let choice = await pick(list, words);
+    if (choice === null) choice = await pick(list, words);
     if (choice?.none) {
       log(`none of the best sellers for "${words}" is that item, trying the next topic`); // AliExpress search noise
       continue;
