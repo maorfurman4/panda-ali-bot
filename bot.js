@@ -267,8 +267,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const head = styled.slice(0, STYLE_PHOTOS);
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head, { pick: Math.ceil((limit + extra) / 2) }).catch(() => null);
     const keys = (list) => new Set((list ?? []).map(keyOf));
-    const ok = keys([...(seen?.exact ?? []), ...(seen?.partial ?? [])]), plain = keys(seen?.plain);
-    const kept = head.filter((p) => ok.has(keyOf(p)));
+    const ok = keys([...(seen?.exact ?? []), ...(seen?.partial ?? [])]), plain = keys(seen?.plain), same = keys(seen?.same);
+    // The same item from another listing (one POEDAGAR watch twice, 2026-11-01) is dropped like a photo that isn't the item.
+    const kept = head.filter((p) => ok.has(keyOf(p)) && !same.has(keyOf(p)));
     if (kept.length) {
       const byKey = new Map(kept.map((p) => [keyOf(p), p]));
       const pretty = (seen.pretty ?? []).map((p) => byKey.get(keyOf(p))).filter((p) => p && !plain.has(keyOf(p)));

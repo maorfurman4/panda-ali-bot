@@ -378,15 +378,28 @@ test("deal picker: the most sold product the AI says is the topic's item, writte
 test("style: validateIntent keeps style only when true; the pick asks for pretty and plain, kept items only", async () => {
   assert.equal(validateIntent({ ...STRICT_OK, style: true }).style, true);
   assert.equal(validateIntent({ ...STRICT_OK, style: false }).style, undefined);
-  const api = openai({ exact: [0, 1], partial: [2], pretty: [1, 3, 1, 0], plain: [2] });
+  const api = openai({ exact: [0, 1], partial: [2], pretty: [1, 3, 1, 0], plain: [2], same: [0, 2] });
   const out = await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "תיק קש", en: "straw bag" }, items, { photos: true, pick: 2 });
   assert.deepEqual(out.pretty.map((p) => p.product_id), ["1", "0"], "unknown (3) dropped, repeats once, at most 2");
   assert.deepEqual(out.plain.map((p) => p.product_id), ["2"]);
+  assert.deepEqual(out.same.map((p) => p.product_id), ["2"], "the first product is never a repeat");
   const body = api.requests[0].body;
-  assert.deepEqual(body.text.format.schema.required, ["exact", "partial", "pretty", "plain"]);
+  assert.deepEqual(body.text.format.schema.required, ["exact", "partial", "pretty", "plain", "same"]);
   assert.match(body.instructions, /pretty = up to 2 products/);
   const plainApi = openai({ exact: [0], partial: [] });
   const plainOut = await createRelevanceFilter({ fetch: plainApi.fetch, env: ENV })({ he: "מטען", en: "charger" }, items);
   assert.equal(plainOut.pretty, undefined);
   assert.doesNotMatch(plainApi.requests[0].body.instructions, /pretty =/);
+});
+
+test("honestName: gold under ₪300 is plated, impossible charger watts go; real claims stay", async () => {
+  const { honestName } = await import("../query.js");
+  const at = (price) => ({ target_sale_price: String(price) });
+  assert.equal(honestName("שרשרת זהב 18 קראט", at(5.39)), "שרשרת מצופה זהב");
+  assert.equal(honestName("שרשרת מצופה זהב 18K", at(7)), "שרשרת מצופה זהב");
+  assert.equal(honestName("טבעת זהב 14 קראט", at(900)), "טבעת זהב 14 קראט");
+  assert.equal(honestName("מטען רכב 350W USB C", at(5.96)), "מטען רכב USB C");
+  assert.equal(honestName("מטען רכב 100W QC3.0 PD", at(4.93)), "מטען רכב QC3.0 PD");
+  assert.equal(honestName("מטען רכב Baseus 100W", at(65)), "מטען רכב Baseus 100W");
+  assert.equal(honestName("כבל USB ל-Type C ‏100W", at(9)), "כבל USB ל-Type C ‏100W", "a cable's rating is not a charger's output");
 });

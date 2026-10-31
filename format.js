@@ -153,7 +153,8 @@ function buildCard(products, query, demo, reasons, closest) {
     lines.push(
       "",
       ...[
-        `${MEDALS[i]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
+        // A ✨ pick isn't ranked by sales, so it has no medal; the medals count the best sellers only (🥇 ✨ 🥈 ✨).
+        `${p.pretty ? "✨" : MEDALS[products.slice(0, i).filter((q) => !q.pretty).length]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
         p.pretty && "✨ מהיפים ביותר בחיפוש",
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
         priceLine(p),

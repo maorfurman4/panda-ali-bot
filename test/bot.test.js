@@ -1175,7 +1175,7 @@ test("style items: best sellers and the prettiest take turns (✨ marked), plain
     const id = (x) => x.promotion_link.split("_p")[1];
     asked = { n: p.length, pick: opts?.pick, ids: p.map(id) };
     const by = (n) => p.find((x) => id(x) === n);
-    return { exact: p, partial: [], pretty: [by("9"), by("1"), by("12")], plain: [by("4")] };
+    return { exact: p, partial: [], pretty: [by("9"), by("1"), by("12")], plain: [by("4")], same: [by("5")] };
   };
   const understand = async () => ({ status: "ok", corrected_he: "תיק קש", keywords_en: "straw bag", max_price_ils: null, style: true });
   const ctx = setup({ search: async () => items, live: true, look, understand });
@@ -1186,6 +1186,9 @@ test("style items: best sellers and the prettiest take turns (✨ marked), plain
   const caption = ctx.sent()[0].caption ?? ctx.sent()[0].text;
   assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "9", "1", "12"], "seller, prettiest, seller, next prettiest (#1 is both: once, as a seller)");
   assert.equal((caption.match(/✨ מהיפים ביותר/g) ?? []).length, 2);
+  assert.deepEqual([...caption.matchAll(/(🥇|🥈|🥉|4️⃣|✨) <b>/gu)].map((m) => m[1]), ["🥇", "✨", "🥈", "✨"], "medals count the sellers only");
+  const more = await ctx.bot.handleUpdate(callbackUpdate(ctx.sent()[0].reply_markup.inline_keyboard.flat().find((b) => /עוד/.test(b.text)).callback_data)).then(() => ctx.sent().at(-1));
+  assert.ok(!shownIds(more).includes("5"), "a repeat of an earlier item is dropped");
   const plainOnly = setup({ search: async () => items, live: true, understand, look: async (_r, p) => ({ exact: p, partial: [], pretty: [], plain: [p[0]] }) });
   await plainOnly.bot.handleUpdate(textUpdate("חפש לי תיק קש"));
   assert.deepEqual(shownIds(plainOnly.sent()[0]), ["1", "4", "5", "6"], "a plain-looking best seller moves down");
