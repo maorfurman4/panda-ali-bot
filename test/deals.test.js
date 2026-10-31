@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { candidates, formatDeal, postDeal, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS } from "../deals.js";
+import { candidates, formatDeal, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
 
 const item = (id, extra = {}) => ({
   product_id: id,
@@ -220,4 +220,28 @@ test("runDeals: the holiday post walks its own topics with a price floor of its 
   assert.match(d.sent[0], /🕎 לקראת חנוכה · עוד 15 ימים/);
   assert.equal(state.holidayTopic, 0);
   assert.equal(state.topic, undefined, "the main rotation keeps its place");
+});
+
+test("postSet: the most sold fitting item of each of the set's 3 topics, one collage with badges, a buy button each", async () => {
+  const sent = [];
+  let n = 0;
+  const search = async (w) => [item(`${w}-a`, { lastest_volume: 9000 + ++n, target_sale_price: "10.00" }), item(`${w}-b`), item(`${w}-c`)];
+  const collage = async (urls, o) => (sent.push(["collage", urls.length, o?.badges]), Buffer.from("jpg"));
+  const api = { sendPhoto: async (...a) => sent.push(["photo", ...a]) };
+  const state = await postSet({ posted: [] }, { api, chatId: 1, search, shorten: async (ps) => ps, pick: async (_l, w) => ({ i: 0, name: `שם ${w}` }), collage, log: () => {} });
+  assert.deepEqual(sent[0], ["collage", 3, undefined], "3 photos with the rank badges");
+  const extra = sent[1][3];
+  assert.match(extra.caption, new RegExp(`הסט המושלם: ${SETS[0].name}`));
+  assert.match(extra.caption, /1️⃣[\s\S]*2️⃣[\s\S]*3️⃣/);
+  assert.match(extra.caption, /הכל ביחד: <b>₪30\.00<\/b>/);
+  assert.deepEqual(extra.reply_markup.inline_keyboard[0].map((b) => b.text), ["🛒 1", "🛒 2", "🛒 3"]);
+  assert.equal(state.setIndex, 0);
+  assert.equal(state.posted.length, 3);
+  const none = await postSet({ posted: [] }, { api, chatId: 1, search, shorten: async (ps) => ps, pick: async () => ({ none: true }), collage, log: () => {} });
+  assert.deepEqual(none, { posted: [] }, "a missing item: no set");
+});
+
+test("specialFor: Thursday's third post is the perfect set", () => {
+  assert.deepEqual(specialFor({ hour: 12, wd: 4 }, "normal", null), { set: true });
+  assert.equal(specialFor({ hour: 15, wd: 4 }, "normal", null), null);
 });

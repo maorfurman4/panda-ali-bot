@@ -4,7 +4,7 @@ import { InputFile } from "grammy";
 import { searchProducts, shortenLinks, promoNames, promoProducts } from "./aliexpress.js";
 import { makeCollage } from "./collage.js";
 import { pickDeal as defaultPick } from "./query.js";
-import { RLM, esc, shortTitle, soldText, priceLine, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK } from "./format.js";
+import { RLM, esc, shortTitle, soldText, priceLine, formatPrice, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK } from "./format.js";
 
 // One topic per post, in turn. Every topic was measured on 2026-10-30: the median sales of its top 3 items that pass our
 // filters were at least ~9,000 (weak topics such as building blocks at 3,000 were dropped; 150 topics tested). Each row
@@ -84,12 +84,24 @@ const SERIES = [
   { wd: 5, banner: "🕯️ לבית לשבת", categories: [15, 13, 39] },
 ];
 
+// "The perfect set" on Thursday: three best sellers that go together, in one post (owner, 2026-10-31), in turn.
+export const SETS = [
+  { name: "טעינה", emoji: "⚡", topics: [["fast charger usb c", 509], ["usb c cable", 509], ["car phone holder", 34]] },
+  { name: "מטבח", emoji: "🍳", topics: [["kitchen storage organizer", 15], ["oil sprayer", 15], ["vegetable chopper", 15]] },
+  { name: "לרכב", emoji: "🚗", topics: [["car trunk organizer", 34], ["car air freshener", 34], ["tire inflator", 34]] },
+  { name: "טיפוח", emoji: "💄", topics: [["makeup brush set", 66], ["nail clipper set", 66], ["sleep eye mask", 66]] },
+  { name: "שולחן עבודה", emoji: "💻", topics: [["wireless mouse", 7], ["usb hub", 7], ["micro sd memory card", 7]] },
+  { name: "ספורט ויציאה", emoji: "🏃", topics: [["resistance bands", 18], ["bike light", 18], ["hiking backpack", 1524]] },
+];
+const SET_DAY = 4; // Thursday
+
 // What one post of the day is: the holiday item (the day's second-to-last post) and the weekly series (its third post).
 export function specialFor(t, kind, holiday) {
   const hours = SCHEDULE[kind];
   if (holiday && t.hour === hours.at(-2)) {
     return { key: "holidayTopic", topics: holiday.topics, minSold: MIN_SOLD_HOLIDAY, banner: `${holiday.emoji} לקראת ${holiday.name} · עוד ${holiday.days} ימים · מזמינים עכשיו שיגיע בזמן` };
   }
+  if (t.wd === SET_DAY && t.hour === hours[2]) return { set: true };
   const series = SERIES.find((x) => x.wd === t.wd);
   if (series && t.hour === hours[2]) {
     const topics = series.categories ? TOPICS.filter(([, c]) => series.categories.includes(c)) : TOPICS;
@@ -213,6 +225,53 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
   return state;
 }
 
+// The perfect set: the most sold item of each of the set's three topics that the AI says IS that item, one collage with
+// rank badges, and a buy button for each. Returns the old state (nothing posted) when any of the three is missing.
+export async function postSet(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, log = console.log } = {}) {
+  const index = ((state.setIndex ?? -1) + 1) % SETS.length;
+  const set = SETS[index];
+  const posted = state.posted ?? [];
+  const items = [];
+  for (const [words, category] of set.topics) {
+    const [inCategory, anywhere] = await Promise.all([search(words, { category, shorten: false }), search(words, { shorten: false })]);
+    const list = candidates([...inCategory, ...anywhere], posted).slice(0, TO_AI);
+    let choice = list.length ? await pick(list, words) : { none: true };
+    if (choice === null) choice = await pick(list, words);
+    if (!list.length || choice?.none) return log(`set "${set.name}": nothing good for "${words}", no set today`), state;
+    items.push({ p: list[choice?.i ?? 0], name: choice?.name || shortTitle(list[choice?.i ?? 0].product_title) });
+  }
+  const shortened = await shorten(items.map((x) => x.p));
+  const total = shortened.reduce((sum, p) => sum + Number(p.target_sale_price ?? 0), 0);
+  const lines = [
+    `${set.emoji} <b>הסט המושלם: ${esc(set.name)}</b>`,
+    "3 רבי מכר שעובדים מעולה ביחד 👇",
+    ...shortened.flatMap((p, i) => [
+      "",
+      `${["1️⃣", "2️⃣", "3️⃣"][i]} <b>${esc(items[i].name)}</b>`,
+      [priceLine(p), soldText(p.lastest_volume) && `📦 ${soldText(p.lastest_volume)}`].filter(Boolean).join(" · "),
+      `🛒 <a href="${esc(p.promotion_link)}">לרכישה ←</a>`,
+    ]),
+    "",
+    `💰 הכל ביחד: <b>${esc(formatPrice(total, "ILS"))}</b>`,
+    "",
+    `🔎 <a href="${esc(GROUP_LINK)}">מחפשים משהו אחר? הבוט שלנו ימצא לכם</a>`,
+  ].filter((l) => typeof l === "string");
+  const caption = lines.map((l) => RLM + l).join("\n");
+  const extra = { caption, parse_mode: "HTML", reply_markup: { inline_keyboard: [shortened.map((p, i) => ({ text: `🛒 ${i + 1}`, url: p.promotion_link }))] } };
+  if (api) {
+    const image = await collage(shortened.map((p) => p.product_main_image_url)).catch(() => null);
+    try {
+      await api.sendPhoto(chatId, image ? new InputFile(image, "panda-set.jpg") : shortened[0].product_main_image_url, extra);
+    } catch (e) {
+      log(`set photo failed (${e.description ?? e.message}), sending text`);
+      const { caption: text, ...rest } = extra;
+      await api.sendMessage(chatId, text, { ...rest, link_preview_options: { is_disabled: true } });
+    }
+  } else log(`[dry run, nothing sent]\n${caption}`);
+  log(`posted the set "${set.name}": ${shortened.map((p) => p.product_id).join(", ")}`);
+  return { ...state, setIndex: index, posted: [...posted, ...shortened.map((p) => String(p.product_id))].slice(-KEEP_POSTED) };
+}
+
 // One hourly run: posts only at this kind of day's hours (force: post now). One post a day may be a holiday or series
 // item (specialFor). On sale days every other post comes from
 // AliExpress's sale list (in turn when there are several), falling back to the best sellers; every post gets the banner.
@@ -230,7 +289,10 @@ export async function runDeals(state, { now = new Date(), force = false, names =
   let next = state;
   // One post a day for the coming holiday and one for the weekly series; if nothing fits, the usual post goes out.
   const special = specialFor(t, kind, upcomingHoliday(now));
-  if (special) {
+  if (special?.set) {
+    next = await postSet(state, { ...deps, log });
+    if (next !== state) return { ...next, slot };
+  } else if (special) {
     const { key, ...opts } = special;
     next = await postDeal(state, { ...deps, log, ...opts, topicKey: key });
     if (next !== state) return { ...next, slot };
