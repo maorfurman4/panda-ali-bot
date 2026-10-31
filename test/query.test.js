@@ -93,6 +93,13 @@ test("relevance: the other wordings reach the check as 'Also searched as'", asyn
   assert.match(api.requests[0].body.input[0].content, /^Request: "מטהר אוויר לרכב" \(car air purifier\)\nAlso searched as: car air freshener; car aromatherapy diffuser\n0\. /);
 });
 
+test("relevance with photos: one photo per product goes along, even without a color in the request", async () => {
+  const api = openai({ exact: [0], partial: [] });
+  await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "ברז למטבח", en: "kitchen faucet" }, [{ product_title: "Kitchen faucet", product_main_image_url: "https://ae01.alicdn.com/x.jpg" }], { photos: true });
+  const content = api.requests[0].body.input[0].content;
+  assert.ok(Array.isArray(content) && content.some((c) => c.type === "input_image" && c.image_url.endsWith("x.jpg_220x220.jpg")));
+});
+
 test("validateIntent keeps up to 3 more seller wordings, without repeats of the main or other wording", () => {
   const r = validateIntent({ ...STRICT_OK, keywords_en: "car air purifier", alt_en: "car air cleaner", terms_en: ["car air freshener", "Car Air Purifier", "car aromatherapy diffuser", "car air freshener", "car negative ion purifier", "x5"] });
   assert.deepEqual(r.terms_en, ["car air freshener", "car aromatherapy diffuser", "car negative ion purifier"]);

@@ -312,7 +312,8 @@ const RELEVANCE_SCHEMA = {
 // Only the request text, product titles and (for colors/patterns) product photos are sent.
 export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.env, onUsage = () => {} } = {}) {
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI relevance filter failed (${reason}); showing unchecked results as close matches`);
-  return async function filterRelevant(request, products) {
+  // photos: judge from the photos too, not only titles (the final photo check of the products about to be shown).
+  return async function filterRelevant(request, products, { photos = false } = {}) {
     if (!products.length || !env.OPENAI_API_KEY) return { exact: products, partial: [] };
     const also = (request.terms ?? []).map((t) => clean(t, 80)).filter(Boolean);
     const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})` + (also.length ? `\nAlso searched as: ${also.join("; ")}` : "") + (request.looks ? `\nLooks like: ${clean(request.looks, 200)}` : "");
@@ -326,7 +327,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const unchecked = (reason) => (warn(reason), { exact: [], partial: products.filter((_, i) => !parts.has(i)) });
     try {
       // One retry with titles only: covers an unreachable photo (HTTP 400) and a slow first call after a cold start.
-      const out = await ask(VISUAL_WORDS.test(`${request.he} ${request.en}`) ? withPhotos : titles).catch(() => ask(titles));
+      const out = await ask(photos || VISUAL_WORDS.test(`${request.he} ${request.en}`) ? withPhotos : titles).catch(() => ask(titles));
       const ints = (a) => Array.isArray(a) && a.every(Number.isInteger);
       if (!ints(out?.exact) || !ints(out?.partial)) return unchecked("response failed validation");
       const exact = new Set(out.exact.filter((i) => !parts.has(i)));

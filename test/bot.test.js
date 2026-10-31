@@ -1115,6 +1115,22 @@ test("🐼 on a card reports the request and what was shown", async () => {
   assert.match(reports[0][1], /לא זה" על: "[^"]+"\nהוצג: .+נמכרו/);
 });
 
+test("photo check: a product whose photo isn't the item drops out and the next one moves up; no answer keeps the list", async () => {
+  const items = Array.from({ length: 8 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100) }));
+  const looked = [];
+  const look = async (_r, p) => (looked.push(p.length), { exact: p.filter((x) => !x.promotion_link.endsWith("_p2")), partial: [] });
+  const ctx = setup({ search: async () => items, live: true, look });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי ברז"));
+  assert.equal(looked[0], 6, "the 4 to show and 2 spare");
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "3", "4", "5"]);
+  const failed = setup({ search: async () => items, live: true, look: async () => null });
+  await failed.bot.handleUpdate(textUpdate("חפש לי ברז"));
+  assert.deepEqual(shownIds(failed.sent()[0]), ["1", "2", "3", "4"]);
+  const allNo = setup({ search: async () => items, live: true, look: async () => ({ exact: [], partial: [] }) });
+  await allNo.bot.handleUpdate(textUpdate("חפש לי ברז"));
+  assert.deepEqual(shownIds(allNo.sent()[0]), ["1", "2", "3", "4"], "everything rejected is an odd verdict: keep the list");
+});
+
 test("links are shortened only for the products a card can show (not every search result)", async () => {
   const seen = [];
   const ctx = setup({ search: async (q, o) => (assert.equal(o.shorten, false), SIX), shorten: async (p) => (seen.push(p.length), p) });

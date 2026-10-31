@@ -58,6 +58,7 @@ const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
+const PHOTO_SPARE = 2; // the photo check sees the products to show plus this many, so a dropped one is replaced
 const RELEVANCE_POOL = 48; // titles only on gpt-5.4: ~$0.008 per check; up to 10 lists (main sorts, other wordings) share it
 const PROVEN_SALES = 10;
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
@@ -151,7 +152,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, look = null, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -242,7 +243,20 @@ export async function pickProducts({ search, relevant, live, hash = null }, { ke
   // and ₪1,859; the competitor showed both, 2026-10-29). The photo check below still drops identical listings.
   if (ranked.length < limit) ranked = ranked.concat(all.filter((p) => !ranked.includes(p)).slice(0, limit - ranked.length));
   // Photo check on the candidates that can still be shown (2× the need, so removed repeats get refilled).
-  return (hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : ranked).slice(0, limit + extra);
+  let shown = hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : ranked;
+  // Last look, at the photos of the products about to be shown (a few spare): a title can lie ("kitchen faucet" on a
+  // faucet sprayer head, 2026-10-30). A product the photos show isn't the item drops out and the next one moves up.
+  // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
+  if (live && look && shown.length) {
+    const head = shown.slice(0, limit + PHOTO_SPARE);
+    const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head).catch(() => null);
+    if (seen) {
+      const ok = new Set((Array.isArray(seen) ? seen : [...(seen.exact ?? []), ...(seen.partial ?? [])]).map(keyOf));
+      const kept = head.filter((p) => ok.has(keyOf(p)));
+      if (kept.length) shown = [...kept, ...shown.slice(head.length)];
+    }
+  }
+  return shown.slice(0, limit + extra);
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.
@@ -269,6 +283,7 @@ export function createBot({
   convert = convertToAffiliate,
   understand = understandQuery,
   relevant = filterRelevant,
+  look = (request, products) => filterRelevant(request, products, { photos: true }),
   advise = nextAdvice,
   explain = explainFit,
   title = shortTitles,
@@ -447,7 +462,7 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
