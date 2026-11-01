@@ -281,9 +281,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const tiers = [exactProven, lead, near.filter(proven), partial.filter(proven), exactSold.slice(lead.length), near.filter((p) => !proven(p)), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
   const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
-  // proven: the standing many reviews can't lift a product past (reviewedFirst): real matches proven by sales (or leading),
-  // proven close ones.
-  const standing = (n) => (n <= 2 ? "real" : n === 3 ? "close" : null);
+  // proven: the standing by sales, for products without many reviews (reviewedFirst): real matches proven by sales, proven
+  // close ones. The barely-sold lead isn't proven: with reviews read, a 13-sold 4-review dress led a 291-sold one (2026-11-01).
+  const standing = (n) => (n === 0 || n === 2 ? "real" : n === 3 ? "close" : null);
   const all = cheapest ? [...byPrice(exact), ...byPrice(near), ...byPrice(partial)] : tiers.flatMap((t, n) => rankProducts(t).map((p) => (standing(n) ? { ...p, proven: standing(n) } : p)));
   let ranked = dedupeProducts(all);
   // Few results: the same model from another seller is still a choice, usually at another price (Ruckus R350 at ₪1,179

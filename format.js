@@ -44,17 +44,17 @@ export function rankProducts(products) {
   return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
-// Many reviews with good stars first: what people really buy, above all in fashion and design (owner, 2026-11-01: a
-// 4.9 with 5 reviews led a black dress card). It lifts a product within its standing, never over it: well-reviewed real
-// matches, proven real ones (proven: "real", by sales), well-reviewed close ones, proven close ones (proven: "close"),
-// then the rest as they were; a 7-sold exact dress passed a 1,128-sold close one when grade alone counted (2026-11-01).
-// When the review lookup failed (no counts at all) the order stays.
+// Many reviews with good stars are the proof of a good product: a high rating from a handful of reviews can be the seller's
+// own, and sales can be bought (owner, 2026-11-01: a 4.9 with 5 reviews, 150 sold, the least fitting dress, led a card of
+// 146-351-review ones). So well-reviewed real matches, then well-reviewed close ones, and only then the rest by their old
+// standing: proven by sales (proven: "real"/"close", set in pickProducts), then the others; a 7-sold exact dress must not
+// pass a 1,128-sold close one either. When the review lookup failed (no counts at all) the order stays.
 const WELL_REVIEWED = 20;
 const GOOD_STARS = 4.5;
 export function reviewedFirst(products) {
   if (!products.some((p) => p.reviewCount)) return products;
   const good = (p) => p.reviewCount >= WELL_REVIEWED && p.avgStars >= GOOD_STARS;
-  const group = (p) => (good(p) && p.match !== "partial" ? 0 : p.proven === "real" ? 1 : good(p) ? 2 : p.proven === "close" ? 3 : 4);
+  const group = (p) => (good(p) ? (p.match === "partial" ? 1 : 0) : p.proven === "real" ? 2 : p.proven === "close" ? 3 : 4);
   return products.map((p, i) => ({ p, i, g: group(p) })).sort((a, b) => a.g - b.g || a.i - b.i).map((x) => x.p);
 }
 
