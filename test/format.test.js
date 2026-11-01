@@ -291,3 +291,20 @@ test("specialKind: gaming, shower, hydroponic, keffiyeh, Tesla-only are special 
   assert.equal(specialKind("רמקול למקלחת עמיד במים", "רמקול בלוטוס"), true);
   assert.equal(specialKind("UGREEN עכבר אלחוטי ארגונומי שקט", "עכבר אלחוטי"), false);
 });
+
+test("specialKind and fakeLuxury: cycling, camping, tamagoyaki, citronella, DIY, party, whiskey, 'מקלדת משחקים'; luxury fakes", async () => {
+  const { specialKind, fakeLuxury } = await import("../format.js");
+  for (const [t, r] of [["בקבוק מים לאופניים ROCKBROS", "בקבוק מים"], ["מחבת קמפינג Naturehike מתקפלת", "מחבת"], ["מחבת אומלט יפנית Tamagoyaki", "מחבת"],
+    ["נר ריחני דוחה יתושים ציטרונלה", "נר ריחני"], ["שעון תלת מימד יצירתי עשה זאת בעצמך", "שעון קיר"], ["כיסויי שולחן מפלסטיק לקישוט חתונה יומולדת", "מפת שולחן"],
+    ["כוס ויסקי 280ml קריסטל", "כוס"], ["מקלדת משחקים RGB", "מקלדת"], ["מקלדת מכאנית למשחקים AULA S75", "מקלדת"]]) assert.equal(specialKind(t, r), true, t);
+  assert.equal(specialKind("בקבוק מים לאופניים", "בקבוק לאופניים"), false);
+  assert.equal(specialKind("מחבת טיגון נון סטיק 28 ס\"מ", "מחבת"), false);
+  assert.equal(fakeLuxury("נרות דיפיקס מוגבלים רומנטיים", "נר ריחני"), true);
+  assert.equal(fakeLuxury("Dior perfume", "בושם של דיור"), false, "a named brand is the shopper's choice");
+});
+
+test("specialKind: a bath towel is not a 'shower' special; a shower speaker is", async () => {
+  const { specialKind } = await import("../format.js");
+  assert.equal(specialKind("סט מגבות מכותנה רכה, אביזרי אמבטיה", "מגבת"), false);
+  assert.equal(specialKind("רמקול בלוטות' מיני לאמבטיה עמיד במים", "רמקול בלוטוס"), true);
+});

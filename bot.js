@@ -52,6 +52,7 @@ import {
   ADVICE_EMPTY,
   offTheme,
   specialKind,
+  fakeLuxury,
   modelKey,
   varied,
 } from "./format.js";
@@ -217,7 +218,12 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // "Nothing fits" on a full pool is often a one-off AI verdict on a vague request ("מתקן להחזקת מסך לרכב": 0 of 36 in the
     // group, 9 fitting holders on a rerun, 2026-10-29), so it is asked once more (≈0.7¢, only on these rare searches).
     const none = (o) => !(Array.isArray(o) ? o.length : o.exact.length + o.partial.length);
-    if (none(out) && pool.length >= 8 && Date.now() - started < SECOND_CHANCE_BUDGET_MS) out = await judge();
+    // Same for "nothing exact": towels came back all "close" once and all fine on a rerun (2026-11-01).
+    const noExact = (o) => !Array.isArray(o) && !o.exact.length && o.partial.length >= limit;
+    if ((none(out) || noExact(out)) && pool.length >= 8 && Date.now() - started < SECOND_CHANCE_BUDGET_MS) {
+      const again = await judge();
+      if (!none(again) && !(noExact(again) && !none(out))) out = again;
+    }
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
     for (const p of out.brand ?? []) known.add(keyOf(p));
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
@@ -244,7 +250,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Suspiciously expensive: over 4× the typical price AND under 10 sold (a ₪4,035 laundry basket, 0 sold, 2026-10-31);
   // a pricey item people do buy stays.
   const overpriced = (p) => median && Number(p.target_sale_price ?? p.sale_price) > median * 4 && Number(p.lastest_volume) < PROVEN_SALES;
-  const keep = (p) => !suspicious(p) && !overpriced(p) && !offTheme(p.product_title, `${context} ${keywords}`);
+  const keep = (p) => !suspicious(p) && !overpriced(p) && !offTheme(p.product_title, `${context} ${keywords}`) && !fakeLuxury(p.product_title, `${context} ${keywords}`);
   exact = exact.filter(keep);
   partial = partial.filter(keep);
   const special = exact.filter((p) => specialKind(p.product_title, `${context} ${keywords}`));

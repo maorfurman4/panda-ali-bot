@@ -28,7 +28,12 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - terms_en = 2-3 more English searches the way AliExpress sellers title this item, each different from keywords_en and
   alt_en, together covering every common meaning of the words: "מטהר אוויר לרכב" -> ["car air freshener", "car aromatherapy
   diffuser", "car negative ion air purifier"]; "מסרק לשיער" -> ["detangling hair brush", "wide tooth comb"]. Strong sellers
-  often hide under the other names, and all of them are searched. [] for a brand-and-model request.
+  often hide under the other names, and all of them are searched. [] for a brand-and-model request. Every wording names
+  the everyday version a home shopper means, never a specialized kind the shopper didn't ask for ("בקבוק מים" -> not
+  "sports" or "cycling bottle"; "מפת שולחן" -> "tablecloth", "waterproof tablecloth", not "table protector" or "desk mat";
+  "מנורת שולחן" -> not "night
+  light"; "מקלדת" -> "wireless keyboard", not "gaming"; "כוס" -> ["drinking glass", "coffee mug"]: everyday Hebrew words
+  cover all their everyday kinds, and looks_like never excludes one of them).
 - looks_like = one short English sentence on what the item physically looks like, and what it is NOT (the look-alikes a
   search returns): "קשת לשיער" -> "a rigid C-shaped hoop worn over the top of the head; not an elastic hair tie, scrunchie or
   soft fabric band". When the words cover two products (a car freshener or a car air purifier), it describes both. It tells
@@ -226,7 +231,12 @@ async function requestJson({ fetch, env, model, instructions, content, name, sch
 export function seasonNote(t) {
   const m = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jerusalem", month: "numeric" }).format(t));
   const season = m >= 11 || m <= 3 ? "winter" : m >= 6 && m <= 9 ? "summer" : m <= 5 ? "spring" : "autumn";
-  return `\n- It is now ${season} in Israel: a general request for a seasonal item means this season's everyday version ("צעיף" in winter -> "winter scarf women", a long warm one; "שמיכה" in summer -> a light one).`;
+  const examples = season === "winter"
+    ? `"צעיף" -> "winter scarf women"; "כובע" -> "winter beanie hat" (a knitted warm hat, not a sun, bucket or baseball cap); "כפפות" -> "winter warm gloves"; "שמיכה" -> a warm one; "פיג'מה", "גרביים", "נעלי בית" -> warm ones`
+    : season === "summer"
+      ? `"כובע" -> "sun hat"; "שמיכה" -> "summer light blanket"; "פיג'מה" -> a light one`
+      : `"כובע" -> a light everyday cap or hat; "שמיכה" -> a medium one`;
+  return `\n- It is now ${season} in Israel. A general request for a seasonal item means this season's everyday version, in keywords_en, alt_en AND every terms_en wording: ${examples}. A season the shopper names wins.`;
 }
 
 export function createUnderstander({ fetch = globalThis.fetch, env = process.env, now = Date.now, onUsage = () => {} } = {}) {
@@ -286,6 +296,19 @@ for color, pattern and item type, and trust it over the title.
 Sort the products into two lists:
 - exact: it IS the requested item type AND matches every feature the request names: color, size or weight, material,
   pattern, gender, use ("for work", "for kids", "gaming"), "with microphone", "wireless", "waterproof", "thick", "windproof", "silent".
+  Exact is what an ordinary Israeli shopper pictures for these words: the everyday version of the item itself, as a home
+  store sells it. Carrying the item's name is not enough. These are partial unless the request names them: a set that
+  bundles the item with OTHER kinds of items (a women's watch with bracelets and a necklace; multipacks or sets of the same
+  item, like a towel set, 5 pairs of socks or 8 food boxes, stay exact); party, wedding, event or disposable versions (plastic party
+  tablecloths, spandex covers for folding event tables); a rigid clear desk-protector sheet for "מפת שולחן" (waterproof
+  PVC or PU-leather tablecloths, common in Israeli homes, are exact);
+  raw fabric sold by the meter for sewing is not the item at all (leave it out); a neighboring kind with another use (a color-changing night light for "מנורת
+  שולחן", an alarm or desk clock for "שעון קיר", whiskey, wine or shot glasses or a measuring cup for "כוס"); sport- or
+  hobby-specific kinds (cycling bottles, ski or cycling gloves, camping cookware, gaming keyboards);
+  regional specialties (a Japanese tamagoyaki pan for "מחבת"); a product for another job that shares the name
+  (a citronella anti-mosquito candle for "נר ריחני"); DIY kits of the item.
+  An everyday word covers all its everyday kinds, and they are all exact: "מגבת" = bath, hand and face towels and towel
+  sets; "כוס" = drinking glasses AND mugs with a handle. Partial is only for the specialized or other-use kinds above.
   A negated feature counts too: "לא שקוף" (not clear) means a clear one contradicts the request.
 - partial: it is the requested item type and nothing contradicts the request, but a named feature can't be confirmed.
 Leave out everything else:

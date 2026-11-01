@@ -104,8 +104,29 @@ export const offTheme = (title, request = "") => HOLIDAY.test(title ?? "") && !H
 
 // Specialized kinds a general request doesn't mean; the AI still called gaming mice exact for "עכבר אלחוטי" (2026-11-01),
 // so the code moves them to "close" unless the request names the kind.
-const SPECIAL_KINDS = [/gaming|gamer|e-?sports|גיימינג|גיימר/i, /shower|מקלחת|אמבטיה/i, /hydroponic|הידרופוני/i, /keffiyeh|kufiya|כאפי|קפיה/i, /tesla|טסלה/i];
+// 2026-11-01 (30 general searches): cycling bottles, camping and tamagoyaki pans, a citronella candle, DIY sticker clocks,
+// party tablecloths and whiskey glasses came in as "exact" too.
+const SPECIAL_KINDS = [
+  /gaming|gamer|e-?sports|גיימינג|גיימר|(?:מקלדת|מקלדות|עכבר|אוזניות|כיסא)[^,]{0,25}?\s(?:ל)?משחק/i,
+  /shower speaker|(?:רמקול|speaker)[^,]{0,25}(?:מקלחת|אמבטיה|shower)/i, // a speaker only: towels say "אמבטיה" too
+  /hydroponic|הידרופוני/i,
+  /keffiyeh|kufiya|כאפי|קפיה/i,
+  /tesla|טסלה/i,
+  /cycling|bicycle|\bbike\b|אופניים|רכיבה על אופניים/i,
+  /camping|מחנאות|קמפינג|קמפינג/i,
+  /tamagoyaki|טמאגויאקי/i,
+  /citronella|mosquito|ציטרונלה|יתושים/i,
+  /\bdiy\b|עשה זאת בעצמך/i,
+  /disposable|חד[ -]?פעמי|למסיבה|לקישוט חתונה/i,
+  /whisk(?:e)?y|ויסקי|כוסות שוט|shot glass/i,
+  /measuring|כוס מדידה|כלי מדידה/i,
+];
 export const specialKind = (title, request = "") => SPECIAL_KINDS.some((k) => k.test(title ?? "") && !k.test(request));
+
+// Luxury brands AliExpress sells only as fakes (a ₪127 "Diptyque" candle, 2026-11-01): left out unless the shopper names
+// the brand (then the search handles it as a brand request).
+const LUXURY = /diptyque|דיפיקס|dior|דיור|chanel|שאנל|gucci|גוצ'י|louis vuitton|לואי ויטון|herm[eè]s|הרמס|prada|פראדה|rolex|רולקס|cartier|קרטייה|versace|ורסצ'ה|balenciaga|ysl|yves saint|burberry|ברברי|fendi|tiffany|טיפאני|jo malone|ג'ו מלון/i;
+export const fakeLuxury = (title, request = "") => LUXURY.test(title ?? "") && !LUXURY.test(request);
 
 // Items mostly sold as their cover: for "כרית נוי" a cushion cover IS the item (45x45 covers were dropped, 2026-11-01).
 const SOLD_AS_COVER = /^(?:כיסוי|כיסויי|ציפית|ציפיות)\s+ל?(כרית|כריות|שמיכ|פוך|דובה)/;

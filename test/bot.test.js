@@ -1221,3 +1221,13 @@ test("trusted brands: a card without one gets the best brand item second (🏷�
   assert.deepEqual(shownIds(more).slice(0, 2), ["4", "12"], "the next card gets the official store");
   assert.match(more.caption ?? more.text, /🏷️ חנות רשמית/);
 });
+
+test("nothing exact on a full pool is asked once more; a better second answer wins", async () => {
+  const items = Array.from({ length: 10 }, (_, i) => product(i + 1));
+  let n = 0;
+  const relevant = async (_r, p) => (++n === 1 ? { exact: [], partial: p } : { exact: p, partial: [] });
+  const ctx = setup({ search: async () => items, live: true, relevant });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מגבת"));
+  assert.equal(n, 2);
+  assert.doesNotMatch(ctx.sent()[0].caption ?? ctx.sent()[0].text, /לא מצאתי התאמה מדויקת/);
+});
