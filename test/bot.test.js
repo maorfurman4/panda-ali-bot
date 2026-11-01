@@ -1283,14 +1283,14 @@ test("near matches (one judge exact, the other close) come after exact, before c
   assert.doesNotMatch(ctx.sent()[0].caption ?? ctx.sent()[0].text, /לא מצאתי התאמה מדויקת/);
 });
 
-test("reviews order the card: gadgets by review count, style keeps the ✨ turns; few-review ones follow", async () => {
+test("reviews filter the card: gadgets by sales among the well-reviewed; few-review ones follow", async () => {
   const items = Array.from({ length: 12 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 500), evaluate_rate: "98%" }));
   const id = (x) => x.promotion_link.split("_p")[1];
   const reviews = { 1: 5, 2: 300, 3: 40, 4: 900, 5: 60 };
   const stars = async (ps) => ps.map((p) => ({ ...p, avgStars: 4.8, reviewCount: reviews[id(p)] ?? 3 }));
   const gadget = setup({ search: async () => items, live: true, stars });
   await gadget.bot.handleUpdate(textUpdate("חפש לי מטען"));
-  assert.deepEqual(shownIds(gadget.sent()[0]), ["4", "2", "5", "3"], "most reviewed first; the 5-review best seller is out of the card");
+  assert.deepEqual(shownIds(gadget.sent()[0]), ["2", "3", "4", "5"], "by sales; the 5-review best seller is out of the card");
 });
 
 test("only products the photo look saw rise into the card: an unseen one with more reviews stays below them", async () => {
@@ -1301,5 +1301,5 @@ test("only products the photo look saw rise into the card: an unseen one with mo
   const ctx = setup({ search: async () => items, live: true, stars, look });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מטען"));
   assert.ok(!shownIds(ctx.sent()[0]).includes("10"), "#10 wasn't photo-checked");
-  assert.deepEqual(shownIds(ctx.sent()[0]), ["6", "5", "4", "3"], "the seen ones by reviews");
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "2", "3", "4"], "the seen ones by sales");
 });

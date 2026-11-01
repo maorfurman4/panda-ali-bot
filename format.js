@@ -48,8 +48,9 @@ export function rankProducts(products) {
 
 // Reviews prove a product, read with its rating (owner's spec, 2026-11-01): trusted = 20+ reviews and 4.5+ stars; a 4.9
 // from 5 reviews can be the seller's own. Order: trusted real matches, trusted close ones (a close match with 500 reviews
-// beats an exact one with 5), then the rest as they were, shown only when the card needs them. byReviews (gadgets): the
-// trusted ones by reviews, Choice boosted, and only with real sales (200+: gadgets that people buy sell a lot); style items
+// beats an exact one with 5), then the rest as they were, shown only when the card needs them. bySales (gadgets): the
+// trusted ones by sales, Choice boosted, and only with real sales (200+): gadgets people buy sell a lot (owner: the 29,621-sold
+// earbuds fell to 4th when gadgets went by review count, 2026-11-01); style items
 // keep their order among the trusted (best sellers and ✨ prettiest in turn). look (a named color or pattern): the right
 // color first, even barely reviewed, then close ones; a product shown in another color (offColor: by its photo or title)
 // comes last.
@@ -58,15 +59,14 @@ const TRUSTED_REVIEWS = 20;
 const MIN_STARS = 4.5;
 const GADGET_MIN_SOLD = 200;
 const UNREAD_PROVEN_SALES = 1000;
-export function trustedFirst(products, { byReviews = false, look = false } = {}) {
+export function trustedFirst(products, { bySales = false, look = false } = {}) {
   if (!products.some((p) => p.reviewCount)) return products;
   // No count for one product while others have one is a failed lookup, not "no reviews": 1,000+ sales is proof enough
   // (a 13,482-sold charger showed none, 2026-11-01); it goes last among the trusted.
   const sold = (p) => Number(p.lastest_volume) || 0;
-  const trusted = (p) => (p.reviewCount ? p.reviewCount >= TRUSTED_REVIEWS && p.avgStars >= MIN_STARS && (!byReviews || sold(p) >= GADGET_MIN_SOLD) : sold(p) >= UNREAD_PROVEN_SALES);
+  const trusted = (p) => (p.reviewCount ? p.reviewCount >= TRUSTED_REVIEWS && p.avgStars >= MIN_STARS && (!bySales || sold(p) >= GADGET_MIN_SOLD) : sold(p) >= UNREAD_PROVEN_SALES);
   const off = (p) => look && p.offColor;
-  const weight = (p) => Math.log10((p.reviewCount ?? 0) + 1) * (isChoice(p) ? CHOICE_BOOST : 1);
-  const most = (list) => (byReviews ? [...list].sort((a, b) => weight(b) - weight(a)) : list);
+  const most = (list) => (bySales ? rankProducts(list) : list);
   const pick = (ok) => products.filter((p) => !off(p) && ok(p));
   const real = pick((p) => trusted(p) && p.match !== "partial"), close = pick((p) => trusted(p) && p.match === "partial");
   // A named color: every right-color match before any close one, which is often another color (three white dresses with

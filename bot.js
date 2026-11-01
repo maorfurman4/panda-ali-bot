@@ -365,7 +365,7 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   if (counted) found = found.map((p) => (p.pretty && !(p.reviewCount >= 20 && p.avgStars >= 4.5) ? { ...p, pretty: false } : p));
   // Only what the photo look saw can rise into the card: the review order pulled unseen ones up (a polka-dot green dress
   // titled "black", a steel faucet for "שחור", 2026-11-01). "הכי זול" stays cheapest first.
-  const order = (list) => trustedFirst(list, { byReviews: !style, look: namesLook(context) });
+  const order = (list) => trustedFirst(list, { bySales: !style, look: namesLook(context) });
   if (!cheapest) found = found.some((p) => p.looked) ? [...order(found.filter((p) => p.looked)), ...order(found.filter((p) => !p.looked))] : order(found);
   found = varied(found, context, limit);
   // One brand slot per card (🏷️ second), kept when the review order moved it; the most reviewed brand item just leads.
