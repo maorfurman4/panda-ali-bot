@@ -44,6 +44,29 @@ export function rankProducts(products) {
   return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
+// Many reviews with good stars first: what people really buy, above all in fashion and design (owner, 2026-11-01: a
+// 4.9 with 5 reviews led a black dress card). Each grade apart, so a close match never passes a real one. When the review
+// lookup failed (no counts at all) the order stays.
+const WELL_REVIEWED = 20;
+const GOOD_STARS = 4.5;
+export function reviewedFirst(products) {
+  if (!products.some((p) => p.reviewCount)) return products;
+  const good = (p) => p.reviewCount >= WELL_REVIEWED && p.avgStars >= GOOD_STARS;
+  const real = (p) => p.match !== "partial";
+  return [[true, true], [true, false], [false, true], [false, false]].flatMap(([r, g]) => products.filter((p) => real(p) === r && good(p) === g));
+}
+
+// A card starts with a best seller (🥇), never a 🏷️ or ✨ pick: one moved up when an earlier one dropped or moved down.
+export function sellerFirst(shown, limit) {
+  shown = [...shown];
+  for (let start = 0; start < shown.length; start += limit) {
+    if (!shown[start]?.brandSlot && !shown[start]?.pretty) continue;
+    const j = shown.findIndex((p, i) => i > start && i < start + limit && !p.brandSlot && !p.pretty);
+    if (j > 0) [shown[start], shown[j]] = [shown[j], shown[start]];
+  }
+  return shown;
+}
+
 // The same product from several sellers counts once (the first, i.e. best-ranked, stays). Three keys: brand + model
 // ("BINNUNE BW06", "Lenovo GM2"), the start of the normalized title, and one store's listings with the same sales count
 // (a straw bag listed twice by one store, 2,835 sold each, 2026-11-01). From 300 sold: two different items of one store

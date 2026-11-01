@@ -347,3 +347,17 @@ test("isPartFor: toilet-seat hinges and dampers are parts, unless asked for", ()
   assert.equal(isPartFor("2 יחידות, צירים למכסה אסלה", "צירים לאסלה"), false);
   assert.equal(isPartFor("מושב אסלה בצורת O עם סגירה איטית", "מושב אסלה שנסגר לאט"), false);
 });
+
+test("reviewedFirst: many reviews with good stars lead within each grade; no counts keeps the order", async () => {
+  const { reviewedFirst, sellerFirst } = await import("../format.js");
+  const few = { id: "few", match: "exact", reviewCount: 5, avgStars: 4.9 };
+  const many = { id: "many", match: "exact", reviewCount: 146, avgStars: 4.9 };
+  const low = { id: "low", match: "exact", reviewCount: 300, avgStars: 4.1 };
+  const close = { id: "close", match: "partial", reviewCount: 900, avgStars: 4.8 };
+  const near = { id: "near", match: "near", reviewCount: 40, avgStars: 4.7 };
+  assert.deepEqual(reviewedFirst([few, low, close, many, near]).map((p) => p.id), ["many", "near", "few", "low", "close"]);
+  const plain = [{ id: "a" }, { id: "b" }];
+  assert.deepEqual(reviewedFirst(plain), plain);
+  // a ✨ pick that rose to the front gives the lead back to a best seller
+  assert.deepEqual(sellerFirst([{ id: "x", pretty: true }, { id: "y" }], 4).map((p) => p.id), ["y", "x"]);
+});

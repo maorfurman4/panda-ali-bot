@@ -468,7 +468,8 @@ the plain item.
 With photos: check every feature the request names against the photo, and leave out a product the photo contradicts:
 a visible power cord for "אלחוטי"/cordless, another color for a named color (silver for "שחור"), one battery in the box
 for "שתי סוללות", a one-person size for "ל-4". A product whose photo shows a seller's phone number or WhatsApp/WeChat contact is left out (it pulls buyers
-off AliExpress). A close shade of the named color is partial, not left out (walnut -> any dark wood tone).
+off AliExpress). A close shade of the named color is partial, not left out (walnut -> any dark wood tone). A two-tone with a big part in another color
+(black-gold, black-and-white) is partial for one named color, by title or photo.
 banner = (with photos only) kept products whose photo is mostly an ad rather than the item: big text, a price, sale or
 percent banner, spec callouts covering the product ([] without photos).
 brand = the kept products of a well-known brand shoppers trust for quality (Baseus, Ugreen, Anker, Essager, Joyroom, Xiaomi,
