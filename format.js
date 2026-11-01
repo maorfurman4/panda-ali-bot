@@ -45,15 +45,17 @@ export function rankProducts(products) {
 }
 
 // Many reviews with good stars first: what people really buy, above all in fashion and design (owner, 2026-11-01: a
-// 4.9 with 5 reviews led a black dress card). Each grade apart, so a close match never passes a real one. When the review
-// lookup failed (no counts at all) the order stays.
+// 4.9 with 5 reviews led a black dress card). It lifts a product within its standing, never over it: well-reviewed real
+// matches, proven real ones (proven: "real", by sales), well-reviewed close ones, proven close ones (proven: "close"),
+// then the rest as they were; a 7-sold exact dress passed a 1,128-sold close one when grade alone counted (2026-11-01).
+// When the review lookup failed (no counts at all) the order stays.
 const WELL_REVIEWED = 20;
 const GOOD_STARS = 4.5;
 export function reviewedFirst(products) {
   if (!products.some((p) => p.reviewCount)) return products;
   const good = (p) => p.reviewCount >= WELL_REVIEWED && p.avgStars >= GOOD_STARS;
-  const real = (p) => p.match !== "partial";
-  return [[true, true], [true, false], [false, true], [false, false]].flatMap(([r, g]) => products.filter((p) => real(p) === r && good(p) === g));
+  const group = (p) => (good(p) && p.match !== "partial" ? 0 : p.proven === "real" ? 1 : good(p) ? 2 : p.proven === "close" ? 3 : 4);
+  return products.map((p, i) => ({ p, i, g: group(p) })).sort((a, b) => a.g - b.g || a.i - b.i).map((x) => x.p);
 }
 
 // A card starts with a best seller (🥇), never a 🏷️ or ✨ pick: one moved up when an earlier one dropped or moved down.

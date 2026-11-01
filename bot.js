@@ -170,7 +170,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, look = null, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, look = null, live, hash = null, stars = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -281,13 +281,22 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const tiers = [exactProven, lead, near.filter(proven), partial.filter(proven), exactSold.slice(lead.length), near.filter((p) => !proven(p)), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
   const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
-  const all = cheapest ? [...byPrice(exact), ...byPrice(near), ...byPrice(partial)] : tiers.flatMap(rankProducts);
+  // proven: the standing many reviews can't lift a product past (reviewedFirst): real matches proven by sales (or leading),
+  // proven close ones.
+  const standing = (n) => (n <= 2 ? "real" : n === 3 ? "close" : null);
+  const all = cheapest ? [...byPrice(exact), ...byPrice(near), ...byPrice(partial)] : tiers.flatMap((t, n) => rankProducts(t).map((p) => (standing(n) ? { ...p, proven: standing(n) } : p)));
   let ranked = dedupeProducts(all);
   // Few results: the same model from another seller is still a choice, usually at another price (Ruckus R350 at ₪1,179
   // and ₪1,859; the competitor showed both, 2026-10-29). The photo check below still drops identical listings.
   if (ranked.length < limit) ranked = ranked.concat(all.filter((p) => !ranked.includes(p)).slice(0, limit - ranked.length));
   // Photo check on the candidates that can still be shown (2× the need, so removed repeats get refilled).
-  let shown = hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : [...ranked];
+  // Stars and review counts for the same candidates, alongside (free, no AI): many reviews lead each grade (owner,
+  // 2026-11-01), so the photo look below sees the well-reviewed ones; read at the end for 12 only, a 5-review dress led.
+  const top = ranked.slice(0, (limit + extra) * 2);
+  const [unique, rated] = await Promise.all([hash ? dedupeByPhoto(top, hash) : [...ranked], stars ? stars(top).catch(() => null) : null]);
+  const withStars = new Map((rated ?? []).filter((p) => p.reviewCount).map((p) => [keyOf(p), p]));
+  let shown = unique.map((p) => withStars.get(keyOf(p)) ?? p);
+  if (!cheapest) shown = reviewedFirst(shown); // "הכי זול" stays cheapest first
   // A card without a trusted-brand item gets the best one from further down, second: 🥇 best seller, 🏷️ brand, 🥈, 🥉.
   // Before the photo check, so the brand item is looked at too. Style searches keep their own mix (✨).
   const strongBrand = (p) => p.brandTag && p.match === "exact" && Number(p.lastest_volume) >= BRAND_MIN_SOLD && !(rate(p) < TRUSTED_FEEDBACK);
@@ -302,7 +311,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // faucet sprayer head, 2026-10-30). A product the photos show isn't the item drops out and the next one moves up.
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
   const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
-  const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
+  const styled = style && !cheapest && live && look ? reviewedFirst(rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK)))) : [];
   if (styled.length >= limit) {
     // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones and photo-close ones (another shade, two-tone) go last, never out.
     const head = styled.slice(0, STYLE_PHOTOS);
@@ -341,7 +350,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   }
   // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
   shown = shown.map((p) => { const next = p.product_small_image_urls?.string?.[1]; return banners.has(keyOf(p)) && /^https:\/\//.test(next ?? "") ? { ...p, product_main_image_url: next } : p; });
-  return sellerFirst(shown, limit).slice(0, limit + extra);
+  return sellerFirst(cheapest ? shown : reviewedFirst(shown), limit).slice(0, limit + extra);
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.
@@ -376,7 +385,7 @@ export function createBot({
   title = shortTitles,
   collage = makeCollage,
   shorten = (products) => shortenLinks(products), // only the products a card shows get short links
-  stars = (products) => addStars(products), // real stars and review counts for the products found (tests: none)
+  stars = (products) => addStars(products), // real stars and review counts for the candidates (tests: none)
   hash = photoHash, // tests pass a network-free stub
   stats = defaultStats,
   adminId = process.env.ADMIN_USER_ID, // owner's numeric Telegram id: /status and alerts
@@ -553,16 +562,17 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, stars }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
-        // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
-        const [linked, names, rated] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null), stars(found).catch(() => null)]);
-        found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
+        // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too. Stars came
+        // with the products (pickProducts).
+        const [linked, names] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null)]);
+        found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}) }));
         // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
         // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
         if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && sameModel(modelKey(q.short_he, context), modelKey(p.short_he, context))) === i);
-        found = varied(sellerFirst(reviewedFirst(found), limit), context, limit);
+        found = varied(found, context, limit);
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
       }
