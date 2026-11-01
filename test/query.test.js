@@ -409,3 +409,19 @@ test("seasonNote: the understanding is told the season in Israel", async () => {
   assert.match(seasonNote(Date.parse("2026-11-01T10:00:00Z")), /winter/);
   assert.match(seasonNote(Date.parse("2026-07-15T10:00:00Z")), /summer/);
 });
+
+test("a slow AI call is sent once more after 4 s and the first answer wins; a fast failure isn't duplicated", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let calls = 0;
+  const ok = { status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ exact: [0], partial: [] }) }] }] };
+  const fetch = (_u, init) => new Promise((resolve, reject) => {
+    const n = ++calls;
+    if (n === 1) init.signal.addEventListener("abort", () => reject(Object.assign(new Error("t"), { name: "TimeoutError" })));
+    else resolve({ ok: true, json: async () => ok });
+  });
+  const pending = createRelevanceFilter({ fetch, env: ENV })({ he: "מגבת", en: "towel" }, [{ product_title: "Towel" }]);
+  t.mock.timers.tick(4000);
+  const out = await pending;
+  assert.equal(calls, 2);
+  assert.equal(out.exact.length, 1);
+});

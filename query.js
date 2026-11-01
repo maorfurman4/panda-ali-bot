@@ -17,7 +17,11 @@ const PRICES = { "gpt-5.4": [2.5, 15], "gpt-5.4-mini": [0.75, 4.5], "gpt-5.5": [
 // "קלאפר" -> air freshener, "ערכת…" lost the "kit"); mini got all 9 right in ~1 s at ~$0.0015 per new request (cached 24 h).
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const MAX_OUTPUT_TOKENS = 300; // on reasoning models this includes reasoning tokens, so effort is set to "none"
-const TIMEOUT_MS = 5000;
+// OpenAI usually answers in ~2 s but sometimes takes 10-12 s (measured 2026-11-02); a 5 s cut-off then searched the raw
+// Hebrew (junk) or showed unchecked results. So: wait up to 12 s, and if no answer came in 4 s send the same request once
+// more and take whichever answers first (≈+10% AI cost, only on the slow calls).
+const TIMEOUT_MS = 12000;
+const HEDGE_MS = 4000;
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60_000;
 
@@ -50,6 +54,10 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - A general word means the mainstream everyday version most shoppers want, so keywords_en names that one ("אגרטל" ->
   "flower vase", not a hydroponic plant vase; "צעיף" -> "women scarf", "עכבר אלחוטי" -> "wireless mouse"), never a
   specialized kind the shopper didn't ask for.
+- Jewish and Israeli items: AliExpress sellers rarely write "Shabbat", so search what the item is: "מנורת לילה לשבת"/"מנורת
+  שבת" -> keywords "night lamp", terms ["rotating cover night lamp", "plug in night light"] (the Shabbat lamp has a
+  mechanical shade you turn to dim it; an always-on lamp works too; never a motion or touch sensor);
+  "פלטה לשבת" -> "food warming tray"; "חנוכייה" -> "hanukkah menorah"; "פמוטים" -> "candlesticks"; "מזוזה" -> "mezuzah case".
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:
@@ -187,8 +195,22 @@ export function validateIntent(o) {
   return null;
 }
 
+// One strict-JSON call, sent a second time if the first is slow (see HEDGE_MS); the first answer wins, and it fails only
+// when every request sent has failed.
+async function requestJson({ hedgeMs = HEDGE_MS, timeoutMs = TIMEOUT_MS, ...opts }) {
+  const one = () => requestOnce({ ...opts, timeoutMs });
+  if (!hedgeMs || hedgeMs >= timeoutMs) return one();
+  return new Promise((resolve, reject) => {
+    let sent = 1, failed = 0, done = false;
+    const finish = (fn, v) => { if (!done) (done = true), clearTimeout(timer), fn(v); };
+    const track = (p) => p.then((v) => finish(resolve, v), (e) => ++failed === sent && finish(reject, e));
+    const timer = setTimeout(() => { sent++; track(one()); }, hedgeMs);
+    track(one());
+  });
+}
+
 // One strict-JSON call to the OpenAI Responses API. Throws Error(reason) on any failure; reasons never contain user text.
-async function requestJson({ fetch, env, model, instructions, content, name, schema, onUsage, timeoutMs = TIMEOUT_MS, maxTokens = MAX_OUTPUT_TOKENS }) {
+async function requestOnce({ fetch, env, model, instructions, content, name, schema, onUsage, timeoutMs, maxTokens = MAX_OUTPUT_TOKENS }) {
   let res;
   try {
     res = await fetch(API_URL, {
@@ -342,6 +364,8 @@ gaming (a gaming mouse for "עכבר אלחוטי"), shower or bath (a shower sp
 propagation (a plant-growing glass vase or avocado kit for "אגרטל"), made only for one car or device model (a Tesla-only
 phone holder for "מחזיק לטלפון לרכב"), sport-specific (cycling glasses for "משקפי שמש"), or one culture's traditional
 garment (a keffiyeh for "צעיף").
+For Shabbat use ("לשבת", "שאפשר להשתמש בשבת"), anything that switches on by motion, sound, touch or an app is not
+Shabbat-friendly: leave it out (a motion-sensor night light for "מנורת לילה לשבת").
 A sticker, decal or print of the item is not the item (acrylic mirror stickers are not a wall mirror).
 When an item is mostly sold as its cover (decorative pillows as cushion covers, duvets as duvet covers), the cover is the
 item: exact, not an accessory. A plain white insert or filler (the inner pillow) is partial. A bed pillowcase (a satin or silk pillowcase for sleep and hair, a standard 50x70 bed
@@ -660,7 +684,7 @@ const DEAL_WRITE_SCHEMA = {
 // caller post its best-ranked product under the seller title.
 export function createDealPicker({ fetch = globalThis.fetch, env = process.env, onUsage = () => {} } = {}) {
   const ask = (instructions, content, name, schema) =>
-    requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions, content, name, schema, onUsage, timeoutMs: DEAL_TIMEOUT_MS, maxTokens: 800 });
+    requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions, content, name, schema, onUsage, timeoutMs: DEAL_TIMEOUT_MS, maxTokens: 800, hedgeMs: 0 }); // a deal post may take a while: no duplicate
   return async function pickDeal(products, topic = "") {
     if (!products.length || !env.OPENAI_API_KEY) return null;
     try {
