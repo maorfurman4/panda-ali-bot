@@ -333,3 +333,10 @@ test("modelKey: the device the request names isn't the item's model (every S24 c
   assert.notEqual(modelKey("כיסוי שקוף ל-Samsung S24", req), modelKey("כיסוי מגנטי שקוף Samsung S24", req));
   assert.equal(modelKey("Lenovo LP40 Pro אוזניות", "אוזניות אלחוטיות"), modelKey("Lenovo LP40 Pro - אוזניות TWS", "אוזניות אלחוטיות"));
 });
+
+test("sameModel: a key that holds another with a model number is the same model; plain names never merge", async () => {
+  const { modelKey, sameModel } = await import("../format.js");
+  assert.ok(sameModel(modelKey("Xiaomi Redmi Buds 6 Active"), modelKey("Redmi Buds 6 Active")));
+  assert.ok(!sameModel(modelKey("Redmi Buds 6 Active"), modelKey("Redmi Buds 8 Pro")));
+  assert.ok(!sameModel(modelKey("כיסוי שקוף לסמסונג"), modelKey("כיסוי שקוף לסמסונג גלקסי")));
+});

@@ -75,6 +75,10 @@ const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)
 // Version words at the end are dropped, so "KZ EDX Pro X" and "KZ EDX Pro" are one model (2026-11-01).
 const SPEC_WORDS = /^(?:usb|led|rgb|tws|pd|qc|hd|uv|dc|ac|gan|anc|type|ipx\d*)$/i;
 const VERSION_WORDS = /^(?:x|s|pro|max|plus|lite|se|mini|ultra|\+)$/i;
+// Two model keys name one model when one holds the other ("xiaomiredmibuds6active" and "redmibuds6active": the parent brand
+// is often left out, 2026-11-02). Only for keys with a model number, so plain names never merge.
+export const sameModel = (a, b) => a === b || (/\d/.test(a) && /\d/.test(b) && Math.min(a.length, b.length) >= 6 && (a.includes(b) || b.includes(a)));
+
 // request: a run that holds a model number the shopper named is the device the item is FOR, not the item's model
 // (every "כיסוי שקוף ל-Samsung S24" collapsed into one, 2026-11-02).
 export function modelKey(name = "", request = "") {

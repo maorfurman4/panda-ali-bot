@@ -54,6 +54,7 @@ import {
   specialKind,
   fakeLuxury,
   modelKey,
+  sameModel,
   varied,
 } from "./format.js";
 
@@ -562,7 +563,7 @@ export function createBot({
         found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
         // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
         // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
-        if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && modelKey(q.short_he, context) === modelKey(p.short_he, context)) === i);
+        if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && sameModel(modelKey(q.short_he, context), modelKey(p.short_he, context))) === i);
         found = varied(found, context, limit);
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
