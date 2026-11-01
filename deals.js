@@ -194,7 +194,8 @@ async function sendDeal(api, chatId, p, caption, { collage, log }) {
 // One post. state = { posted: [product ids], topic: index of the last topic used, ... }; returns the new state, or the
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
 // topics/topicKey: a holiday or series post walks its own list with its own place in state; maxIls: a price cap.
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", steps = topics.length, minSold = MIN_SOLD, maxIls = null, log = console.log } = {}) {
+// stars: real stars and review counts for the chosen product (scripts/daily-deal.js passes addStars; tests leave it out).
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", steps = topics.length, minSold = MIN_SOLD, maxIls = null, log = console.log } = {}) {
   const posted = state.posted ?? [];
   const cap = maxIls ? { maxIls } : {};
   for (let step = 1; step <= steps; step++) {
@@ -218,7 +219,9 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
       log(`none of the best sellers for "${words}" is that item, trying the next topic`); // AliExpress search noise
       continue;
     }
-    const [p] = await shorten([list[choice?.i ?? 0]]); // search links are ~1 KB; on failure the long one is kept
+    const chosen = list[choice?.i ?? 0];
+    const [[short], rated] = await Promise.all([shorten([chosen]), stars ? stars([chosen]).catch(() => null) : null]); // search links are ~1 KB; on failure the long one is kept
+    const p = rated?.[0]?.reviewCount ? { ...short, avgStars: rated[0].avgStars, reviewCount: rated[0].reviewCount } : short;
     const caption = formatDeal(p, choice ?? {}, banner);
     if (api) await sendDeal(api, chatId, p, caption, { collage, log });
     else log(`[dry run, nothing sent]\n${caption}`);

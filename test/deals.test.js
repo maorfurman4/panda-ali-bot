@@ -257,3 +257,12 @@ test("runDeals: a manual run can choose a special post any day", async () => {
   await runDeals({ posted: [] }, { ...h.opts, now: at("2026-10-31T08:05:00Z"), force: true, special: "holiday" }); // Hanukkah is 35 days away
   assert.match(h.sent[0], /🕎 לקראת חנוכה/);
 });
+
+test("a deal post shows real stars when the review summary answers", async () => {
+  const { postDeal } = await import("../deals.js");
+  const p = { product_id: "9", product_title: "Car charger 30W", lastest_volume: "9000", evaluate_rate: "98%", target_sale_price: "20", target_sale_price_currency: "ILS", promotion_link: "https://s.click.aliexpress.com/e/_x", product_main_image_url: "https://ae01.alicdn.com/kf/x.jpg" };
+  const sent = [];
+  const api = { sendPhoto: async (_c, _p, o) => sent.push(o.caption), sendMessage: async (_c, t) => sent.push(t), sendVideo: async () => {} };
+  await postDeal({}, { api, chatId: 1, search: async () => [p], shorten: async (l) => l, pick: async () => ({ i: 0, headline: "x", name: "מטען לרכב" }), collage: async () => null, stars: async (l) => l.map((x) => ({ ...x, avgStars: 4.8, reviewCount: 1200 })), topics: [["car charger", 34]], log: () => {} });
+  assert.match(sent[0], /⭐ דירוג: 4\.8 \(1,200 ביקורות\)/);
+});
