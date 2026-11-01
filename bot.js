@@ -262,7 +262,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   partial = partial.filter(keep);
   near = near.filter(keep);
   // A title naming only another color is close, whatever the judges said (a brown dress for "שחורה", 2026-11-01).
-  const wrongColor = (p) => offColor(p.product_title, context);
+  const wrongColor = (p) => !style && offColor(p.product_title, context); // style searches as at 17:30
   partial = [...partial.map((p) => (wrongColor(p) ? { ...p, offColor: true } : p)), ...[...exact, ...near].filter(wrongColor).map((p) => ({ ...p, offColor: true }))];
   exact = exact.filter((p) => !wrongColor(p));
   near = near.filter((p) => !wrongColor(p));
@@ -311,12 +311,12 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
   const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
   if (styled.length >= limit) {
-    // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones and photo-close ones
-    // (another shade, a two-tone for one named color) go last, never out.
+    // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
+    // As it was at 17:30 (owner, 2026-11-01: tonight's review order and color tags made the dress cards worse).
     const head = styled.slice(0, STYLE_PHOTOS);
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head, { pick: Math.ceil((limit + extra) / 2) }).catch(() => null);
     const keys = (list) => new Set((list ?? []).map(keyOf));
-    const ok = keys([...(seen?.exact ?? []), ...(seen?.near ?? []), ...(seen?.partial ?? [])]), plain = keys([...(seen?.plain ?? []), ...(seen?.near ?? []), ...(seen?.partial ?? [])]), same = keys(seen?.same);
+    const ok = keys([...(seen?.exact ?? []), ...(seen?.near ?? []), ...(seen?.partial ?? [])]), plain = keys(seen?.plain), same = keys(seen?.same);
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     // The same item from another listing (one POEDAGAR watch twice, 2026-11-01) is dropped like a photo that isn't the item.
     const kept = head.filter((p) => ok.has(keyOf(p)) && !same.has(keyOf(p)));
@@ -333,11 +333,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
         if (!list) break;
         mixed.push(list === pretty ? { ...next(list), pretty: true } : next(list));
       }
-      // What the photo shows as only close counts as close from here on (the card's review order reads it).
-      const closeKeys = keys([...(seen?.near ?? []), ...(seen?.partial ?? [])]); // near: one of the two judges saw another shade
-      const graded = (p) => (closeKeys.has(keyOf(p)) ? { ...p, match: "partial", offColor: true } : p);
-      const seenKeys = keys(kept);
-      shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))].map(graded).map((p) => (seenKeys.has(keyOf(p)) ? { ...p, looked: true } : p));
+      shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))];
     }
   } else if (live && look && shown.length) {
     const head = shown.slice(0, limit + PHOTO_SPARE);
@@ -363,6 +359,7 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
   if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && sameModel(modelKey(q.short_he, context), modelKey(p.short_he, context))) === i);
   found = sameReviews(found);
+  if (style) return varied(found, context, limit); // style searches as at 17:30: best sellers and ✨ in turn, no review order
   const counted = found.some((p) => p.reviewCount);
   // ✨ only for well-reviewed products (owner's spec): a pretty pick with few reviews is an ordinary product.
   if (counted) found = found.map((p) => (p.pretty && !(p.reviewCount >= 20 && p.avgStars >= 4.5) ? { ...p, pretty: false } : p));

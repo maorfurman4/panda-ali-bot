@@ -59,12 +59,6 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - style = true when shoppers choose this item mainly by how it looks (clothing, bags, shoes, jewelry, watches, hats and
   scarves, home decor, bedding, curtains); false for things bought for what they do (electronics, tools, chargers, kitchen
   gadgets), even good-looking ones.
-- Israeli shoppers want the most beautiful, polished version of a style item. keywords_en stays the item's common name
-  (the most sold ones: "שמלת ערב ירוקה" -> "green evening dress"), and alt_en/terms_en add the elegant kinds sellers name
-  ("green long evening gown", "green formal maxi dress"; "תיק לאישה" -> "elegant women handbag"; "שעון לאישה" -> "elegant
-  women watch"), never a casual, party or cheap kind the request doesn't name ("cocktail dress", "party dress", "club
-  dress" only for קצרה/קוקטייל/מסיבה). A request that names a casual or simple look (יומיומי, קז'ואל, ספורטיבי, פשוט,
-  קצרה) gets that look.
 - A general word means the mainstream everyday version most shoppers want, so keywords_en names that one ("אגרטל" ->
   "flower vase", not a hydroponic plant vase; "צעיף" -> "women scarf", "עכבר אלחוטי" -> "wireless mouse"), never a
   specialized kind the shopper didn't ask for.
@@ -80,7 +74,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
   mechanical shade you turn to dim it; an always-on lamp works too; never a motion or touch sensor);
   "פלטה לשבת" -> "food warming tray"; "חנוכייה" -> "hanukkah menorah"; "פמוטים" -> "candlesticks"; "מזוזה" -> "mezuzah case".
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
-- keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes and other extras are checked later from the photos). Keep a color the shopper named ("נעלי ספורט לבנות לגברים" -> "men white sneakers"): without it few products come back in that color. Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
+- keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:
   6 Home Appliances (kitchen and home machines, vacuums, coffee machines and their filters), 7 Computer & Office (mice,
   keyboards, networking), 13 Home Improvement, 15 Home & Garden (kitchenware, decor, storage, garden), 18 Sports &
@@ -435,8 +429,6 @@ or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 A version made for someone else is partial, not exact: a children's, girls' or baby version when the request isn't for
 kids (flower straw bags for little girls for "תיק קש"), a men's version for a women's request and the reverse.
-A dressy item asked for plainly is its dressy kind: for "שמלת ערב" a mini, club, bodycon summer or casual dress is
-partial unless the request says short, casual or cocktail.
 A general request gets the tasteful, everyday version a grown-up buys for a home or outfit. Unless the request names it,
 leave out (neither exact nor partial):
 - plush, stuffed-toy or animal-shaped versions (a stuffed seal, a moon-and-sun plush or a capybara doll is a toy, not a
@@ -501,8 +493,8 @@ const RELEVANCE_SCHEMA = {
 // Style items (bags, clothes, jewelry, decor): the same photo look also names the prettiest and the plain-looking ones.
 const styleNote = (n) => `
 Shoppers choose this item by its looks, so also judge the photos as a stylish Israeli shopper would:
-- pretty = up to ${n} products, best first, that look the most attractive: elegant, polished, well made, current, nicely
-  photographed, the one she would want to own.
+- pretty = up to ${n} products, best first, that look the most attractive: well made, current, nicely photographed, the one
+  she would want to own.
 - plain = products that look cheap, dated, flimsy or badly made, childish when the request isn't for kids, made for
   the other gender (a thick men's chain for "לאישה"), themed for a holiday the request doesn't name, or a narrow look
   for a general request (one loud color like a pink satin set, a very particular theme) when it names no color or style:
@@ -530,7 +522,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const lines = products.map((p, i) => `${i}. ${clean(p.product_title, 120)}`);
     // The final photo look gets 350 px photos: at 220 a dark brown dress passed as black (2026-11-01). Same price on gpt
     // ("low" is one 512 px tile either way); ~160 tokens each on Claude.
-    const size = photos ? "350x350" : "220x220";
+    const size = photos && !pick ? "350x350" : "220x220"; // style looks stay as they were at 17:30 (owner, 2026-11-01)
     const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_${size}.jpg`, detail: "low" }] : []);
     const titles = [head, ...lines].join("\n");
     const withPhotos = [{ type: "input_text", text: head }, ...products.flatMap((p, i) => [{ type: "input_text", text: lines[i] }, ...photo(p)])];
@@ -544,7 +536,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     // judge the final photos (6-16 of them), since one judge let a brown dress through for "שחורה" (2026-11-01).
     // The color title check on 48 photos stays one judge (Claude there would be ~1.5¢ more).
     const judged = async (content, withPhotos) => {
-      const colorLook = withPhotos && photos && VISUAL_WORDS.test(`${request.he} ${request.en}`);
+      const colorLook = withPhotos && photos && !pick && VISUAL_WORDS.test(`${request.he} ${request.en}`); // not the style look
       if ((withPhotos && !colorLook) || !env.ANTHROPIC_API_KEY) return ask(content);
       // The color look's second judge is Haiku: Sonnet on 16 photos added ~6 s to a search (2026-11-01).
       const [a, b] = await Promise.allSettled([ask(content), requestClaude({ ...args, model: colorLook ? "claude-haiku-5-5" : claudeFor(model), content, timeoutMs: colorLook ? COLOR_JUDGE_TIMEOUT_MS : SECOND_JUDGE_TIMEOUT_MS })]);
