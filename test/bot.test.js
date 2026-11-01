@@ -1282,16 +1282,3 @@ test("near matches (one judge exact, the other close) come after exact, before c
   assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "4", "1", "2"]);
   assert.doesNotMatch(ctx.sent()[0].caption ?? ctx.sent()[0].text, /לא מצאתי התאמה מדויקת/);
 });
-
-test("reviews are read for the 24 candidates before the photo look: a well-reviewed #10 leads, few-review ones follow", async () => {
-  const items = Array.from({ length: 12 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 500), evaluate_rate: "98%" }));
-  const id = (x) => x.promotion_link.split("_p")[1];
-  let starred, looked;
-  const stars = async (ps) => ((starred = ps.length), ps.map((p) => ({ ...p, avgStars: 4.8, reviewCount: id(p) === "10" ? 146 : 5 })));
-  const look = async (_r, ps) => ((looked = ps.map(id)), null);
-  const ctx = setup({ search: async () => items, live: true, stars, look });
-  await ctx.bot.handleUpdate(textUpdate("חפש לי מטען"));
-  assert.equal(starred, 12, "every candidate (up to 24), not only the 4 shown");
-  assert.equal(looked[0], "10", "the photo look sees it first");
-  assert.deepEqual(shownIds(ctx.sent()[0]), ["10", "1", "2", "3"]);
-});

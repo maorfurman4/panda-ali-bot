@@ -44,36 +44,6 @@ export function rankProducts(products) {
   return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
-// Reviews are the proof of a good product, read with the rating: of the products rated above 4 stars with 20+ reviews,
-// the most reviewed first (owner, 2026-11-01: a 4.4 with 5,000 reviews is what people really buy and should lead). A high
-// rating from a handful of reviews can be the seller's own, and sales can be bought (a 4.9 with 5 reviews, 150 sold, led a
-// card of 146-351-review dresses). Real matches before close ones; then the rest by their standing by sales (proven:
-// "real"/"close", set in pickProducts), so a 7-sold exact dress doesn't pass a 1,128-sold close one either. When the
-// review lookup failed (no counts at all) the order stays.
-const TRUSTED_REVIEWS = 20;
-const MIN_STARS = 4;
-export function reviewedFirst(products) {
-  if (!products.some((p) => p.reviewCount)) return products;
-  const trusted = (p) => p.reviewCount >= TRUSTED_REVIEWS && p.avgStars > MIN_STARS;
-  const group = (p) => (trusted(p) ? (p.match === "partial" ? 1 : 0) : p.proven === "real" ? 2 : p.proven === "close" ? 3 : 4);
-  const reviews = (x) => (x.g <= 1 ? x.p.reviewCount : 0);
-  return products.map((p, i) => ({ p, i, g: group(p) })).sort((a, b) => a.g - b.g || reviews(b) - reviews(a) || a.i - b.i).map((x) => x.p);
-}
-
-// A card is led by its 🥇, never a 🏷️ or ✨ pick. Ordered by reviews, the most reviewed stays first and shows as the 🥇;
-// otherwise (no review counts) the pick that moved up when the leader dropped trades places with the next best seller.
-export function sellerFirst(shown, limit) {
-  const pick = (p) => p?.brandSlot || p?.pretty;
-  if (shown.some((p) => p.reviewCount)) return shown.map((p, i) => (i % limit === 0 && pick(p) ? { ...p, brandSlot: false, pretty: false } : p));
-  shown = [...shown];
-  for (let start = 0; start < shown.length; start += limit) {
-    if (!pick(shown[start])) continue;
-    const j = shown.findIndex((p, i) => i > start && i < start + limit && !pick(p));
-    if (j > 0) [shown[start], shown[j]] = [shown[j], shown[start]];
-  }
-  return shown;
-}
-
 // The same product from several sellers counts once (the first, i.e. best-ranked, stays). Three keys: brand + model
 // ("BINNUNE BW06", "Lenovo GM2"), the start of the normalized title, and one store's listings with the same sales count
 // (a straw bag listed twice by one store, 2,835 sold each, 2026-11-01). From 300 sold: two different items of one store

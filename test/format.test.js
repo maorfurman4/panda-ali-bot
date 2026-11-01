@@ -347,23 +347,3 @@ test("isPartFor: toilet-seat hinges and dampers are parts, unless asked for", ()
   assert.equal(isPartFor("2 יחידות, צירים למכסה אסלה", "צירים לאסלה"), false);
   assert.equal(isPartFor("מושב אסלה בצורת O עם סגירה איטית", "מושב אסלה שנסגר לאט"), false);
 });
-
-test("reviewedFirst: above 4 stars with 20+ reviews, the most reviewed first, real before close; then the rest by sales standing", async () => {
-  const { reviewedFirst, sellerFirst } = await import("../format.js");
-  const id = (l) => reviewedFirst(l).map((p) => p.id);
-  const popular = { id: "popular", match: "exact", reviewCount: 5000, avgStars: 4.4 };
-  const fine = { id: "fine", match: "exact", reviewCount: 300, avgStars: 4.9 };
-  const weak = { id: "weak", match: "exact", reviewCount: 900, avgStars: 3.9 };
-  const few = { id: "few", match: "exact", proven: "real", reviewCount: 5, avgStars: 4.9 };
-  const close = { id: "close", match: "partial", proven: "close", reviewCount: 146, avgStars: 4.9 };
-  assert.deepEqual(id([fine, few, close, weak, popular]), ["popular", "fine", "close", "few", "weak"]);
-  // a 7-sold exact one with few reviews stays after a proven close best seller
-  const barely = { id: "barely", match: "exact", reviewCount: 4, avgStars: 5 };
-  const provenClose = { id: "pc", match: "partial", proven: "close", reviewCount: 12, avgStars: 4.9 };
-  assert.deepEqual(id([barely, provenClose]), ["pc", "barely"]);
-  const plain = [{ id: "a" }, { id: "b" }];
-  assert.deepEqual(reviewedFirst(plain), plain);
-  // a ✨ pick that leads: by reviews it stays and shows as the 🥇; without counts the next seller takes the lead
-  assert.deepEqual(sellerFirst([{ id: "x", pretty: true, reviewCount: 900 }, { id: "y" }], 4).map((p) => [p.id, Boolean(p.pretty)]), [["x", false], ["y", false]]);
-  assert.deepEqual(sellerFirst([{ id: "x", pretty: true }, { id: "y" }], 4).map((p) => p.id), ["y", "x"]);
-});
