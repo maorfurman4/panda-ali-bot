@@ -348,23 +348,22 @@ test("isPartFor: toilet-seat hinges and dampers are parts, unless asked for", ()
   assert.equal(isPartFor("מושב אסלה בצורת O עם סגירה איטית", "מושב אסלה שנסגר לאט"), false);
 });
 
-test("trustedFirst: above 4 stars with 20+ reviews first; by reviews for gadgets (real before close), order kept for style", async () => {
-  const { trustedFirst, sellerFirst } = await import("../format.js");
+test("trustedFirst: 20+ reviews and 4.5+ stars first, real before close; gadgets by reviews with 200+ sales; a named color keeps photo-off colors last", async () => {
+  const { trustedFirst, sellerFirst, sameReviews } = await import("../format.js");
   const id = (l) => l.map((p) => p.id);
-  const popular = { id: "popular", match: "exact", reviewCount: 5000, avgStars: 4.4 };
-  const fine = { id: "fine", match: "exact", reviewCount: 300, avgStars: 4.9 };
-  const weak = { id: "weak", match: "exact", reviewCount: 900, avgStars: 3.9 };
-  const few = { id: "few", match: "exact", reviewCount: 5, avgStars: 4.9 };
-  const close = { id: "close", match: "partial", reviewCount: 8000, avgStars: 4.8 };
-  const list = [few, fine, close, weak, popular];
-  assert.deepEqual(id(trustedFirst(list, { byReviews: true })), ["popular", "fine", "close", "few", "weak"]);
-  assert.deepEqual(id(trustedFirst(list)), ["fine", "popular", "close", "few", "weak"], "style: trusted keep their order (✨ turns), real before close");
-  assert.deepEqual(id(trustedFirst(list, { byReviews: true, look: true })), ["popular", "fine", "few", "weak", "close"], "a named color: every real match before a close one");
-  const { sameReviews } = await import("../format.js");
-  assert.deepEqual(id(sameReviews([{ id: "a", reviewCount: 4926, avgStars: 4.9 }, { id: "b", reviewCount: 4926, avgStars: 4.9 }, { id: "c", reviewCount: 50, avgStars: 4.9 }, { id: "d", reviewCount: 50, avgStars: 4.9 }])), ["a", "c", "d"]);
-  assert.deepEqual(trustedFirst([{ id: "a" }, { id: "b" }]).map((p) => p.id), ["a", "b"], "no counts: as it was");
+  const p = (id, match, reviewCount, avgStars, sold = 5000, more = {}) => ({ id, match, reviewCount, avgStars, lastest_volume: String(sold), ...more });
+  const top = p("top", "exact", 2000, 4.7), fine = p("fine", "exact", 300, 4.9), low = p("low", "exact", 5000, 4.4);
+  const few = p("few", "exact", 5, 4.9), close = p("close", "partial", 8000, 4.8), rare = p("rare", "exact", 400, 4.9, 90);
+  const choice = p("choice", "exact", 250, 4.9, 5000, { shop_id: 1103573332 });
+  assert.deepEqual(id(trustedFirst([few, fine, close, low, top, rare], { byReviews: true })), ["top", "fine", "close", "few", "low", "rare"], "4.4 stars and 90 sales aren't trusted for gadgets");
+  assert.deepEqual(id(trustedFirst([fine, choice], { byReviews: true })), ["choice", "fine"], "Choice: a big boost");
+  assert.deepEqual(id(trustedFirst([few, fine, close, top])), ["fine", "top", "close", "few"], "style: the trusted keep their order, real before close");
+  const offColor = p("off", "partial", 900, 4.9, 5000, { photoClose: true });
+  assert.deepEqual(id(trustedFirst([offColor, close, few, fine], { look: true })), ["fine", "few", "close", "off"], "a named color: right color first, even barely reviewed; another color by the photo last");
+  assert.deepEqual(trustedFirst([{ id: "a" }, { id: "b" }]).map((x) => x.id), ["a", "b"], "no counts: as it was");
   const unread = { id: "unread", match: "exact", lastest_volume: "13482" };
   assert.deepEqual(id(trustedFirst([few, unread, fine], { byReviews: true })), ["fine", "unread", "few"], "a failed lookup on a big seller stays trusted, last among them");
-  assert.deepEqual(sellerFirst([{ id: "x", brandSlot: true, reviewCount: 1749 }, { id: "y" }], 4, { strip: true }).map((p) => [p.id, Boolean(p.brandSlot)]), [["x", false], ["y", false]]);
+  assert.deepEqual(id(sameReviews([p("a", "exact", 4926, 4.9), p("b", "exact", 4926, 4.9), p("c", "exact", 50, 4.9), p("d", "exact", 50, 4.9)])), ["a", "c", "d"]);
+  assert.deepEqual(sellerFirst([{ id: "x", brandSlot: true, reviewCount: 1749 }, { id: "y" }], 4, { strip: true }).map((x) => [x.id, Boolean(x.brandSlot)]), [["x", false], ["y", false]]);
   assert.deepEqual(id(sellerFirst([{ id: "x", pretty: true }, { id: "y" }], 4)), ["y", "x"]);
 });

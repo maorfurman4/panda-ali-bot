@@ -58,11 +58,12 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - style = true when shoppers choose this item mainly by how it looks (clothing, bags, shoes, jewelry, watches, hats and
   scarves, home decor, bedding, curtains); false for things bought for what they do (electronics, tools, chargers, kitchen
   gadgets), even good-looking ones.
-- Israeli shoppers want the most beautiful, polished version of a style item: search the elegant, well-made kind in the
-  words sellers use, never a casual, party or cheap kind the request doesn't name ("שמלת ערב" -> "evening gown", "formal
-  maxi gown", not "cocktail dress" or "party dress" unless it says קצרה/קוקטייל/מסיבה; "תיק לאישה" -> "elegant women
-  handbag"; "שעון לאישה" -> "elegant women watch"). A request that names a casual or simple look (יומיומי, קז'ואל,
-  ספורטיבי, פשוט, קצרה) gets that look.
+- Israeli shoppers want the most beautiful, polished version of a style item. keywords_en stays the item's common name
+  (the most sold ones: "שמלת ערב ירוקה" -> "green evening dress"), and alt_en/terms_en add the elegant kinds sellers name
+  ("green long evening gown", "green formal maxi dress"; "תיק לאישה" -> "elegant women handbag"; "שעון לאישה" -> "elegant
+  women watch"), never a casual, party or cheap kind the request doesn't name ("cocktail dress", "party dress", "club
+  dress" only for קצרה/קוקטייל/מסיבה). A request that names a casual or simple look (יומיומי, קז'ואל, ספורטיבי, פשוט,
+  קצרה) gets that look.
 - A general word means the mainstream everyday version most shoppers want, so keywords_en names that one ("אגרטל" ->
   "flower vase", not a hydroponic plant vase; "צעיף" -> "women scarf", "עכבר אלחוטי" -> "wireless mouse"), never a
   specialized kind the shopper didn't ask for.

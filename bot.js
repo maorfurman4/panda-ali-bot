@@ -329,7 +329,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       }
       // What the photo shows as only close counts as close from here on (the card's review order reads it).
       const closeKeys = keys(seen?.partial);
-      const graded = (p) => (closeKeys.has(keyOf(p)) ? { ...p, match: "partial" } : p);
+      const graded = (p) => (closeKeys.has(keyOf(p)) ? { ...p, match: "partial", photoClose: true } : p);
       shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))].map(graded);
     }
   } else if (live && look && shown.length) {
@@ -341,7 +341,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       // What the photo shows as only close (a silver faucet for "שחור") follows the real matches (2026-11-01).
       const close = new Set((Array.isArray(seen) ? [] : seen.partial ?? []).map(keyOf));
       const kept = head.filter((p) => ok.has(keyOf(p)));
-      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial" })), ...shown.slice(head.length)];
+      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", photoClose: true })), ...shown.slice(head.length)];
     }
   }
   // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
@@ -356,8 +356,15 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
   if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && sameModel(modelKey(q.short_he, context), modelKey(p.short_he, context))) === i);
   found = sameReviews(found);
+  const counted = found.some((p) => p.reviewCount);
+  // ✨ only for well-reviewed products (owner's spec): a pretty pick with few reviews is an ordinary product.
+  if (counted) found = found.map((p) => (p.pretty && !(p.reviewCount >= 20 && p.avgStars >= 4.5) ? { ...p, pretty: false } : p));
   if (!cheapest) found = trustedFirst(found, { byReviews: !style, look: namesLook(context) }); // "הכי זול" stays cheapest first
-  return sellerFirst(varied(found, context, limit), limit, { strip: !style && !cheapest && found.some((p) => p.reviewCount) });
+  found = varied(found, context, limit);
+  // One brand slot per card (🏷️ second), kept when the review order moved it; the most reviewed brand item just leads.
+  const b = found.findIndex((p) => p.brandSlot);
+  if (!style && b > 1 && b < limit) found.splice(1, 0, ...found.splice(b, 1));
+  return sellerFirst(found, limit, { strip: !style && !cheapest && counted });
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.

@@ -39,32 +39,39 @@ export function parseEvaluateRate(value) {
 // commitment": fast delivery, free returns, refund if late; checked 2026-11-01). They get a small push (≈1.5× the sales).
 export const CHOICE_SHOP_ID = "1103573332";
 export const isChoice = (p) => String(p.shop_id ?? "") === CHOICE_SHOP_ID;
+// Choice (AliExpress's fast shipping): a big boost (owner, 2026-11-01), worth about 4x the sales on the log score.
+export const CHOICE_BOOST = 1.2;
 export function rankProducts(products) {
-  const score = (p) => Math.log10((Number(p.lastest_volume) || 0) + 1) * ((parseEvaluateRate(p.evaluate_rate) ?? 90) / 100) * (isChoice(p) ? 1.05 : 1);
+  const score = (p) => Math.log10((Number(p.lastest_volume) || 0) + 1) * ((parseEvaluateRate(p.evaluate_rate) ?? 90) / 100) * (isChoice(p) ? CHOICE_BOOST : 1);
   return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
-// Reviews prove a product, read with its rating (owner, 2026-11-01): a 4.9 from 5 reviews can be the seller's own, and a
-// 4.4 with 5,000 reviews is what people buy. Products above 4 stars with 20+ reviews come first, real matches before close
-// ones, the rest after in their order. byReviews (items bought for what they do): the trusted ones most reviewed first
-// (Essager, 1,749 reviews, leads car Bluetooth adapters); style items keep their order (best sellers and ✨ prettiest in
-// turn: sorting them by reviews pushed the ✨ picks off the card). look (the request names a color or pattern): every real
-// match before any close one, which is often another color (red, black and brown bags with hundreds of reviews passed the
-// white ones). No counts at all (the lookup failed): the order stays.
+// Reviews prove a product, read with its rating (owner's spec, 2026-11-01): trusted = 20+ reviews and 4.5+ stars; a 4.9
+// from 5 reviews can be the seller's own. Order: trusted real matches, trusted close ones (a close match with 500 reviews
+// beats an exact one with 5), then the rest as they were, shown only when the card needs them. byReviews (gadgets): the
+// trusted ones by reviews, Choice boosted, and only with real sales (200+: gadgets that people buy sell a lot); style items
+// keep their order among the trusted (best sellers and ✨ prettiest in turn). look (a named color or pattern): the right
+// color first, even barely reviewed, then close ones; a product the photo showed in another color (photoClose) comes last.
+// No counts at all (the lookup failed): the order stays.
 const TRUSTED_REVIEWS = 20;
-const MIN_STARS = 4;
+const MIN_STARS = 4.5;
+const GADGET_MIN_SOLD = 200;
 const UNREAD_PROVEN_SALES = 1000;
 export function trustedFirst(products, { byReviews = false, look = false } = {}) {
   if (!products.some((p) => p.reviewCount)) return products;
   // No count for one product while others have one is a failed lookup, not "no reviews": 1,000+ sales is proof enough
   // (a 13,482-sold charger showed none, 2026-11-01); it goes last among the trusted.
-  const trusted = (p) => (p.reviewCount ? p.reviewCount >= TRUSTED_REVIEWS && p.avgStars > MIN_STARS : Number(p.lastest_volume) >= UNREAD_PROVEN_SALES);
-  const real = (p) => p.match !== "partial";
-  const most = (list) => (byReviews ? [...list].sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0)) : list);
-  const part = (isReal, isTrusted) => products.filter((p) => real(p) === isReal && trusted(p) === isTrusted);
-  const groups = look ? [[true, true], [true, false], [false, true], [false, false]] : [[true, true], [false, true]];
-  const top = groups.flatMap(([r, t]) => (t ? most(part(r, t)) : part(r, t)));
-  return [...top, ...products.filter((p) => !top.includes(p))];
+  const sold = (p) => Number(p.lastest_volume) || 0;
+  const trusted = (p) => (p.reviewCount ? p.reviewCount >= TRUSTED_REVIEWS && p.avgStars >= MIN_STARS && (!byReviews || sold(p) >= GADGET_MIN_SOLD) : sold(p) >= UNREAD_PROVEN_SALES);
+  const off = (p) => look && p.photoClose;
+  const weight = (p) => Math.log10((p.reviewCount ?? 0) + 1) * (isChoice(p) ? CHOICE_BOOST : 1);
+  const most = (list) => (byReviews ? [...list].sort((a, b) => weight(b) - weight(a)) : list);
+  const pick = (ok) => products.filter((p) => !off(p) && ok(p));
+  const real = pick((p) => trusted(p) && p.match !== "partial"), close = pick((p) => trusted(p) && p.match === "partial");
+  // A named color: every right-color match before any close one, which is often another color (three white dresses with
+  // hundreds of reviews passed green ones, 2026-11-01).
+  const top = look ? [...most(real), ...pick((p) => !trusted(p) && p.match !== "partial"), ...most(close)] : [...most(real), ...most(close)];
+  return [...top, ...products.filter((p) => !top.includes(p) && !off(p)), ...products.filter(off)];
 }
 
 // The same product listed twice: the same review count and stars from 100 reviews up (one GaN charger, 4,926 reviews, from
