@@ -1315,3 +1315,11 @@ test("a named color: the photo look sees 12 and only what it saw is shown (no un
   assert.equal(seen.length, 12);
   assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "11"], "two black ones passed; no unchecked product fills the card");
 });
+
+test("one brand slot per card: when the sales order brings the next card's brand item up, it shows as an ordinary product", async () => {
+  const { orderCard } = await import("../bot.js");
+  const p = (id, sold, more = {}) => ({ id, match: "exact", lastest_volume: String(sold), evaluate_rate: "98%", reviewCount: Math.round(sold / 10), avgStars: 4.9, ...more });
+  const out = orderCard([p("a", 14000), p("b", 2100, { brandSlot: true }), p("c", 7800), p("d", 6100, { brandSlot: true }), p("e", 900)], { context: "מכונת תספורת", limit: 4 });
+  assert.equal(out.slice(0, 4).filter((x) => x.brandSlot).length, 1);
+  assert.equal(out[1].brandSlot, true, "the card's brand item stays second");
+});

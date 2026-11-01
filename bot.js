@@ -378,9 +378,11 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   const order = (list) => trustedFirst(list, { bySales: !style, look: namesLook(context) });
   if (!cheapest) found = found.some((p) => p.looked) ? [...order(found.filter((p) => p.looked)), ...order(found.filter((p) => !p.looked))] : order(found);
   found = varied(found, context, limit);
-  // One brand slot per card (🏷️ second), kept when the review order moved it; the most reviewed brand item just leads.
+  // One brand slot per card (🏷️ second): the sales order can bring the next card's brand item up (two 🏷️ in one card,
+  // Kemei and ENCHEN, 2026-11-01), so a second one in a card shows as an ordinary product; the first moves back second.
+  found = found.map((p, i) => (p.brandSlot && found.findIndex((q, j) => q.brandSlot && Math.floor(j / limit) === Math.floor(i / limit)) !== i ? { ...p, brandSlot: false } : p));
   const b = found.findIndex((p) => p.brandSlot);
-  if (!style && b > 1 && b < limit) found.splice(1, 0, ...found.splice(b, 1));
+  if (b > 1 && b < limit) found.splice(1, 0, ...found.splice(b, 1));
   return sellerFirst(found, limit, { strip: !style && !cheapest && counted });
 }
 
