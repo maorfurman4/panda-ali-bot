@@ -20,6 +20,7 @@ const CLAUDE_FOR = { "gpt-5.4": "claude-sonnet-5-5", "gpt-5.5": "claude-sonnet-5
 const claudeFor = (model) => CLAUDE_FOR[model] ?? "claude-haiku-5-5";
 const CLAUDE_CACHE_READ = { "claude-haiku-5-5": 0.01, "claude-sonnet-5-5": 0.1 }; // USD per 1M cached input tokens
 const SECOND_JUDGE_TIMEOUT_MS = 8000; // a slow second judge is skipped: the first one's answer stands
+const COLOR_JUDGE_TIMEOUT_MS = 4000; // the color photo look's second judge: at most ~2 s more than gpt alone
 // gpt-5.4-mini: on 9 real group requests (2026-10-29) nano wrote weak or wrong search words ("מאצה" -> matzo/bread kit,
 // "קלאפר" -> air freshener, "ערכת…" lost the "kit"); mini got all 9 right in ~1 s at ~$0.0015 per new request (cached 24 h).
 const DEFAULT_MODEL = "gpt-5.4-mini";
@@ -79,7 +80,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
   mechanical shade you turn to dim it; an always-on lamp works too; never a motion or touch sensor);
   "פלטה לשבת" -> "food warming tray"; "חנוכייה" -> "hanukkah menorah"; "פמוטים" -> "candlesticks"; "מזוזה" -> "mezuzah case".
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
-- keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
+- keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes and other extras are checked later from the photos). Keep a color the shopper named ("נעלי ספורט לבנות לגברים" -> "men white sneakers"): without it few products come back in that color. Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:
   6 Home Appliances (kitchen and home machines, vacuums, coffee machines and their filters), 7 Computer & Office (mice,
   keyboards, networking), 13 Home Improvement, 15 Home & Garden (kitchenware, decor, storage, garden), 18 Sports &
@@ -527,7 +528,10 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const also = (request.terms ?? []).map((t) => clean(t, 80)).filter(Boolean);
     const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})` + (also.length ? `\nAlso searched as: ${also.join("; ")}` : "") + (request.looks ? `\nLooks like: ${clean(request.looks, 200)}` : "");
     const lines = products.map((p, i) => `${i}. ${clean(p.product_title, 120)}`);
-    const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_220x220.jpg`, detail: "low" }] : []);
+    // The final photo look gets 350 px photos: at 220 a dark brown dress passed as black (2026-11-01). Same price on gpt
+    // ("low" is one 512 px tile either way); ~160 tokens each on Claude.
+    const size = photos ? "350x350" : "220x220";
+    const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_${size}.jpg`, detail: "low" }] : []);
     const titles = [head, ...lines].join("\n");
     const withPhotos = [{ type: "input_text", text: head }, ...products.flatMap((p, i) => [{ type: "input_text", text: lines[i] }, ...photo(p)])];
     const model = env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL;
@@ -536,10 +540,14 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     // Two judges on the title check (2026-11-02 test, 288 decisions: Claude Sonnet followed the "ordinary shopper" rules far
     // better: 0 whiskey glasses for "כוס" and 0 cycling bottles for "בקבוק מים", against 9 and 4 from gpt-5.4). Exact needs
     // both; what only one calls exact, or either calls close, is close. One judge failing or slow leaves the other's answer.
-    // The photo look keeps one judge (about equal there, and faster).
+    // The photo look keeps one judge (about equal there, and faster), except for a named color or pattern: there the two
+    // judge the final photos (6-16 of them), since one judge let a brown dress through for "שחורה" (2026-11-01).
+    // The color title check on 48 photos stays one judge (Claude there would be ~1.5¢ more).
     const judged = async (content, withPhotos) => {
-      if (withPhotos || !env.ANTHROPIC_API_KEY) return ask(content);
-      const [a, b] = await Promise.allSettled([ask(content), requestClaude({ ...args, model: claudeFor(model), content, timeoutMs: SECOND_JUDGE_TIMEOUT_MS })]);
+      const colorLook = withPhotos && photos && VISUAL_WORDS.test(`${request.he} ${request.en}`);
+      if ((withPhotos && !colorLook) || !env.ANTHROPIC_API_KEY) return ask(content);
+      // The color look's second judge is Haiku: Sonnet on 16 photos added ~6 s to a search (2026-11-01).
+      const [a, b] = await Promise.allSettled([ask(content), requestClaude({ ...args, model: colorLook ? "claude-haiku-5-5" : claudeFor(model), content, timeoutMs: colorLook ? COLOR_JUDGE_TIMEOUT_MS : SECOND_JUDGE_TIMEOUT_MS })]);
       if (a.status === "rejected" || b.status === "rejected") return a.status === "fulfilled" ? a.value : b.status === "fulfilled" ? b.value : Promise.reject(a.reason);
       const [x, y] = [a.value, b.value];
       const list = (o, k) => (Array.isArray(o?.[k]) ? o[k] : []);

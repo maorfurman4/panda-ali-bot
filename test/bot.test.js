@@ -1292,3 +1292,14 @@ test("reviews order the card: gadgets by review count, style keeps the ✨ turns
   await gadget.bot.handleUpdate(textUpdate("חפש לי מטען"));
   assert.deepEqual(shownIds(gadget.sent()[0]), ["4", "2", "5", "3"], "most reviewed first; the 5-review best seller is out of the card");
 });
+
+test("only products the photo look saw rise into the card: an unseen one with more reviews stays below them", async () => {
+  const items = Array.from({ length: 12 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 500), evaluate_rate: "98%" }));
+  const id = (x) => x.promotion_link.split("_p")[1];
+  const stars = async (ps) => ps.map((p) => ({ ...p, avgStars: 4.8, reviewCount: id(p) === "10" ? 5000 : 100 + Number(id(p)) }));
+  const look = async (_r, ps) => ({ exact: ps, partial: [] }); // sees the first 6
+  const ctx = setup({ search: async () => items, live: true, stars, look });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מטען"));
+  assert.ok(!shownIds(ctx.sent()[0]).includes("10"), "#10 wasn't photo-checked");
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["6", "5", "4", "3"], "the seen ones by reviews");
+});

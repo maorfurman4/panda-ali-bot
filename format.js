@@ -51,7 +51,8 @@ export function rankProducts(products) {
 // beats an exact one with 5), then the rest as they were, shown only when the card needs them. byReviews (gadgets): the
 // trusted ones by reviews, Choice boosted, and only with real sales (200+: gadgets that people buy sell a lot); style items
 // keep their order among the trusted (best sellers and ✨ prettiest in turn). look (a named color or pattern): the right
-// color first, even barely reviewed, then close ones; a product the photo showed in another color (photoClose) comes last.
+// color first, even barely reviewed, then close ones; a product shown in another color (offColor: by its photo or title)
+// comes last.
 // No counts at all (the lookup failed): the order stays.
 const TRUSTED_REVIEWS = 20;
 const MIN_STARS = 4.5;
@@ -63,7 +64,7 @@ export function trustedFirst(products, { byReviews = false, look = false } = {})
   // (a 13,482-sold charger showed none, 2026-11-01); it goes last among the trusted.
   const sold = (p) => Number(p.lastest_volume) || 0;
   const trusted = (p) => (p.reviewCount ? p.reviewCount >= TRUSTED_REVIEWS && p.avgStars >= MIN_STARS && (!byReviews || sold(p) >= GADGET_MIN_SOLD) : sold(p) >= UNREAD_PROVEN_SALES);
-  const off = (p) => look && p.photoClose;
+  const off = (p) => look && p.offColor;
   const weight = (p) => Math.log10((p.reviewCount ?? 0) + 1) * (isChoice(p) ? CHOICE_BOOST : 1);
   const most = (list) => (byReviews ? [...list].sort((a, b) => weight(b) - weight(a)) : list);
   const pick = (ok) => products.filter((p) => !off(p) && ok(p));
@@ -72,6 +73,22 @@ export function trustedFirst(products, { byReviews = false, look = false } = {})
   // hundreds of reviews passed green ones, 2026-11-01).
   const top = look ? [...most(real), ...pick((p) => !trusted(p) && p.match !== "partial"), ...most(close)] : [...most(real), ...most(close)];
   return [...top, ...products.filter((p) => !top.includes(p) && !off(p)), ...products.filter(off)];
+}
+
+// A title that names only other colors than the one asked for ("שמלת ערב חומה" for "שמלת ערב שחורה": the judge called it
+// exact, 2026-11-01). Main colors only: gold and silver are often a trim or a metal, and a title listing the asked color
+// among others (black/white/red variants) keeps it.
+const COLORS = {
+  black: /שחור|\bblack\b/i, white: /לבן|לבנ|\bwhite\b/i, red: /אדום|אדומ|בורדו|\bred\b|burgundy/i, blue: /כחול|\bblue\b|\bnavy\b/i,
+  green: /ירוק|\bgreen\b/i, yellow: /צהוב|\byellow\b/i, pink: /ורוד|\bpink\b/i, purple: /סגול|\bpurple\b/i,
+  brown: /חומה|חומים|חומות|\bbrown\b|\bcoffee\b/i, beige: /בז'|\bbeige\b|\bkhaki\b/i, gray: /אפור|\bgr[ae]y\b/i, orange: /כתום|\borange\b/i,
+};
+export function offColor(title, request) {
+  const named = (text) => Object.keys(COLORS).filter((c) => COLORS[c].test(text ?? ""));
+  const asked = named(request);
+  if (!asked.length) return false;
+  const has = named(title);
+  return has.length > 0 && !asked.some((c) => has.includes(c));
 }
 
 // The same product listed twice: the same review count and stars from 100 reviews up (one GaN charger, 4,926 reviews, from

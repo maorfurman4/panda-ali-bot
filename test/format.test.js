@@ -358,7 +358,7 @@ test("trustedFirst: 20+ reviews and 4.5+ stars first, real before close; gadgets
   assert.deepEqual(id(trustedFirst([few, fine, close, low, top, rare], { byReviews: true })), ["top", "fine", "close", "few", "low", "rare"], "4.4 stars and 90 sales aren't trusted for gadgets");
   assert.deepEqual(id(trustedFirst([fine, choice], { byReviews: true })), ["choice", "fine"], "Choice: a big boost");
   assert.deepEqual(id(trustedFirst([few, fine, close, top])), ["fine", "top", "close", "few"], "style: the trusted keep their order, real before close");
-  const offColor = p("off", "partial", 900, 4.9, 5000, { photoClose: true });
+  const offColor = p("off", "partial", 900, 4.9, 5000, { offColor: true });
   assert.deepEqual(id(trustedFirst([offColor, close, few, fine], { look: true })), ["fine", "few", "close", "off"], "a named color: right color first, even barely reviewed; another color by the photo last");
   assert.deepEqual(trustedFirst([{ id: "a" }, { id: "b" }]).map((x) => x.id), ["a", "b"], "no counts: as it was");
   const unread = { id: "unread", match: "exact", lastest_volume: "13482" };
@@ -366,4 +366,15 @@ test("trustedFirst: 20+ reviews and 4.5+ stars first, real before close; gadgets
   assert.deepEqual(id(sameReviews([p("a", "exact", 4926, 4.9), p("b", "exact", 4926, 4.9), p("c", "exact", 50, 4.9), p("d", "exact", 50, 4.9)])), ["a", "c", "d"]);
   assert.deepEqual(sellerFirst([{ id: "x", brandSlot: true, reviewCount: 1749 }, { id: "y" }], 4, { strip: true }).map((x) => [x.id, Boolean(x.brandSlot)]), [["x", false], ["y", false]]);
   assert.deepEqual(id(sellerFirst([{ id: "x", pretty: true }, { id: "y" }], 4)), ["y", "x"]);
+});
+
+test("offColor: a title naming only another color than the one asked for; variants listing it, no color, or trims stay", async () => {
+  const { offColor } = await import("../format.js");
+  assert.equal(offColor("שמלת ערב ארוכה חומה עם צווארון גבוה", "שמלת ערב שחורה"), true);
+  assert.equal(offColor("Women Evening Dress Pink Satin", "שמלת ערב ירוקה"), true);
+  assert.equal(offColor("שמלת ערב שחורה-זהובה", "שמלת ערב שחורה"), false, "two-tone with the asked color: the photo judges it");
+  assert.equal(offColor("Evening dress black white red", "שמלת ערב שחורה"), false, "color variants that include it");
+  assert.equal(offColor("שמלת ערב סאטן ללא גב", "שמלת ערב שחורה"), false, "no color in the title");
+  assert.equal(offColor("תיק עם אבזם זהב", "תיק שחור"), false, "gold trims don't count");
+  assert.equal(offColor("שמלת ערב חומה", "שמלת ערב"), false, "no color asked");
 });

@@ -97,7 +97,7 @@ test("relevance with photos: one photo per product goes along, even without a co
   const api = openai({ exact: [0], partial: [] });
   await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "ברז למטבח", en: "kitchen faucet" }, [{ product_title: "Kitchen faucet", product_main_image_url: "https://ae01.alicdn.com/x.jpg" }], { photos: true });
   const content = api.requests[0].body.input[0].content;
-  assert.ok(Array.isArray(content) && content.some((c) => c.type === "input_image" && c.image_url.endsWith("x.jpg_220x220.jpg")));
+  assert.ok(Array.isArray(content) && content.some((c) => c.type === "input_image" && c.image_url.endsWith("x.jpg_350x350.jpg")));
 });
 
 test("validateIntent keeps up to 3 more seller wordings, without repeats of the main or other wording", () => {
@@ -472,4 +472,19 @@ test("two judges: one exact + one close is 'near'", async () => {
   assert.deepEqual(out.exact.map((p) => p.product_title), ["a"]);
   assert.deepEqual(out.near.map((p) => p.product_title), ["b"]);
   assert.equal(out.partial.length, 0);
+});
+
+test("the final photo look: two judges for a named color (350 px photos), one judge otherwise; the color title check stays one judge", async () => {
+  const run = async (he, opts) => {
+    const urls = [];
+    const fetch = async (url) => (urls.push(url), url.includes("anthropic") ? claudeAnswer({ exact: [0], partial: [1], brand: [], banner: [] }) : openaiAnswer({ exact: [0, 1], partial: [], brand: [], banner: [] }));
+    const items = [{ product_title: "a", product_main_image_url: "https://x/a.jpg" }, { product_title: "b", product_main_image_url: "https://x/b.jpg" }];
+    const out = await createRelevanceFilter({ fetch, env: CLAUDE_ENV })({ he, en: "dress" }, items, opts);
+    return { claude: urls.some((u) => u.includes("anthropic")), out };
+  };
+  const color = await run("שמלת ערב שחורה", { photos: true });
+  assert.equal(color.claude, true);
+  assert.deepEqual(color.out.near.map((p) => p.product_title), ["b"], "one judge saw another shade: near, shown as close");
+  assert.equal((await run("שמלת ערב", { photos: true })).claude, false);
+  assert.equal((await run("שמלת ערב שחורה", {})).claude, false, "the 48-product color title check: gpt alone");
 });

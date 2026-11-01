@@ -14,6 +14,7 @@ import {
   soldText,
   filterProducts,
   rankProducts,
+  offColor,
   trustedFirst,
   sameReviews,
   sellerFirst,
@@ -260,6 +261,11 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   exact = exact.filter(keep);
   partial = partial.filter(keep);
   near = near.filter(keep);
+  // A title naming only another color is close, whatever the judges said (a brown dress for "שחורה", 2026-11-01).
+  const wrongColor = (p) => offColor(p.product_title, context);
+  partial = [...partial.map((p) => (wrongColor(p) ? { ...p, offColor: true } : p)), ...[...exact, ...near].filter(wrongColor).map((p) => ({ ...p, offColor: true }))];
+  exact = exact.filter((p) => !wrongColor(p));
+  near = near.filter((p) => !wrongColor(p));
   const special = exact.filter((p) => specialKind(p.product_title, `${context} ${keywords}`));
   if (special.length) (exact = exact.filter((p) => !special.includes(p))), (partial = [...special, ...partial]);
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
@@ -310,7 +316,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const head = styled.slice(0, STYLE_PHOTOS);
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head, { pick: Math.ceil((limit + extra) / 2) }).catch(() => null);
     const keys = (list) => new Set((list ?? []).map(keyOf));
-    const ok = keys([...(seen?.exact ?? []), ...(seen?.partial ?? [])]), plain = keys([...(seen?.plain ?? []), ...(seen?.partial ?? [])]), same = keys(seen?.same);
+    const ok = keys([...(seen?.exact ?? []), ...(seen?.near ?? []), ...(seen?.partial ?? [])]), plain = keys([...(seen?.plain ?? []), ...(seen?.near ?? []), ...(seen?.partial ?? [])]), same = keys(seen?.same);
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     // The same item from another listing (one POEDAGAR watch twice, 2026-11-01) is dropped like a photo that isn't the item.
     const kept = head.filter((p) => ok.has(keyOf(p)) && !same.has(keyOf(p)));
@@ -328,20 +334,21 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
         mixed.push(list === pretty ? { ...next(list), pretty: true } : next(list));
       }
       // What the photo shows as only close counts as close from here on (the card's review order reads it).
-      const closeKeys = keys(seen?.partial);
-      const graded = (p) => (closeKeys.has(keyOf(p)) ? { ...p, match: "partial", photoClose: true } : p);
-      shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))].map(graded);
+      const closeKeys = keys([...(seen?.near ?? []), ...(seen?.partial ?? [])]); // near: one of the two judges saw another shade
+      const graded = (p) => (closeKeys.has(keyOf(p)) ? { ...p, match: "partial", offColor: true } : p);
+      const seenKeys = keys(kept);
+      shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))].map(graded).map((p) => (seenKeys.has(keyOf(p)) ? { ...p, looked: true } : p));
     }
   } else if (live && look && shown.length) {
     const head = shown.slice(0, limit + PHOTO_SPARE);
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head).catch(() => null);
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     if (seen) {
-      const ok = new Set((Array.isArray(seen) ? seen : [...(seen.exact ?? []), ...(seen.partial ?? [])]).map(keyOf));
+      const ok = new Set((Array.isArray(seen) ? seen : [...(seen.exact ?? []), ...(seen.near ?? []), ...(seen.partial ?? [])]).map(keyOf));
       // What the photo shows as only close (a silver faucet for "שחור") follows the real matches (2026-11-01).
-      const close = new Set((Array.isArray(seen) ? [] : seen.partial ?? []).map(keyOf));
+      const close = new Set((Array.isArray(seen) ? [] : [...(seen.near ?? []), ...(seen.partial ?? [])]).map(keyOf)); // near: one judge saw another shade
       const kept = head.filter((p) => ok.has(keyOf(p)));
-      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", photoClose: true })), ...shown.slice(head.length)];
+      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))).map((p) => ({ ...p, looked: true })), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", offColor: true, looked: true })), ...shown.slice(head.length)];
     }
   }
   // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
@@ -359,7 +366,10 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   const counted = found.some((p) => p.reviewCount);
   // ✨ only for well-reviewed products (owner's spec): a pretty pick with few reviews is an ordinary product.
   if (counted) found = found.map((p) => (p.pretty && !(p.reviewCount >= 20 && p.avgStars >= 4.5) ? { ...p, pretty: false } : p));
-  if (!cheapest) found = trustedFirst(found, { byReviews: !style, look: namesLook(context) }); // "הכי זול" stays cheapest first
+  // Only what the photo look saw can rise into the card: the review order pulled unseen ones up (a polka-dot green dress
+  // titled "black", a steel faucet for "שחור", 2026-11-01). "הכי זול" stays cheapest first.
+  const order = (list) => trustedFirst(list, { byReviews: !style, look: namesLook(context) });
+  if (!cheapest) found = found.some((p) => p.looked) ? [...order(found.filter((p) => p.looked)), ...order(found.filter((p) => !p.looked))] : order(found);
   found = varied(found, context, limit);
   // One brand slot per card (🏷️ second), kept when the review order moved it; the most reviewed brand item just leads.
   const b = found.findIndex((p) => p.brandSlot);
