@@ -425,3 +425,43 @@ test("a slow AI call is sent once more after 4 s and the first answer wins; a fa
   assert.equal(calls, 2);
   assert.equal(out.exact.length, 1);
 });
+
+const claudeAnswer = (obj) => ({ ok: true, json: async () => ({ content: [{ type: "text", text: JSON.stringify(obj) }], stop_reason: "end_turn", usage: { input_tokens: 10, output_tokens: 5 } }) });
+const openaiAnswer = (obj) => ({ ok: true, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(obj) }] }] }) });
+const CLAUDE_ENV = { ...ENV, ANTHROPIC_API_KEY: "test-anthropic" };
+
+test("two judges: exact needs both; what only one calls exact is close; Claude gets Sonnet, JSON output and thinking off", async () => {
+  const sent = [];
+  const fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    sent.push({ url, body });
+    return url.includes("anthropic") ? claudeAnswer({ exact: [0], partial: [1], brand: [], banner: [] }) : openaiAnswer({ exact: [0, 2], partial: [], brand: [], banner: [] });
+  };
+  const items = [{ product_title: "Drinking glass" }, { product_title: "Coffee mug" }, { product_title: "Whiskey glass" }];
+  const out = await createRelevanceFilter({ fetch, env: CLAUDE_ENV })({ he: "כוס", en: "drinking glass" }, items);
+  assert.deepEqual(out.exact.map((p) => p.product_title), ["Drinking glass"]);
+  assert.deepEqual(out.partial.map((p) => p.product_title), ["Coffee mug", "Whiskey glass"]);
+  const claude = sent.find((s) => s.url.includes("anthropic")).body;
+  assert.equal(claude.model, "claude-sonnet-5-5");
+  assert.deepEqual(claude.thinking, { type: "between_tools" });
+  assert.equal(claude.output_config.format.type, "json_schema");
+});
+
+test("two judges: a failed second judge leaves the first one's answer; without the Claude key there is one judge", async () => {
+  const fetch = async (url) => (url.includes("anthropic") ? { ok: false, status: 529, json: async () => ({}) } : openaiAnswer({ exact: [0, 2], partial: [], brand: [], banner: [] }));
+  const items = [{ product_title: "a" }, { product_title: "b" }, { product_title: "c" }];
+  const out = await createRelevanceFilter({ fetch, env: CLAUDE_ENV })({ he: "כוס", en: "glass" }, items);
+  assert.equal(out.exact.length, 2);
+  let calls = 0;
+  await createRelevanceFilter({ fetch: async () => (calls++, openaiAnswer({ exact: [0], partial: [], brand: [], banner: [] })), env: ENV })({ he: "כוס", en: "glass" }, items);
+  assert.equal(calls, 1);
+});
+
+test("backup: when OpenAI fails at once and the Claude key is set, the same request goes to Claude (Haiku for mini)", async () => {
+  const urls = [];
+  const fetch = async (url) => (urls.push(url), url.includes("anthropic") ? claudeAnswer({ ...STRICT_OK, keywords_en: "car charger" }) : { ok: false, status: 503, json: async () => ({}) });
+  const r = await createUnderstander({ fetch, env: CLAUDE_ENV })("מטען לרכב");
+  assert.equal(r.keywords_en, "car charger");
+  assert.equal(urls.length, 2);
+  assert.match(urls[1], /anthropic/);
+});

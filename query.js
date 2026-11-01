@@ -12,7 +12,13 @@ import { isPartFor } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
 // USD per 1M tokens [input, output], for the owner's daily cost line (unknown models are priced as gpt-5.4).
-const PRICES = { "gpt-5.4": [2.5, 15], "gpt-5.4-mini": [0.75, 4.5], "gpt-5.5": [5, 30] };
+const PRICES = { "gpt-5.4": [2.5, 15], "gpt-5.4-mini": [0.75, 4.5], "gpt-5.5": [5, 30], "claude-haiku-5-5": [0.1, 0.5], "claude-sonnet-5-5": [2, 10] };
+// Claude, when ANTHROPIC_API_KEY is set: the backup for a slow or failed OpenAI call, and the second judge of the product
+// check. Each OpenAI model has its Claude counterpart (same JSON schema, same instructions).
+const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
+const CLAUDE_FOR = { "gpt-5.4": "claude-sonnet-5-5", "gpt-5.5": "claude-sonnet-5-5" }; // anything else: Haiku
+const claudeFor = (model) => CLAUDE_FOR[model] ?? "claude-haiku-5-5";
+const SECOND_JUDGE_TIMEOUT_MS = 8000; // a slow second judge is skipped: the first one's answer stands
 // gpt-5.4-mini: on 9 real group requests (2026-10-29) nano wrote weak or wrong search words ("מאצה" -> matzo/bread kit,
 // "קלאפר" -> air freshener, "ערכת…" lost the "kit"); mini got all 9 right in ~1 s at ~$0.0015 per new request (cached 24 h).
 const DEFAULT_MODEL = "gpt-5.4-mini";
@@ -195,18 +201,66 @@ export function validateIntent(o) {
   return null;
 }
 
-// One strict-JSON call, sent a second time if the first is slow (see HEDGE_MS); the first answer wins, and it fails only
-// when every request sent has failed.
+// One strict-JSON call, with a backup sent if the first is slow (see HEDGE_MS) or fails at once: Claude when its key is set
+// (OpenAI's own slow spells hit every request alike), else OpenAI again. The first answer wins; it fails only when every
+// request sent has failed.
 async function requestJson({ hedgeMs = HEDGE_MS, timeoutMs = TIMEOUT_MS, ...opts }) {
-  const one = () => requestOnce({ ...opts, timeoutMs });
-  if (!hedgeMs || hedgeMs >= timeoutMs) return one();
+  const first = () => requestOnce({ ...opts, timeoutMs });
+  const claude = Boolean(opts.env?.ANTHROPIC_API_KEY);
+  const backup = () => (claude ? requestClaude({ ...opts, model: claudeFor(opts.model), timeoutMs }) : requestOnce({ ...opts, timeoutMs }));
+  if (!hedgeMs || hedgeMs >= timeoutMs) return claude ? first().catch(() => backup()) : first(); // no hedge: backup on failure only
   return new Promise((resolve, reject) => {
-    let sent = 1, failed = 0, done = false;
+    let sent = 0, failed = 0, done = false;
     const finish = (fn, v) => { if (!done) (done = true), clearTimeout(timer), fn(v); };
-    const track = (p) => p.then((v) => finish(resolve, v), (e) => ++failed === sent && finish(reject, e));
-    const timer = setTimeout(() => { sent++; track(one()); }, hedgeMs);
-    track(one());
+    const send = (call) => {
+      sent++;
+      call().then((v) => finish(resolve, v), (e) => {
+        failed++;
+        if (sent === 1 && claude && !done) return clearTimeout(timer), send(backup); // OpenAI down: straight to Claude
+        if (failed === sent) finish(reject, e);
+      });
+    };
+    const timer = setTimeout(() => sent === 1 && !done && send(backup), hedgeMs);
+    send(first);
   });
+}
+
+// One strict-JSON call to Claude (Messages API, JSON-schema output), taking the same arguments as requestOnce. Thinking
+// is off, like OpenAI's effort "none" (Sonnet 5.5 thinks by default: 47 s on a test search, 2026-11-02).
+async function requestClaude({ fetch, env, model, instructions, content, schema, onUsage, timeoutMs }) {
+  const parts = typeof content === "string" ? content : content.map((c) => (c.type === "input_image" ? { type: "image", source: { type: "url", url: c.image_url } } : { type: "text", text: c.text }));
+  let res;
+  try {
+    res = await fetch(CLAUDE_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model,
+        max_tokens: 2000,
+        ...(/sonnet|opus/.test(model) ? { thinking: { type: "between_tools" } } : {}),
+        system: instructions,
+        messages: [{ role: "user", content: parts }],
+        output_config: { format: { type: "json_schema", schema } },
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    throw new Error(e.name === "TimeoutError" ? "claude timeout" : `claude ${e.name || "error"}`);
+  }
+  if (!res.ok) throw new Error(`claude HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.usage) {
+    onUsage({ input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens });
+    const [pin, pout] = PRICES[model] ?? PRICES["claude-sonnet-5-5"];
+    stats.count("aiCost", (data.usage.input_tokens * pin + data.usage.output_tokens * pout) / 1e6);
+  }
+  const text = data.content?.find((c) => c.type === "text")?.text;
+  if (data.stop_reason === "max_tokens" || !text) throw new Error(`claude ${data.stop_reason ?? "no output"}`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("claude invalid JSON");
+  }
 }
 
 // One strict-JSON call to the OpenAI Responses API. Throws Error(reason) on any failure; reasons never contain user text.
@@ -439,13 +493,30 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_220x220.jpg`, detail: "low" }] : []);
     const titles = [head, ...lines].join("\n");
     const withPhotos = [{ type: "input_text", text: head }, ...products.flatMap((p, i) => [{ type: "input_text", text: lines[i] }, ...photo(p)])];
-    const ask = (content) => requestJson({ fetch, env, model: env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL, instructions: pick ? RELEVANCE_SYSTEM + styleNote(pick) : RELEVANCE_SYSTEM, content, name: "relevant_products", schema: pick ? STYLE_SCHEMA : RELEVANCE_SCHEMA, onUsage });
+    const model = env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL;
+    const args = { fetch, env, instructions: pick ? RELEVANCE_SYSTEM + styleNote(pick) : RELEVANCE_SYSTEM, name: "relevant_products", schema: pick ? STYLE_SCHEMA : RELEVANCE_SCHEMA, onUsage };
+    const ask = (content) => requestJson({ ...args, model, content });
+    // Two judges on the title check (2026-11-02 test, 288 decisions: Claude Sonnet followed the "ordinary shopper" rules far
+    // better: 0 whiskey glasses for "כוס" and 0 cycling bottles for "בקבוק מים", against 9 and 4 from gpt-5.4). Exact needs
+    // both; what only one calls exact, or either calls close, is close. One judge failing or slow leaves the other's answer.
+    // The photo look keeps one judge (about equal there, and faster).
+    const judged = async (content, withPhotos) => {
+      if (withPhotos || !env.ANTHROPIC_API_KEY) return ask(content);
+      const [a, b] = await Promise.allSettled([ask(content), requestClaude({ ...args, model: claudeFor(model), content, timeoutMs: SECOND_JUDGE_TIMEOUT_MS })]);
+      if (a.status === "rejected" || b.status === "rejected") return a.status === "fulfilled" ? a.value : b.status === "fulfilled" ? b.value : Promise.reject(a.reason);
+      const [x, y] = [a.value, b.value];
+      const list = (o, k) => (Array.isArray(o?.[k]) ? o[k] : []);
+      const exact = list(x, "exact").filter((i) => list(y, "exact").includes(i));
+      const any = new Set([...list(x, "exact"), ...list(x, "partial"), ...list(y, "exact"), ...list(y, "partial")]);
+      return { ...x, exact, partial: [...any].filter((i) => !exact.includes(i)), brand: [...new Set([...list(x, "brand"), ...list(y, "brand")])] };
+    };
     // Spare parts for the item: the model often keeps them, so a deterministic title check drops them too.
     const parts = new Set(products.flatMap((p, i) => (isPartFor(p.product_title, request.he) ? [i] : [])));
     const unchecked = (reason) => (warn(reason), { exact: [], partial: products.filter((_, i) => !parts.has(i)) });
     try {
       // One retry with titles only: covers an unreachable photo (HTTP 400) and a slow first call after a cold start.
-      const out = await ask(photos || VISUAL_WORDS.test(`${request.he} ${request.en}`) ? withPhotos : titles).catch(() => ask(titles));
+      const usePhotos = photos || VISUAL_WORDS.test(`${request.he} ${request.en}`);
+      const out = await judged(usePhotos ? withPhotos : titles, usePhotos).catch(() => judged(titles, false));
       const ints = (a) => Array.isArray(a) && a.every(Number.isInteger);
       if (!ints(out?.exact) || !ints(out?.partial)) return unchecked("response failed validation");
       const exact = new Set(out.exact.filter((i) => !parts.has(i)));
