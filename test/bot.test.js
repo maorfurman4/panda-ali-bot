@@ -1261,3 +1261,12 @@ test("real stars replace the % feedback line when the review summary answers", a
   assert.match(caption, /⭐ דירוג: 4\.9 \(319 ביקורות\)/);
   assert.match(caption, /👍 משוב חיובי: 97%/, "the others keep the % line");
 });
+
+test("variety never moves a close match ahead of a real one", async () => {
+  const items = [1, 2, 3, 4, 5].map((n) => product(n, { lastest_volume: String(9000 - n * 100) }));
+  const relevant = async (_r, p) => ({ exact: p.slice(0, 4), partial: p.slice(4) });
+  const title = async (_q, ps) => ps.map((p) => (p.promotion_link.endsWith("_p5") ? "בקבוק אופניים" : `בקבוק מים ספורט ${p.promotion_link.slice(-1)}00 מ"ל`));
+  const ctx = setup({ search: async () => items, live: true, relevant, title });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי בקבוק מים"));
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "2", "3", "4"]);
+});

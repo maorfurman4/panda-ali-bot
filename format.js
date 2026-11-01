@@ -98,8 +98,13 @@ export function varied(products, request = "", limit = 4) {
   const out = [];
   while (rest.length) {
     const card = [];
+    // A skipped look-alike real match is never passed by a close one (a cycling bottle took 4th place over a third sport
+    // bottle, 2026-11-02): only an item of the same or a better grade may move up past it.
+    const grade = (c) => (c.p.match === "partial" ? 1 : 0);
+    let skipped = Infinity;
     for (let i = 0; i < rest.length && card.length < limit; ) {
-      if (card.filter((c) => alike(c.w, rest[i].w)).length >= 2) i++;
+      if (card.filter((c) => alike(c.w, rest[i].w)).length >= 2) skipped = Math.min(skipped, grade(rest[i++]));
+      else if (grade(rest[i]) > skipped) i++;
       else card.push(...rest.splice(i, 1));
     }
     while (card.length < limit && rest.length) card.push(rest.shift()); // only alike ones left: better than a short card
