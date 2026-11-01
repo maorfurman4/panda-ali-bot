@@ -44,26 +44,31 @@ export function rankProducts(products) {
   return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
-// Many reviews with good stars are the proof of a good product: a high rating from a handful of reviews can be the seller's
-// own, and sales can be bought (owner, 2026-11-01: a 4.9 with 5 reviews, 150 sold, the least fitting dress, led a card of
-// 146-351-review ones). So well-reviewed real matches, then well-reviewed close ones, and only then the rest by their old
-// standing: proven by sales (proven: "real"/"close", set in pickProducts), then the others; a 7-sold exact dress must not
-// pass a 1,128-sold close one either. When the review lookup failed (no counts at all) the order stays.
-const WELL_REVIEWED = 20;
-const GOOD_STARS = 4.5;
+// Reviews are the proof of a good product, read with the rating: of the products rated above 4 stars with 20+ reviews,
+// the most reviewed first (owner, 2026-11-01: a 4.4 with 5,000 reviews is what people really buy and should lead). A high
+// rating from a handful of reviews can be the seller's own, and sales can be bought (a 4.9 with 5 reviews, 150 sold, led a
+// card of 146-351-review dresses). Real matches before close ones; then the rest by their standing by sales (proven:
+// "real"/"close", set in pickProducts), so a 7-sold exact dress doesn't pass a 1,128-sold close one either. When the
+// review lookup failed (no counts at all) the order stays.
+const TRUSTED_REVIEWS = 20;
+const MIN_STARS = 4;
 export function reviewedFirst(products) {
   if (!products.some((p) => p.reviewCount)) return products;
-  const good = (p) => p.reviewCount >= WELL_REVIEWED && p.avgStars >= GOOD_STARS;
-  const group = (p) => (good(p) ? (p.match === "partial" ? 1 : 0) : p.proven === "real" ? 2 : p.proven === "close" ? 3 : 4);
-  return products.map((p, i) => ({ p, i, g: group(p) })).sort((a, b) => a.g - b.g || a.i - b.i).map((x) => x.p);
+  const trusted = (p) => p.reviewCount >= TRUSTED_REVIEWS && p.avgStars > MIN_STARS;
+  const group = (p) => (trusted(p) ? (p.match === "partial" ? 1 : 0) : p.proven === "real" ? 2 : p.proven === "close" ? 3 : 4);
+  const reviews = (x) => (x.g <= 1 ? x.p.reviewCount : 0);
+  return products.map((p, i) => ({ p, i, g: group(p) })).sort((a, b) => a.g - b.g || reviews(b) - reviews(a) || a.i - b.i).map((x) => x.p);
 }
 
-// A card starts with a best seller (🥇), never a 🏷️ or ✨ pick: one moved up when an earlier one dropped or moved down.
+// A card is led by its 🥇, never a 🏷️ or ✨ pick. Ordered by reviews, the most reviewed stays first and shows as the 🥇;
+// otherwise (no review counts) the pick that moved up when the leader dropped trades places with the next best seller.
 export function sellerFirst(shown, limit) {
+  const pick = (p) => p?.brandSlot || p?.pretty;
+  if (shown.some((p) => p.reviewCount)) return shown.map((p, i) => (i % limit === 0 && pick(p) ? { ...p, brandSlot: false, pretty: false } : p));
   shown = [...shown];
   for (let start = 0; start < shown.length; start += limit) {
-    if (!shown[start]?.brandSlot && !shown[start]?.pretty) continue;
-    const j = shown.findIndex((p, i) => i > start && i < start + limit && !p.brandSlot && !p.pretty);
+    if (!pick(shown[start])) continue;
+    const j = shown.findIndex((p, i) => i > start && i < start + limit && !pick(p));
     if (j > 0) [shown[start], shown[j]] = [shown[j], shown[start]];
   }
   return shown;
