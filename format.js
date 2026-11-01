@@ -67,21 +67,22 @@ const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|repla
 // itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
 const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;
 const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
-// The same model under two names ("Lenovo LP40 Pro - אוזניות TWS" and "Lenovo LP40 Pro - אוזניות בלוטות'", 2026-11-01):
-// the brand + model before " - " when it holds a model number, else the whole name.
+// The same model under two names ("Lenovo LP40 Pro אוזניות TWS" and "Lenovo LP40 Pro אוזניות", 2026-11-01): the first
+// run of Latin words that holds a model number (brand + model), else the whole name.
 export function modelKey(name = "") {
-  const head = name.split(" - ")[0];
-  return (/[a-z]/i.test(head) && /\d/.test(head) ? head : name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const model = (name.match(/[A-Za-z0-9][\w.-]*(?:\s+[A-Za-z0-9][\w.-]*)*/g) ?? []).find((run) => /[a-z]/i.test(run) && /\d/.test(run));
+  return (model ?? name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 // A card holds at most 2 near-identical items (3 motion-sensor night lights of 4, 2026-11-01); the third waits for the
-// next card. Alike = two shared words (3-letter stems) beyond the request's own words.
+// next card. Alike = a shared word (3-letter stem) beyond the request's own words: four "צעיף מרובע" in one card
+// shared only "מרובע" (2026-11-01).
 const STOP_WORDS = new Set(["עם", "של", "לכל", "for", "and", "wit"]);
 export function varied(products, request = "", limit = 4) {
   const stem = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "").slice(0, 3);
   const asked = new Set(request.split(/\s+/).map(stem));
   const words = (p) => new Set((p.short_he ?? "").split(/\s+/).map(stem).filter((s) => s.length === 3 && !STOP_WORDS.has(s) && !asked.has(s)));
-  const alike = (a, b) => [...a].filter((w) => b.has(w)).length >= 2;
+  const alike = (a, b) => [...a].some((w) => b.has(w));
   const rest = products.map((p) => ({ p, w: words(p) }));
   const out = [];
   while (rest.length) {

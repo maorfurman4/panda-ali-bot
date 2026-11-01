@@ -403,3 +403,9 @@ test("honestName: gold under ₪300 is plated, impossible charger watts go; real
   assert.equal(honestName("מטען רכב Baseus 100W", at(65)), "מטען רכב Baseus 100W");
   assert.equal(honestName("כבל USB ל-Type C ‏100W", at(9)), "כבל USB ל-Type C ‏100W", "a cable's rating is not a charger's output");
 });
+
+test("seasonNote: the understanding is told the season in Israel", async () => {
+  const { seasonNote } = await import("../query.js");
+  assert.match(seasonNote(Date.parse("2026-11-01T10:00:00Z")), /winter/);
+  assert.match(seasonNote(Date.parse("2026-07-15T10:00:00Z")), /summer/);
+});

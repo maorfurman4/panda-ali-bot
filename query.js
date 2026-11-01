@@ -221,6 +221,14 @@ async function requestJson({ fetch, env, model, instructions, content, name, sch
   }
 }
 
+// A general request for a seasonal item means this season's version: "צעיף" in November gave four small square silk
+// scarves instead of warm winter ones (2026-11-01).
+export function seasonNote(t) {
+  const m = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jerusalem", month: "numeric" }).format(t));
+  const season = m >= 11 || m <= 3 ? "winter" : m >= 6 && m <= 9 ? "summer" : m <= 5 ? "spring" : "autumn";
+  return `\n- It is now ${season} in Israel: a general request for a seasonal item means this season's everyday version ("צעיף" in winter -> "winter scarf women", a long warm one; "שמיכה" in summer -> a light one).`;
+}
+
 export function createUnderstander({ fetch = globalThis.fetch, env = process.env, now = Date.now, onUsage = () => {} } = {}) {
   const cache = new Map(); // shortcut: per-process cache, lost on restart; move to Redis if we ever run several instances
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI query understanding failed (${reason}); searching the raw query`);
@@ -237,7 +245,7 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
 
     try {
       // One retry: a timeout or an odd answer happened in 2 of 66 searches (2026-10-25); a second try usually succeeds.
-      const ask = async () => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM, content: text, name: "search_intent", schema: SCHEMA, onUsage }));
+      const ask = async () => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()), content: text, name: "search_intent", schema: SCHEMA, onUsage }));
       const value = (await ask().catch(() => null)) ?? (await ask());
       if (!value) return warn("response failed validation"), null;
       if (value.status === "ok" || value.status === "clarify") {
