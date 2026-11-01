@@ -66,6 +66,8 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - Sets: search the way sellers name them ("סט סירים" -> "pots and pans set", "cookware set induction"; never a camping set).
 - Brands sell under their own sub-lines: search those too ("אוזניות של שיאומי" -> "Redmi Buds", "Xiaomi Buds"; Samsung earbuds
   -> "Galaxy Buds"; Apple -> "AirPods").
+- Fixed installs need their real kind: LED strip for a ceiling, cove or room ("פס לד לתקרה/לגבס") -> "12V LED strip with power
+  supply" or "220V LED strip" (USB 5V strips are for TVs and desks).
 - Jewish and Israeli items: AliExpress sellers rarely write "Shabbat", so search what the item is: "מנורת לילה לשבת"/"מנורת
   שבת" -> keywords "night lamp", terms ["rotating cover night lamp", "plug in night light"] (the Shabbat lamp has a
   mechanical shade you turn to dim it; an always-on lamp works too; never a motion or touch sensor);
@@ -443,7 +445,7 @@ A number the shopper named is a feature: a product that states another number co
 "ל-4 אנשים"). A detail sellers rarely write, like a baby's age in months, is met when nothing contradicts it (a plain baby
 pacifier is exact for "בן חצי שנה"; a newborn-only 0-3 month one is not). A beach sun shelter, emergency or survival tent,
 or screen gazebo is not a camping tent. For a child under 3, a toy with small loose parts (beads, magnets, small balls)
-is partial. "Works with Google/Alexa" means it works without extra gear: a Zigbee bulb that needs a hub is partial.
+is partial. A USB 5V LED strip is for a TV or desk: partial for a ceiling, cove or room. "Works with Google/Alexa" means it works without extra gear: a Zigbee bulb that needs a hub is partial.
 A sticker, decal or print of the item is not the item (acrylic mirror stickers are not a wall mirror).
 When an item is mostly sold as its cover (decorative pillows as cushion covers, duvets as duvet covers), the cover is the
 item: exact, not an accessory. A plain white insert or filler (the inner pillow) is partial. A bed pillowcase (a satin or silk pillowcase for sleep and hair, a standard 50x70 bed
@@ -463,7 +465,9 @@ Styles and close variants of the item count. When the request names a brand, ite
 the same item without the brand (or of another brand) is partial, never left out for lacking the brand. Merchandise of a
 person or band who shares the brand's name (a "Zara Larsson" T-shirt for "Zara") is not the brand: it counts only as
 the plain item.
-With photos: a product whose photo shows a seller's phone number or WhatsApp/WeChat contact is left out (it pulls buyers
+With photos: check every feature the request names against the photo, and leave out a product the photo contradicts:
+a visible power cord for "אלחוטי"/cordless, another color for a named color (silver for "שחור"), one battery in the box
+for "שתי סוללות", a one-person size for "ל-4". A product whose photo shows a seller's phone number or WhatsApp/WeChat contact is left out (it pulls buyers
 off AliExpress). A close shade of the named color is partial, not left out (walnut -> any dark wood tone).
 banner = (with photos only) kept products whose photo is mostly an ad rather than the item: big text, a price, sale or
 percent banner, spec callouts covering the product ([] without photos).

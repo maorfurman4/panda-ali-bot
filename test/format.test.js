@@ -340,3 +340,10 @@ test("sameModel: a key that holds another with a model number is the same model;
   assert.ok(!sameModel(modelKey("Redmi Buds 6 Active"), modelKey("Redmi Buds 8 Pro")));
   assert.ok(!sameModel(modelKey("כיסוי שקוף לסמסונג"), modelKey("כיסוי שקוף לסמסונג גלקסי")));
 });
+
+test("isPartFor: toilet-seat hinges and dampers are parts, unless asked for", () => {
+  assert.equal(isPartFor("צירים אוניברסליים לאסלה", "מושב אסלה שנסגר לאט"), true);
+  assert.equal(isPartFor("ערכת דמפר למושב אסלה", "מושב אסלה שנסגר לאט"), true);
+  assert.equal(isPartFor("2 יחידות, צירים למכסה אסלה", "צירים לאסלה"), false);
+  assert.equal(isPartFor("מושב אסלה בצורת O עם סגירה איטית", "מושב אסלה שנסגר לאט"), false);
+});
