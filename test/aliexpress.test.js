@@ -209,3 +209,10 @@ test("skuApproved: false on InsufficientPermission, true on success, null when t
   assert.equal(await skuApproved({ fetch: answer({ resp_result: { resp_code: 200, result: {} } }), env: LIVE_ENV }), true);
   assert.equal(await skuApproved({ fetch: async () => { throw new Error("network down"); }, env: LIVE_ENV }), null);
 });
+
+test("addStars: stars and review count from the review summary; any failure keeps the product as it was", async () => {
+  const { addStars } = await import("../aliexpress.js");
+  const fetch = async (url) => (url.includes("productId=1") ? { json: async () => ({ data: { productEvaluationStatistic: { evarageStar: 4.9, totalNum: 319 } } }) } : url.includes("productId=2") ? { json: async () => ({ data: {} }) } : Promise.reject(new Error("blocked")));
+  const out = await addStars([{ product_id: "1" }, { product_id: "2" }, { product_id: "3" }], { fetch });
+  assert.deepEqual(out, [{ product_id: "1", avgStars: 4.9, reviewCount: 319 }, { product_id: "2" }, { product_id: "3" }]);
+});

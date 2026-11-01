@@ -144,6 +144,21 @@ export const skuApproved = (deps = {}) =>
     (e) => (e.code === "InsufficientPermission" ? false : null),
   );
 
+// Stars and review count from the public review summary the item page uses (no API has them: the DS API can't be added to
+// an affiliate account). shortcut: unofficial and may change or block; every failure just leaves the % feedback line.
+const FEEDBACK_URL = "https://feedback.aliexpress.com/pc/searchEvaluation.do";
+export async function addStars(products, { fetch = globalThis.fetch, timeoutMs = 4500 } = {}) { // 12 at once take ~2.5-4 s (2026-11-02)
+  const one = async (p) => {
+    const url = `${FEEDBACK_URL}?productId=${encodeURIComponent(p.product_id)}&lang=en_US&country=IL&page=1&pageSize=1&filter=all&sort=complex_default`;
+    const s = await fetch(url, { headers: { "user-agent": "Mozilla/5.0", referer: "https://www.aliexpress.com/" }, signal: AbortSignal.timeout(timeoutMs) })
+      .then((r) => r.json())
+      .then((d) => d?.data?.productEvaluationStatistic, () => null);
+    const stars = Number(s?.evarageStar ?? s?.averageStar), reviews = Number(s?.totalNum);
+    return stars > 0 && stars <= 5 && reviews > 0 ? { ...p, avgStars: stars, reviewCount: reviews } : p;
+  };
+  return Promise.all(products.map((p) => (p.product_id ? one(p).catch(() => p) : p)));
+}
+
 const itemUrl = (p) => `https://www.aliexpress.com/item/${p.product_id}.html`;
 
 // product.query promotion links are ~1 KB long (risky for Telegram URL buttons): swap them for short

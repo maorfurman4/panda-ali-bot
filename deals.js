@@ -4,7 +4,7 @@ import { InputFile } from "grammy";
 import { searchProducts, shortenLinks, promoNames, promoProducts } from "./aliexpress.js";
 import { makeCollage } from "./collage.js";
 import { pickDeal as defaultPick } from "./query.js";
-import { RLM, esc, shortTitle, soldText, priceLine, formatPrice, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK } from "./format.js";
+import { RLM, esc, shortTitle, soldText, priceLine, formatPrice, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK, couponLine } from "./format.js";
 
 // One topic per post, in turn. Every topic was measured on 2026-10-30: the median sales of its top 3 items that pass our
 // filters were at least ~9,000 (weak topics such as building blocks at 3,000 were dropped; 150 topics tested). Each row
@@ -156,6 +156,7 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning } 
     "",
     priceLine(p),
     discountLine(p),
+    couponLine(p),
     vatLine(p),
     ratingText(p),
     sold && `📦 נמכרו: ${sold}`, // 🛒 is the buy line

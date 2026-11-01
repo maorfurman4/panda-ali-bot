@@ -1,7 +1,7 @@
 // Telegram handlers: search triggers, link conversion, cooldowns, Hebrew photo result cards.
 // Privacy: logs contain only update IDs and error messages, never message text or user names.
 import { Bot, InputFile } from "grammy";
-import { searchProducts, convertToAffiliate, isMockMode, shortenLinks } from "./aliexpress.js";
+import { searchProducts, convertToAffiliate, isMockMode, shortenLinks, addStars } from "./aliexpress.js";
 import { findAliExpressUrl } from "./links.js";
 import { understandQuery, filterRelevant, nextAdvice, explainFit, shortTitles } from "./query.js";
 import { makeCollage, photoHash } from "./collage.js";
@@ -371,6 +371,7 @@ export function createBot({
   title = shortTitles,
   collage = makeCollage,
   shorten = (products) => shortenLinks(products), // only the products a card shows get short links
+  stars = (products) => addStars(products), // real stars and review counts for the products found (tests: none)
   hash = photoHash, // tests pass a network-free stub
   stats = defaultStats,
   adminId = process.env.ADMIN_USER_ID, // owner's numeric Telegram id: /status and alerts
@@ -551,8 +552,8 @@ export function createBot({
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
-        const [linked, names] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null)]);
-        found = linked.map((p, i) => (names?.[i] ? { ...p, short_he: names[i] } : p));
+        const [linked, names, rated] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null), stars(found).catch(() => null)]);
+        found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
         // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
         // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
         if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && modelKey(q.short_he) === modelKey(p.short_he)) === i);

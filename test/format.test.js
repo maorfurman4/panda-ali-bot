@@ -315,3 +315,14 @@ test("modelKey: brand + model without a digit, version words dropped; specs aren
   assert.notEqual(modelKey("כבל USB ל-Type C ‏100W"), modelKey("כבל USB ל-Type C קצר"), "Type C is a spec, not a model");
   assert.notEqual(modelKey("QKZ AK6 אוזניות"), modelKey("KZ EDX Pro אוזניות"));
 });
+
+test("couponLine: the biggest valid code the item's price reaches; expired or out-of-reach codes are skipped", async () => {
+  const { couponLine } = await import("../format.js");
+  const coupons = [{ code: "IL5", off: 5, min: 39, until: "2026-11-30" }, { code: "IL10", off: 10, min: 79, until: "2026-11-30" }, { code: "OLD", off: 20, min: 1, until: "2026-10-01" }];
+  const now = Date.parse("2026-11-02T10:00:00Z");
+  const at = (ils) => ({ target_sale_price: String(ils) });
+  assert.equal(couponLine(at(400), coupons, now), "🎟️ קופון <code>IL10</code>: $10 הנחה מעל $79");
+  assert.equal(couponLine(at(160), coupons, now), "🎟️ קופון <code>IL5</code>: $5 הנחה מעל $39");
+  assert.equal(couponLine(at(50), coupons, now), null);
+  assert.equal(couponLine(at(400), [], now), null);
+});

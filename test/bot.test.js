@@ -1252,3 +1252,12 @@ test("when the photo check drops the leader, the 🏷️ pick doesn't move into 
   assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "10", "3", "4"]);
   assert.deepEqual([...caption.matchAll(/(🥇|🥈|🥉|4️⃣|✨|🏷️) <b>/gu)].map((m) => m[1]), ["🥇", "🏷️", "🥈", "🥉"]);
 });
+
+test("real stars replace the % feedback line when the review summary answers", async () => {
+  const stars = async (ps) => ps.map((p, i) => (i === 0 ? { ...p, avgStars: 4.9, reviewCount: 319 } : p));
+  const ctx = setup({ search: async () => SIX, stars });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  const caption = ctx.sent()[0].caption ?? ctx.sent()[0].text;
+  assert.match(caption, /⭐ דירוג: 4\.9 \(319 ביקורות\)/);
+  assert.match(caption, /👍 משוב חיובי: 97%/, "the others keep the % line");
+});

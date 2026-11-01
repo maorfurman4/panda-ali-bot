@@ -1,5 +1,7 @@
 // Hebrew message texts and formatting (HTML parse mode).
 // Every line starts with RLM so lines that begin with a digit, a price or a Latin brand still render right-to-left.
+import COUPONS from "./coupons.json" with { type: "json" };
+
 export const RLM = "‏";
 const MIN_FEEDBACK = 90;
 const TITLE_MAX = 40; // photo captions are only as wide as the photo
@@ -199,6 +201,19 @@ export function ratingText(p) {
 const salePrice = (p) => formatPrice(p.target_sale_price ?? p.sale_price, p.target_sale_price_currency ?? p.sale_price_currency);
 
 // from: the search price is the cheapest variant (a ₪15.59 rug is the 60 cm one, 2026-11-01), so the card says "החל מ".
+// AliExpress promo codes the owner copies from Portals into coupons.json: [{ "code", "off" (USD), "min" (USD, the cart
+// total it needs), "until" ("YYYY-MM-DD", last valid day) }]. A card shows the biggest code the item's price reaches.
+// shortcut: fixed dollar rate, like the price parser in query.js.
+const COUPON_USD_ILS = 3.7;
+export function couponLine(p, coupons = COUPONS, now = Date.now()) {
+  const usd = Number(p.target_sale_price ?? p.sale_price) / COUPON_USD_ILS;
+  const today = new Date(now).toISOString().slice(0, 10);
+  const best = coupons
+    .filter((c) => c?.code && c.off > 0 && (!c.until || c.until >= today) && usd >= (c.min ?? 0))
+    .sort((a, b) => b.off - a.off)[0];
+  return best ? `🎟️ קופון <code>${esc(best.code)}</code>: $${best.off} הנחה${best.min ? ` מעל $${best.min}` : ""}` : null;
+}
+
 export function priceLine(p, { from = false } = {}) {
   const price = salePrice(p);
   return price ? `💰 מחיר: ${from ? "החל מ-" : ""}<b>${esc(price)}</b>` : null;
@@ -241,6 +256,7 @@ function buildCard(products, query, demo, reasons, closest, rare) {
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
         priceLine(p, { from: true }),
         discountLine(p),
+        couponLine(p),
         vatLine(p),
         // Trust badges ride on the rating line (a line each would push the 4th product past the caption limit).
         [ratingText(p), isChoice(p) && "✅ Choice", p.brandTag === "official" ? "🏷️ חנות רשמית" : p.brandTag === "known" && "🏷️ מותג מוכר"].filter(Boolean).join(" · ") || null,
