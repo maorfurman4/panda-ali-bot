@@ -8,12 +8,15 @@ import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
-import { createUnderstander, claudeCheck } from "./query.js";
+import { createUnderstander, claudeCheck, namesLook } from "./query.js";
 import {
   shortTitle,
   soldText,
   filterProducts,
   rankProducts,
+  trustedFirst,
+  sameReviews,
+  sellerFirst,
   dedupeProducts,
   esc,
   RLM,
@@ -302,11 +305,12 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
   const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
   if (styled.length >= limit) {
-    // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
+    // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones and photo-close ones
+    // (another shade, a two-tone for one named color) go last, never out.
     const head = styled.slice(0, STYLE_PHOTOS);
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head, { pick: Math.ceil((limit + extra) / 2) }).catch(() => null);
     const keys = (list) => new Set((list ?? []).map(keyOf));
-    const ok = keys([...(seen?.exact ?? []), ...(seen?.partial ?? [])]), plain = keys(seen?.plain), same = keys(seen?.same);
+    const ok = keys([...(seen?.exact ?? []), ...(seen?.partial ?? [])]), plain = keys([...(seen?.plain ?? []), ...(seen?.partial ?? [])]), same = keys(seen?.same);
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     // The same item from another listing (one POEDAGAR watch twice, 2026-11-01) is dropped like a photo that isn't the item.
     const kept = head.filter((p) => ok.has(keyOf(p)) && !same.has(keyOf(p)));
@@ -323,7 +327,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
         if (!list) break;
         mixed.push(list === pretty ? { ...next(list), pretty: true } : next(list));
       }
-      shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))];
+      // What the photo shows as only close counts as close from here on (the card's review order reads it).
+      const closeKeys = keys(seen?.partial);
+      const graded = (p) => (closeKeys.has(keyOf(p)) ? { ...p, match: "partial" } : p);
+      shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))].map(graded);
     }
   } else if (live && look && shown.length) {
     const head = shown.slice(0, limit + PHOTO_SPARE);
@@ -331,19 +338,26 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     if (seen) {
       const ok = new Set((Array.isArray(seen) ? seen : [...(seen.exact ?? []), ...(seen.partial ?? [])]).map(keyOf));
+      // What the photo shows as only close (a silver faucet for "שחור") follows the real matches (2026-11-01).
+      const close = new Set((Array.isArray(seen) ? [] : seen.partial ?? []).map(keyOf));
       const kept = head.filter((p) => ok.has(keyOf(p)));
-      if (kept.length) shown = [...kept, ...shown.slice(head.length)];
+      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial" })), ...shown.slice(head.length)];
     }
   }
   // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
   shown = shown.map((p) => { const next = p.product_small_image_urls?.string?.[1]; return banners.has(keyOf(p)) && /^https:\/\//.test(next ?? "") ? { ...p, product_main_image_url: next } : p; });
-  // A card starts with a best seller (🥇), never a 🏷️ or ✨ pick: one moved up when the photo check dropped the leader.
-  for (let start = 0; start < shown.length; start += limit) {
-    if (!shown[start]?.brandSlot && !shown[start]?.pretty) continue;
-    const j = shown.findIndex((p, i) => i > start && i < start + limit && !p.brandSlot && !p.pretty);
-    if (j > 0) [shown[start], shown[j]] = [shown[j], shown[start]];
-  }
+  shown = sellerFirst(shown, limit); // one moved up when the photo check dropped the leader
   return shown.slice(0, limit + extra);
+}
+
+// The card's final order, once names and stars are in (the bot and the search-quality check share it).
+export function orderCard(found, { context, style = false, cheapest = false, limit }) {
+  // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
+  // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
+  if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && sameModel(modelKey(q.short_he, context), modelKey(p.short_he, context))) === i);
+  found = sameReviews(found);
+  if (!cheapest) found = trustedFirst(found, { byReviews: !style, look: namesLook(context) }); // "הכי זול" stays cheapest first
+  return sellerFirst(varied(found, context, limit), limit, { strip: !style && !cheapest && found.some((p) => p.reviewCount) });
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.
@@ -561,10 +575,7 @@ export function createBot({
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
         const [linked, names, rated] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null), stars(found).catch(() => null)]);
         found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
-        // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
-        // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
-        if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && sameModel(modelKey(q.short_he, context), modelKey(p.short_he, context))) === i);
-        found = varied(found, context, limit);
+        found = orderCard(found, { context, style, cheapest, limit });
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
       }

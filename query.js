@@ -58,6 +58,11 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - style = true when shoppers choose this item mainly by how it looks (clothing, bags, shoes, jewelry, watches, hats and
   scarves, home decor, bedding, curtains); false for things bought for what they do (electronics, tools, chargers, kitchen
   gadgets), even good-looking ones.
+- Israeli shoppers want the most beautiful, polished version of a style item: search the elegant, well-made kind in the
+  words sellers use, never a casual, party or cheap kind the request doesn't name ("שמלת ערב" -> "evening gown", "formal
+  maxi gown", not "cocktail dress" or "party dress" unless it says קצרה/קוקטייל/מסיבה; "תיק לאישה" -> "elegant women
+  handbag"; "שעון לאישה" -> "elegant women watch"). A request that names a casual or simple look (יומיומי, קז'ואל,
+  ספורטיבי, פשוט, קצרה) gets that look.
 - A general word means the mainstream everyday version most shoppers want, so keywords_en names that one ("אגרטל" ->
   "flower vase", not a hydroponic plant vase; "צעיף" -> "women scarf", "עכבר אלחוטי" -> "wireless mouse"), never a
   specialized kind the shopper didn't ask for.
@@ -384,6 +389,7 @@ export const understandQuery = createUnderstander();
 const RELEVANCE_MODEL = "gpt-5.4";
 // Colors and patterns can only be checked on the photo.
 const VISUAL_WORDS = /אפור|שחור|לבן|אדום|כחול|ירוק|צהוב|ורוד|סגול|חום|בז'|כתום|זהב|כסוף|כסף|שקוף|תכלת|בורדו|קרם|פרחוני|מנוקד|פסים|משובץ|הדפס|צבע|אגוז|אלון|walnut|oak|gr[ae]y|black|white|red|blue|green|yellow|pink|purple|brown|beige|orange|gold|silver|clear|floral|striped|plaid|color/i;
+export const namesLook = (text) => VISUAL_WORDS.test(text); // a color or pattern: the card puts the right look before reviews
 
 const RELEVANCE_SYSTEM = `You check AliExpress search results for an Israeli shopper.
 You get the request (Hebrew, with English search keywords) and numbered products: a title (often machine-translated Hebrew)
@@ -427,6 +433,8 @@ or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 A version made for someone else is partial, not exact: a children's, girls' or baby version when the request isn't for
 kids (flower straw bags for little girls for "תיק קש"), a men's version for a women's request and the reverse.
+A dressy item asked for plainly is its dressy kind: for "שמלת ערב" a mini, club, bodycon summer or casual dress is
+partial unless the request says short, casual or cocktail.
 A general request gets the tasteful, everyday version a grown-up buys for a home or outfit. Unless the request names it,
 leave out (neither exact nor partial):
 - plush, stuffed-toy or animal-shaped versions (a stuffed seal, a moon-and-sun plush or a capybara doll is a toy, not a
@@ -491,8 +499,8 @@ const RELEVANCE_SCHEMA = {
 // Style items (bags, clothes, jewelry, decor): the same photo look also names the prettiest and the plain-looking ones.
 const styleNote = (n) => `
 Shoppers choose this item by its looks, so also judge the photos as a stylish Israeli shopper would:
-- pretty = up to ${n} products, best first, that look the most attractive: well made, current, nicely photographed, the one
-  she would want to own.
+- pretty = up to ${n} products, best first, that look the most attractive: elegant, polished, well made, current, nicely
+  photographed, the one she would want to own.
 - plain = products that look cheap, dated, flimsy or badly made, childish when the request isn't for kids, made for
   the other gender (a thick men's chain for "לאישה"), themed for a holiday the request doesn't name, or a narrow look
   for a general request (one loud color like a pink satin set, a very particular theme) when it names no color or style:
