@@ -69,6 +69,9 @@ const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
 const PHOTO_SPARE = 2; // the photo check sees the products to show plus this many, so a dropped one is replaced
+// A named color: listings show their main photo, often another color than the one asked for (AliExpress's own search shows
+// the asked color's photo), so the photo check sees more of them, and only what it saw can be shown.
+const COLOR_PHOTO_SPARE = 8;
 const RELEVANCE_POOL = 48; // titles only on gpt-5.4: ~$0.008 per check; up to 10 lists (main sorts, other wordings) share it
 const PROVEN_SALES = 50; // 34- and 10-sold items took 2nd place at 10 (2026-11-02)
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
@@ -309,6 +312,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // faucet sprayer head, 2026-10-30). A product the photos show isn't the item drops out and the next one moves up.
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
   const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
+  const namedColor = namesLook(context);
   const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
   if (styled.length >= limit) {
     // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
@@ -333,10 +337,16 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
         if (!list) break;
         mixed.push(list === pretty ? { ...next(list), pretty: true } : next(list));
       }
-      shown = [...mixed, ...kept.filter((p) => plain.has(keyOf(p))), ...shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p))];
+      // A named color: products the photo look didn't see are left out (a light blue and an orange dress filled a black
+      // dress card, 2026-11-01).
+      const unseen = shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p));
+      // A named color: what the photo shows as only close (often another color) follows every right-color one.
+      const photoClose = keys(seen?.partial);
+      const right = (list) => (namedColor ? [...list.filter((p) => !photoClose.has(keyOf(p))), ...list.filter((p) => photoClose.has(keyOf(p)))] : list);
+      shown = [...right([...mixed, ...kept.filter((p) => plain.has(keyOf(p)))]), ...(namedColor ? [] : unseen)];
     }
   } else if (live && look && shown.length) {
-    const head = shown.slice(0, limit + PHOTO_SPARE);
+    const head = shown.slice(0, limit + (namedColor ? COLOR_PHOTO_SPARE : PHOTO_SPARE));
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head).catch(() => null);
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     if (seen) {
@@ -344,7 +354,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       // What the photo shows as only close (a silver faucet for "שחור") follows the real matches (2026-11-01).
       const close = new Set((Array.isArray(seen) ? [] : [...(seen.near ?? []), ...(seen.partial ?? [])]).map(keyOf)); // near: one judge saw another shade
       const kept = head.filter((p) => ok.has(keyOf(p)));
-      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))).map((p) => ({ ...p, looked: true })), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", offColor: true, looked: true })), ...shown.slice(head.length)];
+      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))).map((p) => ({ ...p, looked: true })), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", offColor: true, looked: true })), ...(namedColor ? [] : shown.slice(head.length))];
     }
   }
   // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
