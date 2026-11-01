@@ -75,8 +75,11 @@ const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)
 // Version words at the end are dropped, so "KZ EDX Pro X" and "KZ EDX Pro" are one model (2026-11-01).
 const SPEC_WORDS = /^(?:usb|led|rgb|tws|pd|qc|hd|uv|dc|ac|gan|anc|type|ipx\d*)$/i;
 const VERSION_WORDS = /^(?:x|s|pro|max|plus|lite|se|mini|ultra|\+)$/i;
-export function modelKey(name = "") {
-  const runs = name.match(/[A-Za-z0-9][\w.-]*(?:\s+[A-Za-z0-9][\w.-]*)*/g) ?? [];
+// request: a run that holds a model number the shopper named is the device the item is FOR, not the item's model
+// (every "כיסוי שקוף ל-Samsung S24" collapsed into one, 2026-11-02).
+export function modelKey(name = "", request = "") {
+  const asked = new Set((request.match(/[A-Za-z]*\d+[A-Za-z]*/g) ?? []).map((w) => w.toLowerCase()));
+  const runs = (name.match(/[A-Za-z0-9][\w.-]*(?:\s+[A-Za-z0-9][\w.-]*)*/g) ?? []).filter((run) => !run.split(/\s+/).some((w) => asked.has(w.toLowerCase())));
   const brandLed = (run) => { const [first, ...rest] = run.split(/\s+/); return rest.length > 0 && /^[A-Z][A-Za-z]+$/.test(first) && !SPEC_WORDS.test(first); };
   const model = runs.find((run) => /[a-z]/i.test(run) && (/\d/.test(run) || brandLed(run)));
   if (!model) return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");

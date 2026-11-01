@@ -326,3 +326,10 @@ test("couponLine: the biggest valid code the item's price reaches; expired or ou
   assert.equal(couponLine(at(50), coupons, now), null);
   assert.equal(couponLine(at(400), [], now), null);
 });
+
+test("modelKey: the device the request names isn't the item's model (every S24 case is not one product)", async () => {
+  const { modelKey } = await import("../format.js");
+  const req = "כיסוי שקוף לסמסונג S24";
+  assert.notEqual(modelKey("כיסוי שקוף ל-Samsung S24", req), modelKey("כיסוי מגנטי שקוף Samsung S24", req));
+  assert.equal(modelKey("Lenovo LP40 Pro אוזניות", "אוזניות אלחוטיות"), modelKey("Lenovo LP40 Pro - אוזניות TWS", "אוזניות אלחוטיות"));
+});

@@ -61,6 +61,11 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - A general word means the mainstream everyday version most shoppers want, so keywords_en names that one ("אגרטל" ->
   "flower vase", not a hydroponic plant vase; "צעיף" -> "women scarf", "עכבר אלחוטי" -> "wireless mouse"), never a
   specialized kind the shopper didn't ask for.
+- Never put a baby's or child's age in keywords_en ("מוצץ לתינוק בן חצי שנה" -> "baby pacifier": sellers rarely title the
+  age, and "6 month" found mostly clips); the check reads the age later.
+- Sets: search the way sellers name them ("סט סירים" -> "pots and pans set", "cookware set induction"; never a camping set).
+- Brands sell under their own sub-lines: search those too ("אוזניות של שיאומי" -> "Redmi Buds", "Xiaomi Buds"; Samsung earbuds
+  -> "Galaxy Buds"; Apple -> "AirPods").
 - Jewish and Israeli items: AliExpress sellers rarely write "Shabbat", so search what the item is: "מנורת לילה לשבת"/"מנורת
   שבת" -> keywords "night lamp", terms ["rotating cover night lamp", "plug in night light"] (the Shabbat lamp has a
   mechanical shade you turn to dim it; an always-on lamp works too; never a motion or touch sensor);
@@ -434,6 +439,11 @@ phone holder for "מחזיק לטלפון לרכב"), sport-specific (cycling gl
 garment (a keffiyeh for "צעיף").
 For Shabbat use ("לשבת", "שאפשר להשתמש בשבת"), anything that switches on by motion, sound, touch or an app is not
 Shabbat-friendly: leave it out (a motion-sensor night light for "מנורת לילה לשבת").
+A number the shopper named is a feature: a product that states another number contradicts it (a 2-person tent for
+"ל-4 אנשים"). A detail sellers rarely write, like a baby's age in months, is met when nothing contradicts it (a plain baby
+pacifier is exact for "בן חצי שנה"; a newborn-only 0-3 month one is not). A beach sun shelter, emergency or survival tent,
+or screen gazebo is not a camping tent. For a child under 3, a toy with small loose parts (beads, magnets, small balls)
+is partial. "Works with Google/Alexa" means it works without extra gear: a Zigbee bulb that needs a hub is partial.
 A sticker, decal or print of the item is not the item (acrylic mirror stickers are not a wall mirror).
 When an item is mostly sold as its cover (decorative pillows as cushion covers, duvets as duvet covers), the cover is the
 item: exact, not an accessory. A plain white insert or filler (the inner pillow) is partial. A bed pillowcase (a satin or silk pillowcase for sleep and hair, a standard 50x70 bed
@@ -522,7 +532,11 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
       const list = (o, k) => (Array.isArray(o?.[k]) ? o[k] : []);
       const exact = list(x, "exact").filter((i) => list(y, "exact").includes(i));
       const any = new Set([...list(x, "exact"), ...list(x, "partial"), ...list(y, "exact"), ...list(y, "partial")]);
-      return { ...x, exact, partial: [...any].filter((i) => !exact.includes(i)), brand: [...new Set([...list(x, "brand"), ...list(y, "brand")])] };
+      // One judge exact and the other close: "near", ranked after exact and before close, and not "no exact match"
+      // (one pacifier set, two S24 cases and "no exact" on electric spice grinders when exact needed both, 2026-11-02).
+      const kept = (o, i) => list(o, "exact").includes(i) || list(o, "partial").includes(i);
+      const near = [...any].filter((i) => !exact.includes(i) && kept(x, i) && kept(y, i) && (list(x, "exact").includes(i) || list(y, "exact").includes(i)));
+      return { ...x, exact, near, partial: [...any].filter((i) => !exact.includes(i) && !near.includes(i)), brand: [...new Set([...list(x, "brand"), ...list(y, "brand")])] };
     };
     // Spare parts for the item: the model often keeps them, so a deterministic title check drops them too.
     const parts = new Set(products.flatMap((p, i) => (isPartFor(p.product_title, request.he) ? [i] : [])));
@@ -534,9 +548,10 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
       const ints = (a) => Array.isArray(a) && a.every(Number.isInteger);
       if (!ints(out?.exact) || !ints(out?.partial)) return unchecked("response failed validation");
       const exact = new Set(out.exact.filter((i) => !parts.has(i)));
-      const partial = new Set(out.partial.filter((i) => !exact.has(i) && !parts.has(i)));
-      const kept = (a) => (ints(a) ? a.filter((i) => exact.has(i) || partial.has(i)) : []);
-      const result = { exact: products.filter((_, i) => exact.has(i)), partial: products.filter((_, i) => partial.has(i)), brand: kept(out.brand).map((i) => products[i]), banner: kept(out.banner).map((i) => products[i]) };
+      const near = new Set((ints(out.near) ? out.near : []).filter((i) => !exact.has(i) && !parts.has(i)));
+      const partial = new Set(out.partial.filter((i) => !exact.has(i) && !near.has(i) && !parts.has(i)));
+      const kept = (a) => (ints(a) ? a.filter((i) => exact.has(i) || near.has(i) || partial.has(i)) : []);
+      const result = { exact: products.filter((_, i) => exact.has(i)), partial: products.filter((_, i) => partial.has(i)), brand: kept(out.brand).map((i) => products[i]), banner: kept(out.banner).map((i) => products[i]), ...(near.size ? { near: products.filter((_, i) => near.has(i)) } : {}) };
       if (!pick) return result;
       // A "same" item is never the first of its kind: index 0 always stays.
       return { ...result, pretty: [...new Set(kept(out.pretty))].slice(0, pick).map((i) => products[i]), plain: kept(out.plain).map((i) => products[i]), same: kept(out.same).filter((i) => i > 0).map((i) => products[i]) };

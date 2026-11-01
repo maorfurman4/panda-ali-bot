@@ -65,7 +65,7 @@ const MAX_QUESTIONS = 3;
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
 const PHOTO_SPARE = 2; // the photo check sees the products to show plus this many, so a dropped one is replaced
 const RELEVANCE_POOL = 48; // titles only on gpt-5.4: ~$0.008 per check; up to 10 lists (main sorts, other wordings) share it
-const PROVEN_SALES = 10;
+const PROVEN_SALES = 50; // 34- and 10-sold items took 2nd place at 10 (2026-11-02)
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
 const SECOND_CHANCE_BUDGET_MS = 7000; // a slow AliExpress day: show what was found rather than wait another ~5 s (18-24 s outliers seen)
 const TRUSTED_FEEDBACK = 92; // ≈4.6-4.7 stars; 95 (≈4.8) pushed down 45% of strong sellers (1,953 products, 2026-11-01)
@@ -208,6 +208,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   let exact = first.length >= limit ? first : first.concat(more); // demo mode (no AI): the broader search only tops up
   let partial = [];
   const known = new Set(); // well-known brands, as the title check names them
+  let near = []; // one judge said exact, the other close
   if (live) {
     // Every list (the main words' best sellers, page 2, relevance order and category lists; each other wording; the broader
     // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
@@ -225,6 +226,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       if (!none(again) && !(noExact(again) && !none(out))) out = again;
     }
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
+    near = out.near ?? [];
     for (const p of out.brand ?? []) known.add(keyOf(p));
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
@@ -253,6 +255,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const keep = (p) => !suspicious(p) && !overpriced(p) && !offTheme(p.product_title, `${context} ${keywords}`) && !fakeLuxury(p.product_title, `${context} ${keywords}`);
   exact = exact.filter(keep);
   partial = partial.filter(keep);
+  near = near.filter(keep);
   const special = exact.filter((p) => specialKind(p.product_title, `${context} ${keywords}`));
   if (special.length) (exact = exact.filter((p) => !special.includes(p))), (partial = [...special, ...partial]);
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
@@ -264,6 +267,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const tag = (list, match) => list.map((p) => (brandTag(p) ? { ...p, match, brandTag: brandTag(p) } : { ...p, match }));
   exact = tag(exact, "exact");
   partial = tag(partial, "partial");
+  near = tag(near, "near");
   // Proven real matches, then proven close ones, then barely-sold real matches: a 2,775-sold advent calendar the check called
   // "close" beat ones with 5 sales (2026-10-31). But when no real match is proven, the best one that has sold still leads
   // (Logitech Lift, 6 sold, before an M750 that only calls itself ergonomic). Never-sold items come last.
@@ -271,10 +275,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const exactProven = exact.filter(proven);
   const exactSold = rankProducts(exact.filter((p) => !proven(p) && sold(p)));
   const lead = exactProven.length ? [] : exactSold.slice(0, 1);
-  const tiers = [exactProven, lead, partial.filter(proven), exactSold.slice(lead.length), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
+  const tiers = [exactProven, lead, near.filter(proven), partial.filter(proven), exactSold.slice(lead.length), near.filter((p) => !proven(p)), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
   const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
-  const all = cheapest ? [...byPrice(exact), ...byPrice(partial)] : tiers.flatMap(rankProducts);
+  const all = cheapest ? [...byPrice(exact), ...byPrice(near), ...byPrice(partial)] : tiers.flatMap(rankProducts);
   let ranked = dedupeProducts(all);
   // Few results: the same model from another seller is still a choice, usually at another price (Ruckus R350 at ₪1,179
   // and ₪1,859; the competitor showed both, 2026-10-29). The photo check below still drops identical listings.
@@ -558,7 +562,7 @@ export function createBot({
         found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
         // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
         // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
-        if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && modelKey(q.short_he) === modelKey(p.short_he)) === i);
+        if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && modelKey(q.short_he, context) === modelKey(p.short_he, context)) === i);
         found = varied(found, context, limit);
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);

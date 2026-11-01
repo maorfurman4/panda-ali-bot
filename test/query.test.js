@@ -465,3 +465,11 @@ test("backup: when OpenAI fails at once and the Claude key is set, the same requ
   assert.equal(urls.length, 2);
   assert.match(urls[1], /anthropic/);
 });
+
+test("two judges: one exact + one close is 'near'", async () => {
+  const fetch = async (url) => (url.includes("anthropic") ? claudeAnswer({ exact: [0], partial: [1], brand: [], banner: [] }) : openaiAnswer({ exact: [0, 1], partial: [], brand: [], banner: [] }));
+  const out = await createRelevanceFilter({ fetch, env: CLAUDE_ENV })({ he: "מוצץ", en: "pacifier" }, [{ product_title: "a" }, { product_title: "b" }]);
+  assert.deepEqual(out.exact.map((p) => p.product_title), ["a"]);
+  assert.deepEqual(out.near.map((p) => p.product_title), ["b"]);
+  assert.equal(out.partial.length, 0);
+});

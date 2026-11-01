@@ -797,7 +797,7 @@ test("the main search failing still shows the broader search's results; both fai
 });
 
 test("proven exact first, then proven close ones, then exact ones with a few sales; never-sold ones only fill in", async () => {
-  const items = [product(1, { lastest_volume: "0" }), product(2, { lastest_volume: "3" }), product(3, { lastest_volume: "500" }), product(4, { lastest_volume: "40" }), product(5, { lastest_volume: "12" })];
+  const items = [product(1, { lastest_volume: "0" }), product(2, { lastest_volume: "3" }), product(3, { lastest_volume: "500" }), product(4, { lastest_volume: "400" }), product(5, { lastest_volume: "120" })];
   const relevant = async (_r, p) => ({ exact: p.filter((x) => /_p(1|2|3)$/.test(x.promotion_link)), partial: p.filter((x) => /_p(4|5)$/.test(x.promotion_link)) });
   const ctx = setup({ search: async () => items, relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
@@ -1269,4 +1269,13 @@ test("variety never moves a close match ahead of a real one", async () => {
   const ctx = setup({ search: async () => items, live: true, relevant, title });
   await ctx.bot.handleUpdate(textUpdate("חפש לי בקבוק מים"));
   assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "2", "3", "4"]);
+});
+
+test("near matches (one judge exact, the other close) come after exact, before close, and don't trigger 'no exact match'", async () => {
+  const items = [1, 2, 3, 4].map((n) => product(n, { lastest_volume: String(5000 - n * 100) }));
+  const relevant = async (_r, p) => ({ exact: [], near: p.slice(2), partial: p.slice(0, 2) });
+  const ctx = setup({ search: async () => items, relevant, live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מוצץ"));
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "4", "1", "2"]);
+  assert.doesNotMatch(ctx.sent()[0].caption ?? ctx.sent()[0].text, /לא מצאתי התאמה מדויקת/);
 });
