@@ -8,7 +8,7 @@ import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
-import { createUnderstander } from "./query.js";
+import { createUnderstander, claudeCheck } from "./query.js";
 import {
   shortTitle,
   soldText,
@@ -347,6 +347,8 @@ async function liveHealthChecks() {
   let t = Date.now();
   const intent = await createUnderstander()("אושניות");
   lines.push(intent ? `AI: ✅ (${Date.now() - t} ms, "${intent.corrected_he}")` : "AI: ❌ (בדקו OPENAI_API_KEY או את המודל)");
+  const claude = await claudeCheck();
+  lines.push(claude ? `Claude (גיבוי + שופט שני): ${claude}` : "Claude: כבוי (אין ANTHROPIC_API_KEY)");
   if (isMockMode()) return [...lines, "עלי אקספרס: מצב דמו (אין מפתחות)"];
   t = Date.now();
   try {

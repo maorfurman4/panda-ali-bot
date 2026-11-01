@@ -304,6 +304,15 @@ async function requestOnce({ fetch, env, model, instructions, content, name, sch
 
 // A general request for a seasonal item means this season's version: "צעיף" in November gave four small square silk
 // scarves instead of warm winter ones (2026-11-01).
+// For /status: one tiny Claude call ("✅ 1.2 s"), so the owner sees the backup and second judge are live. null without a key.
+export async function claudeCheck({ fetch = globalThis.fetch, env = process.env } = {}) {
+  if (!env.ANTHROPIC_API_KEY) return null;
+  const t = Date.now();
+  const schema = { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false };
+  return requestClaude({ fetch, env, model: "claude-haiku-5-5", instructions: "Answer ok: true.", content: "ping", schema, onUsage: () => {}, timeoutMs: 8000 })
+    .then(() => `✅ (${Date.now() - t} ms)`, (e) => `❌ ${e.message}`);
+}
+
 export function seasonNote(t) {
   const m = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jerusalem", month: "numeric" }).format(t));
   const season = m >= 11 || m <= 3 ? "winter" : m >= 6 && m <= 9 ? "summer" : m <= 5 ? "spring" : "autumn";
