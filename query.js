@@ -59,6 +59,9 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - style = true when shoppers choose this item mainly by how it looks (clothing, bags, shoes, jewelry, watches, hats and
   scarves, home decor, bedding, curtains); false for things bought for what they do (electronics, tools, chargers, kitchen
   gadgets), even good-looking ones.
+- "ערכת טיפוח לגבר" is a set of care products for men: search "men beard care kit", terms ["beard grooming kit oil balm
+  comb", "men skincare gift set"]; electric shavers, trimmers and clippers only when the request names them (מכונה,
+  גילוח, תספורת, טרימר).
 - A general word means the mainstream everyday version most shoppers want, so keywords_en names that one ("אגרטל" ->
   "flower vase", not a hydroponic plant vase; "צעיף" -> "women scarf", "עכבר אלחוטי" -> "wireless mouse"), never a
   specialized kind the shopper didn't ask for.
@@ -427,6 +430,7 @@ When the request names the device or brand the item is FOR ("filter for Melitta 
 for Corolla"), it is exact only if the title names that device or brand (or lists it among compatible models); a generic
 or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
+For "ערכת טיפוח" with no machine named, an electric clipper, trimmer or shaver is partial (it is a tool, not a care set).
 A version made for someone else is partial, not exact: a children's, girls' or baby version when the request isn't for
 kids (flower straw bags for little girls for "תיק קש"), a men's version for a women's request and the reverse.
 A general request gets the tasteful, everyday version a grown-up buys for a home or outfit. Unless the request names it,

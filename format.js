@@ -130,9 +130,9 @@ export function dedupeProducts(products) {
 }
 
 // A spare part / accessory FOR the item rather than the item (robot vacuum bags and brushes), unless parts were asked for.
-const PART_REQUEST = /חלק|חילוף|אביזר|מברש|שקי|מסנן|פילטר|רפיד|מטלי|ציר|דמפר|filter|brush|bag|spare|replacement|accessor|hinge|damper/i;
-// Hinges and dampers for a toilet seat came in for "מושב אסלה שנסגר לאט" (2026-11-02).
-const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|replacement|^(?:\d+\s*יחידות,?\s*)?(?:צירים|ציר|ערכת דמפר|דמפר|hinges?|damper)\s|אביזר\S*\s+ל|^(?:ל|עבור\s)|^(?:מברשת|מברשות|שקית|שקיות|מסנן|מסננים|פילטר|רפידות|מטלית|מטליות)\s/i;
+const PART_REQUEST = /חלק|חילוף|אביזר|מברש|שקי|מסנן|פילטר|רפיד|מטלי|ציר|דמפר|ראש|להב|filter|brush|bag|spare|replacement|accessor|hinge|damper|blade/i;
+// Hinges and dampers for a toilet seat came in for "מושב אסלה שנסגר לאט" (2026-11-02); shaver heads for a grooming kit (2026-11-01).
+const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|replacement|^(?:\d+\s*יחידות,?\s*)?(?:צירים|ציר|ערכת דמפר|דמפר|hinges?|damper)\s|^(?:\d+\s*יחידות,?\s*)?(?:ראשי|ראש) (?:גילוח|החלפה|מכונת)|^(?:\d+\s*יחידות,?\s*)?להבי?ם?\s|shaver heads?|replacement (?:heads?|blades?)|אביזר\S*\s+ל|^(?:ל|עבור\s)|^(?:מברשת|מברשות|שקית|שקיות|מסנן|מסננים|פילטר|רפידות|מטלית|מטליות)\s/i;
 // A title that STARTS with a part/accessory word ("כבל מקלדת", "סוללת קטנוע", "משענות יד") is a part, unless the request
 // itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
 const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;

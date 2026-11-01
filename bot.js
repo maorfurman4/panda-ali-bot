@@ -313,12 +313,13 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
   const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
   const namedColor = namesLook(context);
+  const lookRequest = { he: context, en: keywords, looks, terms: wordings };
   const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
   if (styled.length >= limit) {
     // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
     // As it was at 17:30 (owner, 2026-11-01: tonight's review order and color tags made the dress cards worse).
     const head = styled.slice(0, STYLE_PHOTOS);
-    const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head, { pick: Math.ceil((limit + extra) / 2) }).catch(() => null);
+    const seen = await look(lookRequest, head, { pick: Math.ceil((limit + extra) / 2) }).catch(() => null);
     const keys = (list) => new Set((list ?? []).map(keyOf));
     const ok = keys([...(seen?.exact ?? []), ...(seen?.near ?? []), ...(seen?.partial ?? [])]), plain = keys(seen?.plain), same = keys(seen?.same);
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
@@ -347,7 +348,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     }
   } else if (live && look && shown.length) {
     const head = shown.slice(0, limit + (namedColor ? COLOR_PHOTO_SPARE : PHOTO_SPARE));
-    const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head).catch(() => null);
+    const seen = await look(lookRequest, head).catch(() => null);
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     if (seen) {
       const ok = new Set((Array.isArray(seen) ? seen : [...(seen.exact ?? []), ...(seen.near ?? []), ...(seen.partial ?? [])]).map(keyOf));

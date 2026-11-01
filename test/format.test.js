@@ -378,3 +378,9 @@ test("offColor: a title naming only another color than the one asked for; varian
   assert.equal(offColor("תיק עם אבזם זהב", "תיק שחור"), false, "gold trims don't count");
   assert.equal(offColor("שמלת ערב חומה", "שמלת ערב"), false, "no color asked");
 });
+
+test("shaver heads and blades are parts for a grooming kit, unless asked for", async () => {
+  const { isPartFor } = await import("../format.js");
+  assert.equal(isPartFor("ראשי גילוח חלופיים 7 להבים", "ערכת טיפוח לגבר"), true);
+  assert.equal(isPartFor("ראשי גילוח חלופיים", "ראש גילוח למכונה"), false, "asked for");
+});
