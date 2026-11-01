@@ -1231,3 +1231,24 @@ test("nothing exact on a full pool is asked once more; a better second answer wi
   assert.equal(n, 2);
   assert.doesNotMatch(ctx.sent()[0].caption ?? ctx.sent()[0].text, /לא מצאתי התאמה מדויקת/);
 });
+
+test("an ad-banner photo gives way to the listing's next photo; a card never starts with a 🏷️ pick", async () => {
+  const items = Array.from({ length: 8 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100), product_small_image_urls: { string: [`https://ae01.alicdn.com/kf/img${i + 1}.jpg`, `https://ae01.alicdn.com/kf/clean${i + 1}.jpg`] } }));
+  let collaged;
+  const look = async (_r, p) => ({ exact: p, partial: [], banner: [p[0]] });
+  const ctx = setup({ search: async () => items, live: true, look, collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מטען"));
+  assert.equal(collaged[0], "https://ae01.alicdn.com/kf/clean1.jpg");
+  assert.equal(collaged[1], "https://ae01.alicdn.com/kf/img2.jpg");
+});
+
+test("when the photo check drops the leader, the 🏷️ pick doesn't move into first place", async () => {
+  const items = Array.from({ length: 12 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 500), evaluate_rate: "98%" }));
+  items[9] = { ...items[9], shop_name: "UGREEN Official Store" };
+  const look = async (_r, p) => ({ exact: p.filter((x) => !x.promotion_link.endsWith("_p1")), partial: [] });
+  const ctx = setup({ search: async () => items, live: true, look });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מטען"));
+  const caption = ctx.sent()[0].caption ?? ctx.sent()[0].text;
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "10", "3", "4"]);
+  assert.deepEqual([...caption.matchAll(/(🥇|🥈|🥉|4️⃣|✨|🏷️) <b>/gu)].map((m) => m[1]), ["🥇", "🏷️", "🥈", "🥉"]);
+});

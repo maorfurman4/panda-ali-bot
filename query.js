@@ -306,7 +306,8 @@ Sort the products into two lists:
   שולחן", an alarm or desk clock for "שעון קיר", whiskey, wine or shot glasses or a measuring cup for "כוס"); sport- or
   hobby-specific kinds (cycling bottles, ski or cycling gloves, camping cookware, gaming keyboards);
   regional specialties (a Japanese tamagoyaki pan for "מחבת"); a product for another job that shares the name
-  (a citronella anti-mosquito candle for "נר ריחני"); DIY kits of the item.
+  (a citronella anti-mosquito candle for "נר ריחני"); DIY kits of the item; personalized products printed with the
+  buyer's own photo or name (a custom photo canvas for "תמונה לסלון").
   An everyday word covers all its everyday kinds, and they are all exact: "מגבת" = bath, hand and face towels and towel
   sets; "כוס" = drinking glasses AND mugs with a handle. Partial is only for the specialized or other-use kinds above.
   A negated feature counts too: "לא שקוף" (not clear) means a clear one contradicts the request.
@@ -362,6 +363,8 @@ person or band who shares the brand's name (a "Zara Larsson" T-shirt for "Zara")
 the plain item.
 With photos: a product whose photo shows a seller's phone number or WhatsApp/WeChat contact is left out (it pulls buyers
 off AliExpress). A close shade of the named color is partial, not left out (walnut -> any dark wood tone).
+banner = (with photos only) kept products whose photo is mostly an ad rather than the item: big text, a price, sale or
+percent banner, spec callouts covering the product ([] without photos).
 brand = the kept products of a well-known brand shoppers trust for quality (Baseus, Ugreen, Anker, Essager, Joyroom, Xiaomi,
 Redmi, QCY, Soundcore, Haylou, Lenovo, Logitech, Edifier, Vention, Orico…), by the brand the title says it IS (not a phone
 it is "for"); a seller's own made-up or store name doesn't count.
@@ -373,8 +376,9 @@ const RELEVANCE_SCHEMA = {
     exact: { type: "array", items: { type: "integer" } },
     partial: { type: "array", items: { type: "integer" } },
     brand: { type: "array", items: { type: "integer" } },
+    banner: { type: "array", items: { type: "integer" } },
   },
-  required: ["exact", "partial", "brand"],
+  required: ["exact", "partial", "brand", "banner"],
   additionalProperties: false,
 };
 
@@ -387,13 +391,13 @@ Shoppers choose this item by its looks, so also judge the photos as a stylish Is
   the other gender (a thick men's chain for "לאישה"), themed for a holiday the request doesn't name, or a narrow look
   for a general request (one loud color like a pink satin set, a very particular theme) when it names no color or style:
   a general request gets versatile looks that fit most homes or outfits.
-- same = products that are the same item as one earlier in the list (same model and look from another listing or
-  seller), so the shopper isn't shown one watch twice.
+- same = products that are the same item as one earlier in the list, or look just like it (same design, shape and
+  color from another listing or seller: four near-identical black touch-screen gloves), so the shopper sees real choices.
 All three only from the products you keep (exact or partial).`;
 const STYLE_SCHEMA = {
   ...RELEVANCE_SCHEMA,
   properties: { ...RELEVANCE_SCHEMA.properties, ...Object.fromEntries(["pretty", "plain", "same"].map((k) => [k, { type: "array", items: { type: "integer" } }])) },
-  required: ["exact", "partial", "brand", "pretty", "plain", "same"],
+  required: ["exact", "partial", "brand", "banner", "pretty", "plain", "same"],
 };
 
 // Splits products into { exact, partial } matches (API order), dropping spare parts for the item.
@@ -423,7 +427,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
       const exact = new Set(out.exact.filter((i) => !parts.has(i)));
       const partial = new Set(out.partial.filter((i) => !exact.has(i) && !parts.has(i)));
       const kept = (a) => (ints(a) ? a.filter((i) => exact.has(i) || partial.has(i)) : []);
-      const result = { exact: products.filter((_, i) => exact.has(i)), partial: products.filter((_, i) => partial.has(i)), brand: kept(out.brand).map((i) => products[i]) };
+      const result = { exact: products.filter((_, i) => exact.has(i)), partial: products.filter((_, i) => partial.has(i)), brand: kept(out.brand).map((i) => products[i]), banner: kept(out.banner).map((i) => products[i]) };
       if (!pick) return result;
       // A "same" item is never the first of its kind: index 0 always stays.
       return { ...result, pretty: [...new Set(kept(out.pretty))].slice(0, pick).map((i) => products[i]), plain: kept(out.plain).map((i) => products[i]), same: kept(out.same).filter((i) => i > 0).map((i) => products[i]) };

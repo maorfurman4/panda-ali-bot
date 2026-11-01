@@ -294,6 +294,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Last look, at the photos of the products about to be shown (a few spare): a title can lie ("kitchen faucet" on a
   // faucet sprayer head, 2026-10-30). A product the photos show isn't the item drops out and the next one moves up.
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
+  const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
   const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
   if (styled.length >= limit) {
     // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
@@ -301,6 +302,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head, { pick: Math.ceil((limit + extra) / 2) }).catch(() => null);
     const keys = (list) => new Set((list ?? []).map(keyOf));
     const ok = keys([...(seen?.exact ?? []), ...(seen?.partial ?? [])]), plain = keys(seen?.plain), same = keys(seen?.same);
+    for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     // The same item from another listing (one POEDAGAR watch twice, 2026-11-01) is dropped like a photo that isn't the item.
     const kept = head.filter((p) => ok.has(keyOf(p)) && !same.has(keyOf(p)));
     if (kept.length) {
@@ -321,11 +323,20 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   } else if (live && look && shown.length) {
     const head = shown.slice(0, limit + PHOTO_SPARE);
     const seen = await look({ he: context, en: keywords, looks, terms: wordings }, head).catch(() => null);
+    for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     if (seen) {
       const ok = new Set((Array.isArray(seen) ? seen : [...(seen.exact ?? []), ...(seen.partial ?? [])]).map(keyOf));
       const kept = head.filter((p) => ok.has(keyOf(p)));
       if (kept.length) shown = [...kept, ...shown.slice(head.length)];
     }
+  }
+  // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
+  shown = shown.map((p) => { const next = p.product_small_image_urls?.string?.[1]; return banners.has(keyOf(p)) && /^https:\/\//.test(next ?? "") ? { ...p, product_main_image_url: next } : p; });
+  // A card starts with a best seller (🥇), never a 🏷️ or ✨ pick: one moved up when the photo check dropped the leader.
+  for (let start = 0; start < shown.length; start += limit) {
+    if (!shown[start]?.brandSlot && !shown[start]?.pretty) continue;
+    const j = shown.findIndex((p, i) => i > start && i < start + limit && !p.brandSlot && !p.pretty);
+    if (j > 0) [shown[start], shown[j]] = [shown[j], shown[start]];
   }
   return shown.slice(0, limit + extra);
 }

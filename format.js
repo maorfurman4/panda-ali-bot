@@ -69,9 +69,18 @@ const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי
 const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
 // The same model under two names ("Lenovo LP40 Pro אוזניות TWS" and "Lenovo LP40 Pro אוזניות", 2026-11-01): the first
 // run of Latin words that holds a model number (brand + model), else the whole name.
+// A run without a digit counts when it starts with a capitalized brand ("KZ EDX Pro X"), not a spec ("USB C", "Type C").
+// Version words at the end are dropped, so "KZ EDX Pro X" and "KZ EDX Pro" are one model (2026-11-01).
+const SPEC_WORDS = /^(?:usb|led|rgb|tws|pd|qc|hd|uv|dc|ac|gan|anc|type|ipx\d*)$/i;
+const VERSION_WORDS = /^(?:x|s|pro|max|plus|lite|se|mini|ultra|\+)$/i;
 export function modelKey(name = "") {
-  const model = (name.match(/[A-Za-z0-9][\w.-]*(?:\s+[A-Za-z0-9][\w.-]*)*/g) ?? []).find((run) => /[a-z]/i.test(run) && /\d/.test(run));
-  return (model ?? name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const runs = name.match(/[A-Za-z0-9][\w.-]*(?:\s+[A-Za-z0-9][\w.-]*)*/g) ?? [];
+  const brandLed = (run) => { const [first, ...rest] = run.split(/\s+/); return rest.length > 0 && /^[A-Z][A-Za-z]+$/.test(first) && !SPEC_WORDS.test(first); };
+  const model = runs.find((run) => /[a-z]/i.test(run) && (/\d/.test(run) || brandLed(run)));
+  if (!model) return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const words = model.split(/\s+/);
+  while (words.length > 2 && VERSION_WORDS.test(words.at(-1))) words.pop();
+  return words.join("").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 // A card holds at most 2 near-identical items (3 motion-sensor night lights of 4, 2026-11-01); the third waits for the
@@ -120,6 +129,7 @@ const SPECIAL_KINDS = [
   /disposable|חד[ -]?פעמי|למסיבה|לקישוט חתונה/i,
   /whisk(?:e)?y|ויסקי|כוסות שוט|shot glass/i,
   /measuring|כוס מדידה|כלי מדידה/i,
+  /personali[sz]ed|custom photo|your (?:own )?photo|(?:תמונה|פוסטר|הדפס|קנבס|כרית|ציפית|ספל)[^,]{0,20}בהתאמה אישית/i,
 ];
 export const specialKind = (title, request = "") => SPECIAL_KINDS.some((k) => k.test(title ?? "") && !k.test(request));
 

@@ -308,3 +308,10 @@ test("specialKind: a bath towel is not a 'shower' special; a shower speaker is",
   assert.equal(specialKind("סט מגבות מכותנה רכה, אביזרי אמבטיה", "מגבת"), false);
   assert.equal(specialKind("רמקול בלוטות' מיני לאמבטיה עמיד במים", "רמקול בלוטוס"), true);
 });
+
+test("modelKey: brand + model without a digit, version words dropped; specs aren't models", async () => {
+  const { modelKey } = await import("../format.js");
+  assert.equal(modelKey("KZ EDX Pro X אוזניות חוטיות"), modelKey("KZ EDX Pro אוזניות חוטיות"));
+  assert.notEqual(modelKey("כבל USB ל-Type C ‏100W"), modelKey("כבל USB ל-Type C קצר"), "Type C is a spec, not a model");
+  assert.notEqual(modelKey("QKZ AK6 אוזניות"), modelKey("KZ EDX Pro אוזניות"));
+});
