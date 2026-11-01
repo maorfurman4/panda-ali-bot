@@ -84,7 +84,7 @@ const STYLE_MIN_FEEDBACK = 90;
 const BRAND_MIN_SOLD = 100;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
 const FOOD_WORDS = /חטיף|ממתק|שוקולד|סוכרי|עוגיות|\bתה\b|קפה טחון|פולי קפה|אוכל|מזון|תבלין|דבש|אגוזים|food|snack|candy|tea\b/i;
-const RESULTS_TTL_MS = 6 * 60 * 60_000; // shortcut: prices may drift a little within 6 h; shorten if that matters
+const RESULTS_TTL_MS = 24 * 60 * 60_000; // one answer a day: the judges vary run to run (owner, 2026-11-01). shortcut: prices may drift within the day; shorten if that matters
 const RESULTS_MAX = 300;
 const MORE_PAGES = 2; // up to 2 more cards behind "🔄 עוד", from products already found and checked (no extra AI cost)
 const MORE_TTL_MS = 10 * 60_000;
@@ -419,7 +419,7 @@ export function createBot({
   const guidedAt = new Map(); // last "write חפש לי" hint per user (same in-memory shortcut)
   const pending = new Map(); // advisor sessions waiting for a button press, by short id (same shortcut as above)
   let clarifySeq = 0;
-  const resultsCache = new Map(); // same search within 6 h -> same products, no AI or AliExpress cost (same in-memory shortcut)
+  const resultsCache = new Map(); // same search within 24 h -> same products, no AI or AliExpress cost (same in-memory shortcut)
   const cards = new Map(); // sent result cards: leftover products for "🔄 עוד" and voters, by short id (same shortcut)
   let cardSeq = 0;
 

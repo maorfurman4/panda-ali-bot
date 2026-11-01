@@ -880,16 +880,19 @@ test("one AI call judges both the main and the broader search (no second check)"
   assert.equal(shownIds(ctx.sent()[0]).length, 4);
 });
 
-test("the same search within 6 hours reuses the products: no new AliExpress or AI call", async () => {
+test("the same search within 24 hours reuses the products: no new AliExpress or AI call", async () => {
   let t = 0, searches = 0, checks = 0;
   const ctx = setup({ now: () => t, cooldownMs: 0, live: true, search: async () => (searches++, SIX), relevant: async (_r, p) => (checks++, { exact: p, partial: [] }), understand: async () => intent() });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 1 }));
   t += 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 2 }));
   assert.deepEqual([searches, checks, ctx.sent().length], [3, 1, 2], "3 AliExpress lists once, then memory");
-  t += 6 * 60 * 60_000;
+  t += 22 * 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 3 }));
-  assert.deepEqual([searches, checks], [6, 2], "expired after 6 hours");
+  assert.deepEqual([searches, checks], [3, 1], "still memory after 23 hours");
+  t += 2 * 60 * 60_000;
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 4 }));
+  assert.deepEqual([searches, checks], [6, 2], "expired after 24 hours");
 });
 
 test("advisor: a tap within 1.5 s of the question changing is ignored (the second tap of a double tap)", async () => {
