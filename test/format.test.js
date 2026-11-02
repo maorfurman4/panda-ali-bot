@@ -287,6 +287,20 @@ test("offTheme: holiday items are left out unless the request names a holiday", 
   assert.equal(offTheme("לוח שנה של נידו לשנת 2026, מתנה לחג המולד", "לוח אדוונט של נידו"), false, "an advent calendar is a Christmas request");
   assert.equal(offTheme("לוח אדוונט נידו לליל כל הקדושים", "לוח אדוונט לחג המולד"), true, "another holiday only");
   assert.equal(offTheme("בובה רכה מתנה לחג המולד, ליל כל הקדושים, יום הולדת", "לוח אדוונט לחג המולד"), false, "the asked holiday among others");
+  // Jewish holidays and Judaica
+  assert.equal(offTheme("קשת נרות לחג המולד", "חנוכייה"), true, "a Christmas candle arch for a hanukkiah");
+  assert.equal(offTheme("חנוכייה מכסף עם מגן דוד", "חנוכייה"), false);
+  assert.equal(offTheme("שרשרת מגן דוד מזהב", "מתנה לחנוכה"), false, "Judaica fits a Jewish holiday");
+  assert.equal(offTheme("שרשרת מגן דוד מזהב", "שרשרת לאישה"), true, "Judaica only when asked");
+  assert.equal(offTheme("תחפושת ליל כל הקדושים לילדים", "תחפושת לפורים"), false, "Purim costumes are sold as Halloween ones");
+  assert.equal(offTheme("קערת פסח קרמית", "קערה לסלטים"), true);
+  assert.equal(offTheme("ביצי פסחא צבעוניות", "קערת סדר לפסח"), true, "Easter is not Passover");
+  assert.equal(offTheme("מנורת שבת אוטומטית", "מנורת לילה לשבת"), false, "לשבת in a request is Shabbat");
+  assert.equal(offTheme("כרית נוחה לשבת עליה בכיסא", "כרית לכיסא"), false, "לשבת in a title is also 'to sit'");
+  assert.equal(offTheme("סט מצעים מסדרת קיץ", "מצעים"), false, "everyday words aren't holidays");
+  for (const t of ["אוזניות עם תצוגה דיגיטלית", "מטלית מיקרופייבר", "אחיזה מגנטית משופרת", "מברשת סופר סופגנית", "ספר סיפורים לילדים", "צעיף טלית סאטן", "תושבת טלפון לרכב"])
+    assert.equal(offTheme(t, "מוצר"), false, t);
+  assert.equal(offTheme("תחפושת מלכה לפורים", "תחפושת"), true);
   assert.equal(offTheme("כיסוי כרית בוהו לבן קרם", "כרית נוי"), false);
 });
 

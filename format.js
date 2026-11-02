@@ -205,10 +205,36 @@ export function varied(products, request = "", limit = 4) {
 // "חג המולד, ליל כל הקדושים, יום הולדת"); a Halloween-only calendar for "לוח אדוונט לחג המולד" goes (owner, 2026-11-02).
 // Asking for an advent calendar is asking for Christmas ("לוח אדוונט של נידו" lost every NeeDoh calendar "…לחג המולד"
 // without it); in a title "advent" alone says nothing, since Halloween advent calendars exist too.
-const HOLIDAYS = [/halloween|ליל כל הקדושים|האלווין|הלווין/i, /christmas|xmas|חג המולד|כריסמס|סנטה|santa/i, /easter|פסחא/i, /thanksgiving/i];
+// Jewish holidays and Judaica too (owner, 2026-11-02). Words that are also everyday Hebrew are matched whole or left out:
+// "לשבת" is also "to sit", "סדר" "order", "פמוט" any candle holder, "רעשן" a baby rattle, "מנורה" a lamp; whole words
+// only, since "טלית" hides in "דיגיטלית", "שופר" in "משופרת", "סופגני" in "סופגנית" (absorbent), "פורים" in "סיפורים"
+// (35 of 1,867 best sellers were left out before that, 2026-11-02). A "טלית סאטן" scarf is a shawl: no Hebrew טלית.
+const W = (word, prefix = "") => `(?<![א-ת])${prefix}(?:${word})(?![א-ת])`;
+const HALLOWEEN = /halloween|ליל כל הקדושים|האלווין|הלווין/i;
+const PURIM = new RegExp(`${W("פורים", "[לבו]?")}|משלוח מנות|מגילת אסתר|אוזני המן|purim`, "i");
+const JEWISH = [
+  new RegExp(`חנוכ|סביבון|${W("סופגני(?:ה|יה|ות|יות)")}|hanukk?ah|chanukk?ah|menorah|dreidel`, "i"),
+  new RegExp(`פסח(?!א)|ליל הסדר|קערת (?:ה)?סדר|הגדה של פסח|${W("מצות?")}|passover|pesach|seder plate|matzah?|matzo`, "i"),
+  new RegExp(`ראש השנה|שנה טובה|${W("שופר(?:ות)?")}|rosh hashana|shofar`, "i"),
+  /יום (?:ה)?כיפור|yom kippur/i,
+  new RegExp(`סוכות|${W("סוכה")}|לולב|אתרוג|ארבעת המינים|שמחת תורה|sukkot|sukkah|lulav|etrog`, "i"),
+  /ט["״]ו בשבט|tu bishvat/i,
+  PURIM,
+  /ל["״]ג בעומר|lag baomer/i,
+  /חג השבועות|shavuot/i,
+  new RegExp(`${W("שבת", "ב?")}|קידוש|כיסוי חלה|קרש חלה|מגש חלה|נר הבדלה|ערכת הבדלה|shabbat|sabbath|kiddush|challah|havdalah`, "i"),
+];
+const JUDAICA = /מגן דוד|מזוזה|מזוזות|תפילין|כיפה סרוגה|יודאיקה|star of david|mezuzah|tallit|tefillin|kippah|yarmulke|judaica/i;
+const HOLIDAYS = [HALLOWEEN, /christmas|xmas|חג המולד|כריסמס|סנטה|santa/i, /easter|פסחא/i, /thanksgiving/i, ...JEWISH, JUDAICA];
 const holidaysIn = (text) => HOLIDAYS.filter((h) => h.test(text ?? ""));
+function askedHolidays(request) {
+  const asked = holidaysIn(request.replace(/advent|אדוונט/gi, "christmas").replace(new RegExp(W("לשבת"), "g"), "שבת"));
+  if (asked.includes(PURIM)) asked.push(HALLOWEEN); // Purim costumes are sold as Halloween ones
+  if (asked.some((h) => JEWISH.includes(h))) asked.push(JUDAICA); // a Star of David gift fits any Jewish holiday
+  return asked;
+}
 export const offTheme = (title, request = "") => {
-  const asked = holidaysIn(/advent|אדוונט/i.test(request) ? `${request} christmas` : request), named = holidaysIn(title);
+  const asked = askedHolidays(request), named = holidaysIn(title);
   return named.length > 0 && !named.some((h) => asked.includes(h));
 };
 
