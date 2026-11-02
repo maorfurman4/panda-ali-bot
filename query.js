@@ -41,7 +41,10 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - terms_en = 2-3 more English searches the way AliExpress sellers title this item, each different from keywords_en and
   alt_en, together covering every common meaning of the words: "מטהר אוויר לרכב" -> ["car air freshener", "car aromatherapy
   diffuser", "car negative ion air purifier"]; "מסרק לשיער" -> ["detangling hair brush", "wide tooth comb"]. Strong sellers
-  often hide under the other names, and all of them are searched. [] for a brand-and-model request. Every wording names
+  often hide under the other names, and all of them are searched. When the request names a use, place or occasion
+  ("לקופסאות", "ליום הולדת", "למטבח"), one wording is the item alone the way most sellers title it, without that use:
+  "סרטי קישוט לקופסאות" -> "satin ribbon" (the 4,260-sold satin ribbon never came back for "gift box ribbon" words,
+  owner's comparison 2026-11-02). [] for a brand-and-model request. Every wording names
   the everyday version a home shopper means, never a specialized kind the shopper didn't ask for ("בקבוק מים" -> not
   "sports" or "cycling bottle"; "מפת שולחן" -> "tablecloth", "waterproof tablecloth", not "table protector" or "desk mat";
   "מנורת שולחן" -> not "night
