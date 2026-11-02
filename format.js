@@ -136,7 +136,7 @@ export function dedupeProducts(products) {
 // A spare part / accessory FOR the item rather than the item (robot vacuum bags and brushes), unless parts were asked for.
 const PART_REQUEST = /חלק|חילוף|אביזר|מברש|שקי|מסנן|פילטר|רפיד|מטלי|ציר|דמפר|ראש|להב|filter|brush|bag|spare|replacement|accessor|hinge|damper|blade/i;
 // Hinges and dampers for a toilet seat came in for "מושב אסלה שנסגר לאט" (2026-11-02); shaver heads for a grooming kit (2026-11-01).
-const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|replacement|^(?:\d+\s*יחידות,?\s*)?(?:צירים|ציר|ערכת דמפר|דמפר|hinges?|damper)\s|^(?:\d+\s*יחידות,?\s*)?(?:ראשי|ראש) (?:גילוח|החלפה|מכונת)|^(?:\d+\s*יחידות,?\s*)?להבי?ם?\s|shaver heads?|replacement (?:heads?|blades?)|אביזר\S*\s+ל|^(?:ל|עבור\s)|^(?:מברשת|מברשות|שקית|שקיות|מסנן|מסננים|פילטר|רפידות|מטלית|מטליות)\s/i;
+const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|replacement|^(?:\d+\s*יחידות,?\s*)?(?:צירים|ציר|ערכת דמפר|דמפר|hinges?|damper)\s|^(?:\d+\s*יחידות,?\s*)?(?:ראשי|ראש) (?:גילוח|החלפה|מכונת)|^(?:\d+\s*יחידות,?\s*)?להבי?ם?\s|shaver heads?|replacement (?:heads?|blades?)|אביזר\S*\s+ל|^עבור\s|^(?:מברשת|מברשות|שקית|שקיות|מסנן|מסננים|פילטר|רפידות|מטלית|מטליות)\s/i;
 // A title that STARTS with a part/accessory word ("כבל מקלדת", "סוללת קטנוע", "משענות יד") is a part, unless the request
 // itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
 const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;
@@ -202,7 +202,8 @@ export function varied(products, request = "", limit = 4) {
 
 // Holiday-themed items the AI sometimes keeps as "close" (Halloween and Snoopy covers for "כרית נוי לסלון", 2026-11-01):
 // left out unless the request names a holiday.
-const HOLIDAY = /halloween|ליל כל הקדושים|האלווין|הלווין|christmas|xmas|חג המולד|כריסמס|סנטה|santa|easter|פסחא|thanksgiving/i;
+// An advent calendar is a Christmas item: "לוח אדוונט של נידו" lost every NeeDoh calendar ("…לחג המולד") without it.
+const HOLIDAY = /halloween|ליל כל הקדושים|האלווין|הלווין|christmas|xmas|חג המולד|כריסמס|סנטה|santa|advent|אדוונט|easter|פסחא|thanksgiving/i;
 export const offTheme = (title, request = "") => HOLIDAY.test(title ?? "") && !HOLIDAY.test(request);
 
 // Specialized kinds a general request doesn't mean; the AI still called gaming mice exact for "עכבר אלחוטי" (2026-11-01),
@@ -248,6 +249,10 @@ export function isPartFor(title, request = "") {
   if (PART_REQUEST.test(request)) return false;
   const t = cleanTitle(title);
   if (PART_TITLE.test(t)) return true;
+  // "לרובוט השואב… תיק אבק" is FOR the requested item: a part. Only when the word after ל is the item itself; any title
+  // starting with ל was a part before, so "לוח שנה של NeeDoh", "לגו" and "לד" were all dropped (2026-11-02).
+  const forItem = t.match(/^ל([א-ת]{3,})/);
+  if (forItem && request.includes(forItem[1].slice(0, 3))) return true;
   const cover = t.replace(BUNDLE_PREFIX, "").match(SOLD_AS_COVER);
   if (cover && request.includes(cover[1].slice(0, 3))) return false;
   const body = t.replace(BUNDLE_PREFIX, "");

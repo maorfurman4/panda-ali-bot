@@ -243,6 +243,12 @@ test("isPartFor: spare parts for the item are spotted, unless the shopper asked 
     ["מגן מסך לאייפון 15", "מגן מסך לאייפון"]]) assert.ok(!isPartFor(t, req), t);
 });
 
+test("isPartFor: a title starting with ל is a part only when it is FOR the requested item", () => {
+  assert.ok(isPartFor("לרובוט השואב אבק Xiaomi X20 תיק אבק", "שואב אבק רובוטי"));
+  for (const [t, req] of [["לוח שנה של NeeDoh לאדוונט 2026", "לוח אדוונט של נידו"], ["לגו טכניק מכונית מירוץ", "לגו"], ["לד פס תאורה RGB 5 מטר", "פס לד"],
+    ["לוח מחיק מגנטי למקרר", "לוח מחיק"], ["לפטופ Lenovo 15 אינץ", "מחשב נייד"]]) assert.equal(isPartFor(t, req), false, t);
+});
+
 test("isPartFor: a case is a case under any name (מגן/כיסוי/נרתיק/קייס); a screen protector is still a part for a case request", () => {
   // "מגן לאייפון" returned 0 results: every "כיסוי…" title was dropped as a part (live test, 2026-11-02).
   for (const [t, req] of [["כיסוי סיליקון לאייפון 15", "מגן לאייפון"], ["כיסוי מתכתי לסמסונג S24", "מגן לסמסונג s24"],
@@ -278,6 +284,7 @@ test("offTheme: holiday items are left out unless the request names a holiday", 
   assert.equal(offTheme("1pc/4pcs halloween כיסוי כרית", "כרית נוי לסלון"), true);
   assert.equal(offTheme("כיסוי כרית חג המולד סנטה", "כרית נוי"), true);
   assert.equal(offTheme("כיסוי כרית חג המולד סנטה", "כרית לחג המולד"), false);
+  assert.equal(offTheme("לוח שנה של נידו לשנת 2026, מתנה לחג המולד", "לוח אדוונט של נידו"), false, "an advent calendar is a Christmas request");
   assert.equal(offTheme("כיסוי כרית בוהו לבן קרם", "כרית נוי"), false);
 });
 
