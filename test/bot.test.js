@@ -901,7 +901,8 @@ test("the AI's price floor (big-ticket items) filters the search; if it finds no
 });
 
 test("a brand was asked for and found: only that brand is shown (even 2), no other brands as 'close'", async () => {
-  const relevant = async (_r, p) => ({ exact: p.slice(0, 2), partial: p.slice(2) });
+  const first2 = (x) => /_p[12]$/.test(x.promotion_link);
+  const relevant = async (_r, p) => ({ exact: p.filter(first2), partial: p.filter((x) => !first2(x)) });
   const brand = setup({ search: async () => SIX, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
   await brand.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
   assert.equal(shownIds(brand.sent()[0]).length, 2);
@@ -912,6 +913,27 @@ test("a brand was asked for and found: only that brand is shown (even 2), no oth
   const near = setup({ search: async () => sameBrand, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
   await near.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
   assert.deepEqual(shownIds(near.sent()[0]), ["1", "2", "4"], "a close item of the same brand still shows");
+});
+
+test("a named brand: its items go first into the AI pool, ahead of bigger-selling generic ones", async () => {
+  const items = Array.from({ length: 30 }, (_, i) => product(i + 1, { lastest_volume: String(30000 - i * 100), product_title: i >= 27 ? `Baseus holder ${i}` : `Generic holder ${i}` }));
+  let pool = [];
+  const ctx = setup({ search: async () => items, live: true, understand: async () => intent({ brand: "Baseus" }), relevant: async (_r, p) => ((pool = p), { exact: p, partial: [] }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מעמד לרכב של Baseus"));
+  assert.ok(pool.slice(0, 3).every((p) => /Baseus/.test(p.product_title)), "the 3 Baseus items lead the pool");
+});
+
+test("a proven 'near' item is ranked with the exact ones by sales, not after all of them (non-style)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const items = [...Array.from({ length: 14 }, (_, i) => product(i + 1, { lastest_volume: String(1400 - i * 50) })), product(99, { lastest_volume: "79513" })];
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => !x.promotion_link.endsWith("_p99")), near: p.filter((x) => x.promotion_link.endsWith("_p99")), partial: [] });
+  const run = (style) => pickProducts({ search: async () => items, relevant, live: true }, { keywords: "cordless hair clipper", context: "מכונת תספורת אלחוטית", style, limit: 4, extra: 8 });
+  assert.equal((await run(false))[0].promotion_link.slice(-4), "_p99", "the 79,513-sold T9 leads");
+  assert.ok(!(await run(true)).some((p) => p.promotion_link.endsWith("_p99")), "style: near still waits behind the exact ones");
+  const close = [...items.slice(0, 14), product(98, { lastest_volume: "2000" })];
+  const relevant2 = async (_r, p) => ({ exact: p.filter((x) => !x.promotion_link.endsWith("_p98")), near: p.filter((x) => x.promotion_link.endsWith("_p98")), partial: [] });
+  const out = await pickProducts({ search: async () => close, relevant: relevant2, live: true }, { keywords: "phone stand", context: "מעמד לטלפון", limit: 4, extra: 8 });
+  assert.notEqual(out[0].promotion_link.slice(-4), "_p98", "under twice the best exact one's sales: it waits behind them");
 });
 
 test("one AI call judges both the main and the broader search (no second check)", async () => {

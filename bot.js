@@ -241,7 +241,11 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
     // wordings pushed out the strong gaming headsets, 2026-10-31).
     const poolSize = style ? RELEVANCE_POOL : WIDE_POOL;
-    const pool = inTurn([...mainLists, ...otherLists], poolSize);
+    // The shopper named a brand: its items go first in every list, or 25,000-sold generic holders crowd every Baseus one
+    // out of the pool ("מעמד טלפון לרכב של Baseus": 8 Baseus holders came back, none reached the AI, 2026-11-02).
+    const named = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
+    const brandFirst = (l) => (typeof brandOnly === "string" ? [...l.filter(named), ...l.filter((p) => !named(p))] : l);
+    const pool = inTurn([...mainLists, ...otherLists].map(brandFirst), poolSize);
     // steady: the same verdict every time (temperature 0), on non-style searches only.
     const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();
@@ -310,7 +314,14 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const exactProven = exact.filter(proven);
   const exactSold = rankProducts(exact.filter((p) => !proven(p) && sold(p)));
   const lead = exactProven.length ? [] : exactSold.slice(0, 1);
-  const tiers = [exactProven, lead, near.filter(proven), partial.filter(proven), exactSold.slice(lead.length), near.filter((p) => !proven(p)), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
+  // Non-style: a proven "near" (one judge exact, the other close) is ranked with the proven exact ones by sales, not after
+  // all of them: the 79,513-sold T9 clipper fell past the 12 picks of "מכונת תספורת אלחוטית" behind a 1,383-sold exact one
+  // (owner's test, 2026-11-02). Wrong kinds are moved to close by the code checks above (whisky glasses, Tesla-only...).
+  // Only one that sold at least twice the best proven exact one: a 37,295-sold car holder ("near") led "מעמד לטלפון" over
+  // 34,784-sold desk stands without this limit.
+  const bestExact = Math.max(0, ...exactProven.map((p) => Number(p.lastest_volume)));
+  const strongNear = style ? [] : near.filter((p) => proven(p) && Number(p.lastest_volume) >= 2 * bestExact);
+  const tiers = [style ? exactProven : rankProducts([...exactProven, ...strongNear]), lead, near.filter((p) => proven(p) && !strongNear.includes(p)), partial.filter(proven), exactSold.slice(lead.length), near.filter((p) => !proven(p)), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
   const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
   const all = cheapest ? [...byPrice(exact), ...byPrice(near), ...byPrice(partial)] : tiers.flatMap(rankProducts);

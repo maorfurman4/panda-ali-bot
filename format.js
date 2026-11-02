@@ -139,6 +139,8 @@ const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|repla
 // itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
 const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;
 // A phone/tablet case under any of its names (title's first word / the request).
+const HOLDER_WORDS = /^(?:מחזיק|מחזיקי|מעמד|מעמדי|תושבת|תושבות)$/;
+const HOLDER_REQUEST = /מחזיק|מעמד|תושב/;
 const CASE_WORDS = /^(?:כיסוי|כיסויים|מגן|מגני|נרתיק|נרתיקים|קייס|קייסים)$/;
 const CASE_REQUEST = /כיסו|מגן|מגני|נרתיק|קייס|\bcase\b|\bcover\b/i;
 const BUNDLE_PREFIX =/^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
@@ -222,8 +224,9 @@ const SPECIAL_KINDS = [
   /personali[sz]ed|custom photo|your (?:own )?photo|(?:תמונה|פוסטר|הדפס|קנבס|כרית|ציפית|ספל)[^,]{0,20}בהתאמה אישית/i,
 ];
 export const specialKind = (title, request = "") => SPECIAL_KINDS.some((k) => k.test(title ?? "") && !k.test(request)) || carCharger(title, request);
-// A car charger is close unless the request is about a car at all (one sat 4th for "מטען מהיר", live test 2026-11-02).
-const CAR_CHARGER = /(?:מטען|charger)[^,]{0,45}?(?:\sל?רכב|\bcar\b|מצית)|\bcar\s+(?:fast\s+)?charger/i;
+// A car charger or a car phone holder is close unless the request is about a car at all (a car charger sat 4th for
+// "מטען מהיר"; car holders led "מעמד לטלפון", a desk stand; live tests 2026-11-02).
+const CAR_CHARGER = /(?:מטען|מחזיק|מעמד|תושבת|charger|holder|mount)[^,]{0,45}?(?:\sל?רכב|\bcar\b|מצית|למזגן|למיזוג)|\bcar\s+(?:fast\s+)?(?:charger|phone\s+(?:holder|mount))/i;
 const carCharger = (title, request) => CAR_CHARGER.test(title ?? "") && !/רכב|\bcar\b|מצית/i.test(request);
 
 // Luxury brands AliExpress sells only as fakes (a ₪127 "Diptyque" candle, 2026-11-01): left out unless the shopper names
@@ -252,6 +255,9 @@ export function isPartFor(title, request = "") {
   // ("מגן מסך") is still a part for a case request.
   const screen = /^(?:מגן|מגני)\s+מסך/.test(body) && !/מסך/.test(request);
   if (CASE_WORDS.test(first) && CASE_REQUEST.test(request) && !screen) return false;
+  // מחזיק / מעמד / תושבת are one item for a holder request: AliExpress titles most car phone holders "תושבת…", and every
+  // one, Baseus too, was dropped as a part for "מחזיק טלפון לרכב" and "מעמד טלפון לרכב של Baseus" (2026-11-02).
+  if (HOLDER_WORDS.test(first) && HOLDER_REQUEST.test(request)) return false;
   return PART_FIRST_WORDS.test(first) && !request.includes(first.slice(0, 4)); // 4 letters: "כיסוי" isn't "כיסא"
 }
 

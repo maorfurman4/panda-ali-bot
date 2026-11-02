@@ -34,7 +34,8 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60_000;
 
 const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebrew, sometimes mixed with English) into an AliExpress search.
-- Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות"). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות"), keeping every feature the shopper named, negations too ("קשת לשיער לא גומייה" keeps "לא גומייה"), always in Hebrew even when the shopper wrote another language ("auriculares" -> "אוזניות", "чехол для айфона" -> "כיסוי לאייפון"); brand and model names stay as written.
+- Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות", "פניצטה" ->
+  "פינצטה": a word one swap away from a product is that product, never not_product; the shopper got "לא הבנתי", 2026-11-02). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות"), keeping every feature the shopper named, negations too ("קשת לשיער לא גומייה" keeps "לא גומייה"), always in Hebrew even when the shopper wrote another language ("auriculares" -> "אוזניות", "чехол для айфона" -> "כיסוי לאייפון"); brand and model names stay as written.
 - Take the home shopper's meaning, the everyday product sold to households, over a commercial or industrial one that
   shares the words ("לוח מחורץ"/"לוח מחורר" -> "pegboard wall organizer", not shop slatwall panels).
 - terms_en = 2-3 more English searches the way AliExpress sellers title this item, each different from keywords_en and
@@ -65,6 +66,8 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - A general word means the mainstream everyday version most shoppers want, so keywords_en names that one ("אגרטל" ->
   "flower vase", not a hydroponic plant vase; "צעיף" -> "women scarf", "עכבר אלחוטי" -> "wireless mouse"), never a
   specialized kind the shopper didn't ask for.
+- "רובוט לבית", "רובוט לעזרה במשק בית", "רובוט ניקוי": the household robot people buy is a robot vacuum cleaner ("robot
+  vacuum cleaner", terms ["robot vacuum mop", "smart sweeping robot"]); "home helper robot" found only toy robots (2026-11-02).
 - Never put a baby's or child's age in keywords_en ("מוצץ לתינוק בן חצי שנה" -> "orthodontic pacifier": sellers rarely title
   the age, and "6 month" found mostly clips); the check reads the age later.
 - A bare noun's best sellers are often its accessories, so name the item the way its own sellers do (measured 2026-11-02,

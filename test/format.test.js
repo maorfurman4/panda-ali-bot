@@ -427,3 +427,19 @@ test("specialKind: a car charger is close for a charger request that doesn't say
   assert.ok(!specialKind("מטען אלחוטי לרכב עם מחזיק", "מחזיק טלפון לרכב car phone holder"), "any car request keeps it");
 });
 
+
+test("isPartFor: מחזיק / מעמד / תושבת are one item for a holder request; still a part for another request", async () => {
+  const { isPartFor } = await import("../format.js");
+  assert.equal(isPartFor("תושבת טלפון לרכב Baseus מתכת כבידה", "מעמד טלפון לרכב של Baseus"), false);
+  assert.equal(isPartFor("תושבת טלפון לרכב מגנטית", "מחזיק טלפון לרכב"), false);
+  assert.equal(isPartFor("מעמד טלפון לרכב מגנטי", "מחזיק טלפון לרכב"), false);
+  assert.equal(isPartFor("מעמד למקלדת", "מקלדת"), true, "a stand for the asked item is still a part");
+});
+
+test("specialKind: a car phone holder is close for a phone stand request that doesn't say car", async () => {
+  const { specialKind } = await import("../format.js");
+  assert.ok(specialKind("מחזיק טלפון מגנטי לרכב", "מעמד לטלפון phone stand"));
+  assert.ok(specialKind("תושבת טלפון לרכב למיזוג", "מעמד לטלפון phone stand"));
+  assert.ok(!specialKind("מעמד שולחני מתכוונן לטלפון", "מעמד לטלפון phone stand"));
+  assert.ok(!specialKind("תושבת טלפון לרכב Baseus", "מעמד טלפון לרכב של Baseus Baseus car phone holder"));
+});
