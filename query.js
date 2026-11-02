@@ -59,7 +59,10 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
   "throw pillow cover"), in keywords_en or terms_en.
 - style = true when shoppers choose this item mainly by how it looks (clothing, bags, shoes, jewelry, watches, hats and
   scarves, home decor, bedding, curtains); false for things bought for what they do (electronics, tools, chargers, kitchen
-  gadgets), even good-looking ones.
+  gadgets), even good-looking ones. Also false for gift wrapping and craft supplies (ribbons, wrapping paper, bows),
+  artificial, dried or soap flowers and bouquets, even as home decor ("פרחים מלאכותיים", "פרחי סבון"), and party supplies and costume props (balloons, party, magic or wizard
+  hats, masks, wands): bought by the dozen and by how well they sell (the competitor's best-seller cards beat ours on
+  "פרחי סבון" and "סרטי קישוט לקופסאות", owner's comparison 2026-11-02).
 - "ערכת טיפוח לגבר" is a kit, several pieces in one: search "men grooming kit", terms ["multi grooming kit 5 in 1",
   "beard care kit oil balm comb", "men skincare gift set"]. A single clipper or shaver isn't a kit (the shopper got hair
   clippers, 2026-11-01).
@@ -397,8 +400,15 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
       const asks = [ask(), ask(), ask()].map((r) => r.catch(() => null));
       const value = (await asks[0]) ?? (await Promise.all(asks)).find(Boolean) ?? (await ask());
       if (!value) return warn("response failed validation"), null;
+      const readings = await Promise.all(asks);
+      // The fashion ("style") mode by majority of the readings: the first one alone flipped "סרטי קישוט לקופסאות", "נייר
+      // עטיפה" and "כובע קסם" between runs, so the same search got different cards (2026-11-02).
+      const voters = readings.filter((r) => r?.status === "ok");
+      if (value.status === "ok" && voters.length >= 2) {
+        if (voters.filter((r) => r.style).length * 2 > voters.length) value.style = true;
+        else delete value.style;
+      }
       if (value.status === "ok" && !value.style) {
-        const readings = await Promise.all(asks);
         const seen = new Set([value.keywords_en, value.alt_en].filter(Boolean).map((t) => t.toLowerCase()));
         const words = [...(value.terms_en ?? []), ...readings.filter((r) => r && r !== value && r.status === "ok").flatMap((r) => [r.keywords_en, r.alt_en, ...(r.terms_en ?? [])])];
         const terms = words.filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, MAX_TERMS);

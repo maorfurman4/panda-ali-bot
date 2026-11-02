@@ -163,6 +163,12 @@ test("understand: the three readings' words are combined on non-style searches; 
   assert.deepEqual((await createUnderstander({ fetch: by(styled), env: ENV })("שמלה")).terms_en, ["beard care kit"]);
 });
 
+test("understand: the fashion (style) mode is the majority of the three readings, not the first one", async () => {
+  const by = (styles) => { let i = 0; return async () => ({ ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ ...STRICT_OK, style: styles[i++ % 3] }) }] }] }) }); };
+  assert.equal((await createUnderstander({ fetch: by([true, false, false]), env: ENV })("סרטי קישוט")).style, undefined, "one of three");
+  assert.equal((await createUnderstander({ fetch: by([false, true, true]), env: ENV })("חזייה")).style, true, "two of three");
+});
+
 test("onUsage receives token counts for each AI call (used by the eval for cost)", async () => {
   const seen = [];
   const api = openai(STRICT_OK, { usage: { input_tokens: 612, output_tokens: 37 } });
