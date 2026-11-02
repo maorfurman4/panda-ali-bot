@@ -230,3 +230,10 @@ test("addStars: stars and review count from the review summary; any failure keep
   const out = await addStars([{ product_id: "1" }, { product_id: "2" }, { product_id: "3" }], { fetch });
   assert.deepEqual(out, [{ product_id: "1", avgStars: 4.9, reviewCount: 319 }, { product_id: "2" }, { product_id: "3" }]);
 });
+
+test("addStars: the review count is every rating (the star counts), not only totalNum", async () => {
+  const { addStars } = await import("../aliexpress.js");
+  const stat = { evarageStar: 4.9, totalNum: 202, fiveStarNum: 424, fourStarNum: 22, threeStarNum: 0, twoStarNum: 0, oneStarNum: 0 };
+  const [p] = await addStars([{ product_id: "1" }], { fetch: async () => ({ json: async () => ({ data: { productEvaluationStatistic: stat } }) }) });
+  assert.equal(p.reviewCount, 446);
+});

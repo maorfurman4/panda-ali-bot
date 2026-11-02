@@ -160,7 +160,10 @@ export async function addStars(products, { fetch = globalThis.fetch, timeoutMs =
     const s = await fetch(url, { headers: { "user-agent": "Mozilla/5.0", referer: "https://www.aliexpress.com/" }, signal: AbortSignal.timeout(timeoutMs) })
       .then((r) => r.json())
       .then((d) => d?.data?.productEvaluationStatistic, () => null);
-    const stars = Number(s?.evarageStar ?? s?.averageStar), reviews = Number(s?.totalNum);
+    // totalNum counts only some reviews (202 for an e-reader rated 446 times: 424 five-star + 22 four-star); the star
+    // counts add up to every rating, the number AliExpress and the competitor show (owner's comparison, 2026-11-02).
+    const rated = ["five", "four", "three", "two", "one"].reduce((n, k) => n + (Number(s?.[`${k}StarNum`]) || 0), 0);
+    const stars = Number(s?.evarageStar ?? s?.averageStar), reviews = Math.max(Number(s?.totalNum) || 0, rated);
     return stars > 0 && stars <= 5 && reviews > 0 ? { ...p, avgStars: stars, reviewCount: reviews } : p;
   };
   return Promise.all(products.map((p) => (p.product_id ? one(p).catch(() => p) : p)));
