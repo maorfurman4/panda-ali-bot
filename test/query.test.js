@@ -500,3 +500,14 @@ test("explainer: a reason that argues against the product is dropped (no 💡 fo
   const api = openai({ reasons: ["גאדג'ט קטן ושימושי", "פתיחת בקבוקים, פחות מתאים לאווירה"] });
   assert.deepEqual(await createExplainer({ fetch: api.fetch, env: ENV })({ request: "מתנה לגבר", history: [] }, products), ["גאדג'ט קטן ושימושי", null]);
 });
+
+test("validateIntent: 'נעלי ספורט לבנות' asks white or for girls (two buttons); clear cases are searched", async () => {
+  const { whiteOrKids } = await import("../query.js");
+  const out = validateIntent({ status: "ok", corrected_he: "נעלי ספורט לבנות", keywords_en: "white sneakers women" });
+  assert.equal(out.status, "clarify");
+  assert.deepEqual(out.options.map((o) => o.label_he), ["בצבע לבן", "לילדות"]);
+  assert.match(out.options[0].keywords_en, /white sneakers/);
+  assert.match(out.options[1].keywords_en, /girls sneakers/);
+  assert.equal(whiteOrKids("חולצות לבנים"), "לבנים");
+  for (const t of ["נעלי ספורט בצבע לבן", "שמלה לבנה", "נעליים לבנות בנות 8", "מתנה לבנות", "בלונים לבנים", "נעלי ספורט לבנות קטנות"]) assert.equal(whiteOrKids(t), null, t);
+});

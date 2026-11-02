@@ -1332,3 +1332,12 @@ test("style cards: ✨ only for 20+ reviews and 4.5+ stars, and a proven seller 
   assert.equal(out.find((x) => x.product_id === "pretty").pretty, false, "3 reviews: no ✨");
   assert.equal(out.find((x) => x.product_id === "ok").pretty, true, "24 reviews, 4.9: keeps ✨");
 });
+
+test("style cards: a strong seller the AI called 'close' (1,900 sold, 203 reviews) leads over barely-sold exact ones; another color doesn't", async () => {
+  const { orderCard } = await import("../bot.js");
+  const p = (id, sold, reviews, more = {}) => ({ product_id: id, product_title: `שמלת ערב שחורה ${id}`, match: "exact", lastest_volume: String(sold), evaluate_rate: "98%", reviewCount: reviews, avgStars: 4.8, ...more });
+  const found = [p("e1", 79, 5), p("e2", 9, 2), p("e3", 7, 0), p("e4", 6, 0), p("c1", 1900, 203, { match: "partial" }), p("c2", 1100, 146, { match: "partial" }), p("white", 5000, 400, { match: "partial", offColor: true })];
+  const card = orderCard(found, { context: "שמלת ערב שחורה", style: true, limit: 4 }).slice(0, 4).map((x) => x.product_id);
+  assert.deepEqual(card.slice(0, 2).sort(), ["c1", "c2"], "the strong sellers lead the first card");
+  assert.ok(!card.includes("white"), "a dress in another color doesn't rise");
+});

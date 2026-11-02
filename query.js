@@ -171,6 +171,15 @@ export function statedPrice(text) {
   return out;
 }
 
+// Clothes, shoes or bags ending in "לבנות"/"לבנים" with nothing else saying color or age: white, or for girls/boys?
+const WEARABLE = /(?:^|\s)(?:נעל|נעלי|נעליים|סניקרס|סנדל|כפכפ|מגפ|חולצ|טישירט|מכנס|ג'ינס|שמל|חצאי|מעיל|ג'קט|סווטשירט|קפוצ|טייץ|פיג'מ|בגד|גרבי|תיק|כובע)/;
+export function whiteOrKids(text = "") {
+  const t = String(text).replace(/[.!?,\s]+$/, "");
+  const m = t.match(/\s(לבנות|לבנים)$/);
+  if (!m || !WEARABLE.test(t) || /צבע|גיל|\d|קטנ|נוער|בנות\s|בנים\s|ילד/.test(t.slice(0, m.index))) return null;
+  return m[1];
+}
+
 export function validateIntent(o) {
   if (!o || typeof o !== "object") return null;
   const status = String(o.status).toLowerCase();
@@ -195,6 +204,15 @@ export function validateIntent(o) {
   if (o.style === true) base.style = true;
   const brands = (Array.isArray(o.brands_en) ? o.brands_en : []).map((b) => clean(b, 20)).filter((b) => /^[\w .&+-]{2,20}$/.test(b)).slice(0, 2);
   if (brands.length) base.brands_en = brands;
+  // "נעלי ספורט לבנות" = white sneakers OR sneakers for girls: the owner wants the shopper asked (2026-11-02). Asked here in
+  // code, since the model answered "white" without asking.
+  const ambiguous = status !== "not_product" && status !== "not_allowed" && whiteOrKids(base.corrected_he);
+  if (ambiguous && /[a-z]/i.test(base.keywords_en)) {
+    const item = base.keywords_en.replace(/\b(?:white|girls?|boys?|kids?|children|women|men)\b/gi, " ").replace(/\s+/g, " ").trim();
+    const boys = ambiguous === "לבנים";
+    return { ...base, status: "clarify", clarify_question_he: boys ? "בצבע לבן או לילדים?" : "בצבע לבן או לילדות?",
+      options: [{ label_he: "בצבע לבן", keywords_en: `white ${item}` }, { label_he: boys ? "לילדים" : "לילדות", keywords_en: `${boys ? "boys" : "girls"} ${item} kids` }] };
+  }
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;

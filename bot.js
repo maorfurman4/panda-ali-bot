@@ -8,7 +8,7 @@ import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
-import { createUnderstander, claudeCheck, namesLook } from "./query.js";
+import { createUnderstander, claudeCheck, namesLook, whiteOrKids } from "./query.js";
 import {
   shortTitle,
   soldText,
@@ -84,6 +84,7 @@ const TRUSTED_FEEDBACK = 92; // ≈4.6-4.7 stars; 95 (≈4.8) pushed down 45% of
 // to trust (2026-11-01), so 100.
 const STYLE_PHOTOS = 16;
 const STYLE_MIN_SOLD = 100;
+const STRONG_REVIEWS = 20; // a style item with 100+ sold and 20+ reviews (4.5+) leads its card even if the AI called it "close"
 const STYLE_MIN_FEEDBACK = 90;
 // Each card holds one item of a trusted brand when there is one: an official brand store, or a well-known brand the title
 // check names (Baseus, Ugreen, Anker…), with ≥100 sold and ≥92% feedback (owner request, 2026-11-01).
@@ -378,6 +379,12 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   if (style) {
     // Style searches as at 17:30: best sellers and ✨ in turn, no review order. But 🥇 is a proven seller when the card has
     // one (owner, 2026-11-02): a black evening dress with 4 reviews and 13 sold led the card.
+    // Strong sellers first, across the card and its "עוד" pages: the "עוד" page of "שמלת ערב שחורה" held dresses with
+    // 1,900 and 1,100 sold and 100-200 reviews (the AI called them "close") while the first card showed 6-79 sold
+    // (owner, 2026-11-02: "the more-results ones are much better"). A product shown in another color stays out of this.
+    const rated = (p) => (p.reviewCount ? p.reviewCount >= STRONG_REVIEWS && p.avgStars >= 4.5 : !(parseFloat(p.evaluate_rate) < TRUSTED_FEEDBACK));
+    const strong = (p) => !p.offColor && Number(p.lastest_volume) >= STYLE_MIN_SOLD && rated(p);
+    found = [...found.filter(strong), ...found.filter((p) => !strong(p))];
     found = varied(found, context, limit);
     const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && !(parseFloat(p.evaluate_rate) < TRUSTED_FEEDBACK);
     const lead = found.slice(0, limit).findIndex(proven);
@@ -629,18 +636,20 @@ export function createBot({
     }
     const shown = found.slice(0, limit);
     const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice
-    return sendCard(ctx, shown, { header, replyToId, reasons, rest: found.slice(limit) });
+    return sendCard(ctx, shown, { header, replyToId, reasons, rest: found.slice(limit), style });
   }
 
   // Photo card (collage), then 🎯/🐼 side by side and "לחפש עוד?" below them (always shown, owner request).
-  async function sendCard(ctx, shown, { header, replyToId, reasons = null, rest = [] }) {
+  async function sendCard(ctx, shown, { header, replyToId, reasons = null, rest = [], style = false }) {
     for (const [key, c] of cards) if (now() - c.at > CARD_TTL_MS) cards.delete(key);
     if (cards.size >= CARDS_MAX) cards.delete(cards.keys().next().value);
     const id = (++cardSeq).toString(36);
     // What the card showed, so a 🐼 report says what went wrong, not only what was asked.
     const shownText = shown.map((p) => `${p.short_he || shortTitle(p.product_title)} (${soldText(p.lastest_volume) ?? 0} נמכרו)`).join(" · ");
-    cards.set(id, { userId: requester(ctx), header, replyToId, rest, voters: new Set(), at: now(), shownText });
-    const closest = !shown.some((p) => p.match !== "partial"); // e.g. a brand AliExpress doesn't carry
+    cards.set(id, { userId: requester(ctx), header, replyToId, rest, voters: new Set(), at: now(), shownText, style });
+    // e.g. a brand AliExpress doesn't carry. Style items: "close" is usually another cut of the same thing (a maxi for an
+    // evening dress), so the note is only for a card that is all another color.
+    const closest = style ? shown.every((p) => p.offColor) : !shown.some((p) => p.match !== "partial");
     const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2 });
     const keyboard = [
       [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
@@ -684,7 +693,9 @@ export function createBot({
 
   function askClarify(ctx, query, intent) {
     // The AI's keywords ride along, so "תחפש כבר" before any answer searches them, not the Hebrew request.
-    return showQuestion(ctx, newSession(ctx, query, intent.max_price_ils, intent.min_price_ils, intent.keywords_en || null), intent.clarify_question_he, intent.options);
+    // The white-or-girls question is the only one: the answer makes the search clear, no advisor round after it.
+    const session = Object.assign(newSession(ctx, query, intent.max_price_ils, intent.min_price_ils, intent.keywords_en || null), whiteOrKids(intent.corrected_he) ? { direct: true } : {});
+    return showQuestion(ctx, session, intent.clarify_question_he, intent.options);
   }
 
   // Records the answer, then asks the next question (max 3 in total) or searches.
@@ -697,7 +708,7 @@ export function createBot({
     session.history.push({ q: session.question, a: option.label_he });
     session.broad ??= option.keywords_en; // the first answer's search: the broader fallback if the final one finds too few
     Object.assign(session, { keywords: option.keywords_en, label: option.label_he, maxPriceIls: option.max_price_ils ?? session.maxPriceIls, minPriceIls: option.min_price_ils ?? session.minPriceIls });
-    if (session.history.length < MAX_QUESTIONS) {
+    if (!session.direct && session.history.length < MAX_QUESTIONS) {
       const step = await withTyping(ctx, () => advise({ request: session.request, history: session.history }).catch(() => null));
       if (step?.status === "ask") return showQuestion(ctx, session, step.question_he, step.options, { edit });
       if (step?.status === "done") Object.assign(session, { keywords: step.keywords_en, maxPriceIls: step.max_price_ils ?? session.maxPriceIls, minPriceIls: step.min_price_ils ?? session.minPriceIls });
@@ -810,7 +821,7 @@ export function createBot({
     await ctx.answerCallbackQuery();
     const next = card.rest.splice(0, ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS); // taken now: a double tap can't resend it
     stats.count("more");
-    return withTyping(ctx, () => sendCard(ctx, next, { header: card.header, replyToId: card.replyToId, rest: card.rest }));
+    return withTyping(ctx, () => sendCard(ctx, next, { header: card.header, replyToId: card.replyToId, rest: card.rest, style: card.style }));
   });
 
   // 🎯/🐼 on a card: anyone, once per card. The 🐼 searches show up in /status so they can become eval cases.
