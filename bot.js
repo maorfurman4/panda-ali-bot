@@ -187,6 +187,31 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
+// What an advisor button would find: the sales of its words' best sellers that pass the quality filter and the price
+// range, highest first. One free AliExpress call, no AI.
+export async function optionSales(search, keywords, { minIls = null, maxIls = null } = {}) {
+  const list = await search(keywords, { minIls, maxIls, shorten: false, askAgain: false });
+  return withinPrice(filterProducts(list), maxIls, minIls).map((p) => Number(p.lastest_volume) || 0).sort((a, b) => b - a);
+}
+
+// Every advisor button should lead to a strong card (owner, 2026-11-02). Each kind option is looked up on AliExpress: one
+// with fewer than STRONG_MIN best sellers (STRONG_SOLD+ sold) is dropped, the rest go strongest first. Budget options, a
+// failed or slow lookup, and the last 2 options always stay (a question needs 2 buttons).
+const STRONG_SOLD = 100;
+const STRONG_MIN = 4;
+const LOOKUP_MS = 4000;
+// Told by the label: the AI leaves the prices off some budget buttons ("עד 50₪") and copies the budget onto kind buttons.
+const PRICE_LABEL = /₪|ש["״']?ח|שקל|\d{2,}/;
+export async function checkOptions(search, options, { minIls = null, maxIls = null } = {}) {
+  if (options.some((o) => PRICE_LABEL.test(o.label_he))) return options; // a budget question: price ranges keep their order
+  const lookup = (o) => Promise.race([optionSales(search, o.keywords_en, { minIls: o.min_price_ils ?? minIls, maxIls: o.max_price_ils ?? maxIls }), new Promise((r) => setTimeout(r, LOOKUP_MS, null).unref())]).catch(() => null);
+  const sales = await Promise.all(options.map(lookup));
+  const strong = (i) => (sales[i] ? sales[i].filter((n) => n >= STRONG_SOLD).length : Infinity); // unknown = kept
+  const ranked = options.map((o, i) => ({ o, n: strong(i), top: sales[i] ? (sales[i][0] ?? 0) : Infinity })).sort((a, b) => b.n - a.n || b.top - a.top);
+  const kept = ranked.filter((x) => x.n >= STRONG_MIN);
+  return (kept.length >= 2 ? kept : ranked.slice(0, 2)).map((x) => x.o);
+}
+
 export async function pickProducts({ search, relevant, look = null, live, hash = null, pickPhoto = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
@@ -746,7 +771,9 @@ export function createBot({
     return session;
   }
 
-  function showQuestion(ctx, session, question, options, { edit = false } = {}) {
+  // The buttons are checked on AliExpress first (checkOptions); "back" shows the already checked ones again.
+  async function showQuestion(ctx, session, question, options, { edit = false, check = !session.direct } = {}) {
+    if (check && (live ?? !isMockMode())) options = await checkOptions(search, options, { minIls: session.minPriceIls, maxIls: session.maxPriceIls });
     Object.assign(session, { question, options, at: now() });
     const rows = options.map((o, n) => [{ text: o.label_he, callback_data: `q:${session.id}:${n}` }]); // in the group too (owner request)
     rows.push([
@@ -873,7 +900,7 @@ export function createBot({
         const prev = session.stack?.pop();
         if (!prev) return;
         Object.assign(session, prev);
-        return await showQuestion(ctx, session, prev.question, prev.options, { edit: true });
+        return await showQuestion(ctx, session, prev.question, prev.options, { edit: true, check: false });
       }
       return await (choice === "go" ? finish(ctx, session, { edit: true }) : answer(ctx, session, Number(choice), { edit: true }));
     } finally {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -1457,4 +1457,26 @@ test("style cards: a 510-sold, 96-review dress the photo called 'close' comes be
   const card = orderCard(found, { context: "שמלת ערב שחורה", style: true, limit: 4 }).slice(0, 4).map((x) => x.product_id);
   assert.ok(card.includes("club"), `club dress in the first card: ${card}`);
   assert.ok(!card.includes("lucy") && !card.includes("red"), `${card}`);
+});
+
+test("advisor buttons: a kind with few best sellers is dropped, the rest go strongest first; budgets and failures stay", async () => {
+  const sold = { earrings: [900, 500, 300, 200, 150], scarf: [400, 300, 200, 120, 110, 105], mug: [90, 40, 3] };
+  const search = async (q) => (q === "boom" ? Promise.reject(new Error("down")) : (sold[q] ?? []).map((n, i) => ({ product_id: `${q}${i}`, lastest_volume: n })));
+  const opt = (k) => ({ label_he: k, keywords_en: k, min_price_ils: null, max_price_ils: null });
+  assert.deepEqual((await checkOptions(search, [opt("mug"), opt("earrings"), opt("scarf")])).map((o) => o.label_he), ["scarf", "earrings"]);
+  assert.deepEqual((await checkOptions(search, [opt("mug"), opt("boom"), opt("earrings")])).map((o) => o.label_he), ["boom", "earrings"]); // unknown = kept
+  assert.deepEqual((await checkOptions(search, [opt("mug"), opt("nothing"), opt("earrings")])).map((o) => o.label_he), ["earrings", "mug"]); // never fewer than 2
+  const budget = [{ ...opt("עד 50₪"), max_price_ils: 50 }, opt("50-100 ש״ח")]; // the AI left the second one's prices off
+  assert.equal(await checkOptions(async () => assert.fail("no lookup"), budget), budget);
+});
+
+test("live advisor: a button whose words find few best sellers is not shown", async () => {
+  const sold = { cookware: [500, 400, 300, 200], "kitchen storage": [900, 800, 700, 600, 500], "kitchen magnets": [20] };
+  const search = async (q) => (sold[q] ?? []).map((n, i) => ({ product_id: `${q}${i}`, lastest_volume: n }));
+  const opt = (label_he, keywords_en) => ({ label_he, keywords_en, max_price_ils: null });
+  const advise = async () => ({ status: "ask", question_he: "איזה מוצר למטבח?", options: [opt("כלי בישול", "cookware"), opt("מגנטים", "kitchen magnets"), opt("אחסון", "kitchen storage")] });
+  const ctx = setup({ search, live: true, advise, understand: async () => intent({ corrected_he: "מוצר למטבח", keywords_en: "kitchen product" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מוצר למטבח"));
+  const buttons = ctx.sent()[0].reply_markup.inline_keyboard.slice(0, -1).map((r) => r[0].text);
+  assert.deepEqual(buttons, ["אחסון", "כלי בישול"]);
 });
