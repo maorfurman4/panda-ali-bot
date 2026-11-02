@@ -416,3 +416,13 @@ test("inColors: a listing in several colors that include the asked one", async (
   assert.ok(!inColors("שמלה כחול, ירוק", "שמלה שחורה"), "the asked color isn't there");
   assert.ok(!inColors("שמלה כחול, שחור", "שמלת ערב"), "no color asked");
 });
+
+test("specialKind: a car charger is close for a charger request that doesn't say car", async () => {
+  const { specialKind } = await import("../format.js");
+  assert.ok(specialKind("מטען לרכב USB-C 100W טעינה מהירה", "מטען מהיר fast charger"));
+  assert.ok(specialKind("מטען רכב מהיר PD", "מטען לטלפון phone charger"));
+  assert.ok(specialKind("100w/200w qc3.0 pd מטען קטן 12-24v קל טעינה מהירה לרכב מסוג USB", "מטען מהיר fast charger"), "'לרכב' far into the title (live, 2026-11-02)");
+  assert.ok(!specialKind("מטען לרכב USB-C 100W", "מטען לרכב car charger"), "asked for a car one");
+  assert.ok(!specialKind("מטען קיר מהיר 65W GaN", "מטען מהיר fast charger"));
+  assert.ok(!specialKind("מטען אלחוטי לרכב עם מחזיק", "מחזיק טלפון לרכב car phone holder"), "any car request keeps it");
+});

@@ -168,6 +168,9 @@ test("a random 405 'empty' is asked once more and its products come back (seen l
   });
   assert.deepEqual((await searchProducts("iphone 15 case", { fetch, env: LIVE_ENV, sleep: noSleep, shorten: false })).map((p) => p.product_id), ["111"]);
   assert.equal(calls.length, 2);
+  const once = gateway({ "aliexpress.affiliate.product.query": () => ({ resp_result: { resp_code: "405", resp_msg: "The result is empty" } }) });
+  assert.deepEqual(await searchProducts("QCY white earbuds", { fetch: once.fetch, env: LIVE_ENV, sleep: noSleep, askAgain: false }), []);
+  assert.equal(once.calls.length, 1, "askAgain: false (a brand list) asks once");
 });
 
 test("live search swaps the very long promotion links for short ones in ONE link.generate call", async () => {

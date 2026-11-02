@@ -139,6 +139,27 @@ test("different products with the same plain short name all stay (three 'מטע�
   assert.equal(sent()[0].caption.match(/מטען רכב USB-C/g).length, 2, "at most 2 alike per card; the third waits for the next card");
 });
 
+test("the card title never starts with the search verb, even when the AI echoes it", async () => {
+  const { cardTitle } = await import("../bot.js");
+  assert.equal(cardTitle("חפש לי שמלת ערב"), "שמלת ערב");
+  assert.equal(cardTitle("חפש שמלת ערב ."), "שמלת ערב");
+  assert.equal(cardTitle("תמצאי לי מטען"), "מטען");
+  assert.equal(cardTitle("מצלמת דרך"), "מצלמת דרך", "a word that only starts like the verb stays");
+  const ctx = setup({ understand: async () => intent({ corrected_he: "חפש לי אוזניות" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  assert.match(ctx.sent()[0].caption, /🔎 <b>אוזניות<\/b>/);
+});
+
+test("orderCard: the same plain name with nearly the same review count is one product in two listings", async () => {
+  const { orderCard } = await import("../bot.js");
+  const p = (id, short_he, reviewCount, sold) => ({ product_id: id, short_he, reviewCount, avgStars: 4.9, lastest_volume: String(sold), match: "exact", evaluate_rate: "98%" });
+  const found = [p("1", "מטען קיר GaN", 4926, 107577), p("2", "מטען קיר GaN", 4920, 105977), p("3", "מטען רכב USB מהיר", 3064, 47265), p("4", "מטען רכב USB-C מהיר", 3069, 39546), p("5", "מטען קיר GaN", 470, 64902), p("6", "מטען שולחני", 900, 9000)];
+  const ids = orderCard(found, { context: "מטען מהיר", limit: 4 }).map((x) => x.product_id);
+  assert.ok(!ids.includes("2"), "4,920 vs 4,926 reviews under one name: the same listing twice");
+  assert.ok(ids.includes("5"), "the same name with other reviews is another product");
+  assert.ok(ids.includes("3") && ids.includes("4"), "other names stay, even with close review counts");
+});
+
 test("private search also shows 4 products", async () => {
   const { sent } = await run("earbuds", {}, { chat: "private" });
   const [msg] = sent();
@@ -1220,7 +1241,7 @@ test("non-style items keep the usual photo check (4 + 2 spare, no pretty pick)",
   assert.equal(opts.o, undefined);
 });
 
-test("trusted brands: a card without one gets the best brand item second (🏷️), official stores count; badges on the rating line", async () => {
+test("trusted brands: a card without one gets the best brand item second (🏷️), official stores count; badges on the sold line", async () => {
   const items = Array.from({ length: 12 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 500), evaluate_rate: "98%" }));
   items[9] = { ...items[9], product_title: "Baseus car charger 65W" }; // #10, a well-known brand the title check names
   items[11] = { ...items[11], shop_name: "UGREEN Official Store" }; // #12, an official store
@@ -1233,7 +1254,7 @@ test("trusted brands: a card without one gets the best brand item second (🏷�
   const caption = msg.caption ?? msg.text;
   assert.deepEqual([...caption.matchAll(/(🥇|🥈|🥉|4️⃣|✨|🏷️) <b>/gu)].map((m) => m[1]), ["🥇", "🏷️", "🥈", "🥉"]);
   assert.match(caption, /🏷️ מותג מוכר/);
-  assert.match(caption, /98% · ✅ Choice/);
+  assert.match(caption, /🛒 נמכרו: [^\n]+ · ✅ Choice/, "badges on the short sold line (on the rating line they wrapped alone on a phone)");
   const more = await ctx.bot.handleUpdate(callbackUpdate(msg.reply_markup.inline_keyboard.flat().find((b) => /עוד/.test(b.text)).callback_data)).then(() => ctx.sent().at(-1));
   assert.deepEqual(shownIds(more).slice(0, 2), ["4", "12"], "the next card gets the official store");
   assert.match(more.caption ?? more.text, /🏷️ חנות רשמית/);

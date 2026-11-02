@@ -221,7 +221,10 @@ const SPECIAL_KINDS = [
   /measuring|כוס מדידה|כלי מדידה/i,
   /personali[sz]ed|custom photo|your (?:own )?photo|(?:תמונה|פוסטר|הדפס|קנבס|כרית|ציפית|ספל)[^,]{0,20}בהתאמה אישית/i,
 ];
-export const specialKind = (title, request = "") => SPECIAL_KINDS.some((k) => k.test(title ?? "") && !k.test(request));
+export const specialKind = (title, request = "") => SPECIAL_KINDS.some((k) => k.test(title ?? "") && !k.test(request)) || carCharger(title, request);
+// A car charger is close unless the request is about a car at all (one sat 4th for "מטען מהיר", live test 2026-11-02).
+const CAR_CHARGER = /(?:מטען|charger)[^,]{0,45}?(?:\sל?רכב|\bcar\b|מצית)|\bcar\s+(?:fast\s+)?charger/i;
+const carCharger = (title, request) => CAR_CHARGER.test(title ?? "") && !/רכב|\bcar\b|מצית/i.test(request);
 
 // Luxury brands AliExpress sells only as fakes (a ₪127 "Diptyque" candle, 2026-11-01): left out unless the shopper names
 // the brand (then the search handles it as a brand request).
@@ -342,6 +345,15 @@ export function vatLine(p) {
   return (p.target_sale_price_currency ?? p.sale_price_currency) === "ILS" && n > VAT_FREE_ILS ? "🧾 מעל 75$: יתווסף מע״מ 18% בקופה" : null;
 }
 
+const badgesOf = (p) => [isChoice(p) && "✅ Choice", p.brandTag === "official" ? "🏷️ חנות רשמית" : p.brandTag === "known" && "🏷️ מותג מוכר"].filter(Boolean);
+// [rating, sold]: the badges join the sold line, else the rating line; with neither, they get their own.
+function withBadges(p, [rating, sold]) {
+  const badges = badgesOf(p);
+  if (!badges.length) return [rating, sold];
+  if (sold) return [rating, [sold, ...badges].join(" · ")];
+  return rating ? [[rating, ...badges].join(" · ")] : [badges.join(" · ")];
+}
+
 function buildCard(products, query, demo, reasons, closest, rare) {
   const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : [])];
   products.forEach((p, i) => {
@@ -359,9 +371,9 @@ function buildCard(products, query, demo, reasons, closest, rare) {
         discountLine(p),
         couponLine(p),
         vatLine(p),
-        // Trust badges ride on the rating line (a line each would push the 4th product past the caption limit).
-        [ratingText(p), isChoice(p) && "✅ Choice", p.brandTag === "official" ? "🏷️ חנות רשמית" : p.brandTag === "known" && "🏷️ מותג מוכר"].filter(Boolean).join(" · ") || null,
-        sold ? `🛒 נמכרו: ${sold}` : `${p.lastest_volume}` === "0" && "🆕 עוד לא נקנה", // never-sold come last; the buyer should know (unknown: no line)
+        // Trust badges ride on the short sold line (a line each would push the 4th product past the caption limit; on the long
+        // rating line "✅ Choice" wrapped onto a line of its own on a phone, live test 2026-11-02).
+        ...withBadges(p, [ratingText(p), sold ? `🛒 נמכרו: ${sold}` : `${p.lastest_volume}` === "0" && "🆕 עוד לא נקנה"]), // never-sold come last; the buyer should know (unknown: no line)
         link && `🔗 ${esc(link)}`,
       ].filter(Boolean),
     );

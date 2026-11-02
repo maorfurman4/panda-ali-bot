@@ -120,6 +120,9 @@ const TRIGGER_GLUED = new RegExp(String.raw`^\s*${LEAD}${VERB}\s*(לי[\u05D0-\u
 // The verb without "לי" ("חפש מטען", "תמצא אוזניות"): searched only if the AI confirms a product; otherwise silent.
 const VERB_START = new RegExp(String.raw`^\s*${LEAD}${VERB}\s+\S`);
 export const startsWithSearchVerb = (text) => VERB_START.test(text.replace(BIDI_MARKS, ""));
+// The card's title never starts with the search verb, even when the AI echoes it ("חפש לי שמלת ערב", live test 2026-11-02).
+const VERB_LEAD = new RegExp(String.raw`^\s*${LEAD}${VERB}(?:\s*-?\s*${ME})?(?![\u05D0-\u05EA])[\s:,.]*`);
+export const cardTitle = (text) => text.replace(BIDI_MARKS, "").replace(VERB_LEAD, "").replace(/[\s.,:]+$/, "").trim() || text;
 
 // Natural shopping phrases that may appear anywhere in a group message. Only these messages are sent to the AI,
 // and the bot answers only if the AI confirms a product request (otherwise it stays silent).
@@ -214,8 +217,11 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // for "מטהר אוויר לרכב", 2026-10-30/31). ONE AI call then judges the pool.
   // The trusted brands the AI names for the item are searched as "<brand> <item>" too (free): Baseus and Ugreen car chargers
   // weren't in a pool led by ₪5 no-name ones (2026-11-01).
-  const wordings = live ? [...new Set([alt, ...terms, ...(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`))].filter((t) => t && t !== keywords))] : [];
-  const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [{}]))]);
+  const brandWords = new Set(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`));
+  const wordings = live ? [...new Set([alt, ...terms, ...brandWords].filter((t) => t && t !== keywords))] : [];
+  // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
+  // no second ask, which would only wait 1.2 s.
+  const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [brandWords.has(t) ? { askAgain: false } : {}]))]);
   if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
   if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
   const mainLists = main.status === "fulfilled" ? main.value : [];
@@ -401,7 +407,10 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
   // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
   const key = (name) => modelKey(name, context, { plainNames: style });
-  if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q === p || (q.short_he && sameModel(key(q.short_he), key(p.short_he)))) === i);
+  // The same plain name and nearly the same review count is one product in two listings (two "מטען קיר GaN", 4,926 and
+  // 4,920 reviews, 2026-11-02): AliExpress shares reviews between linked listings.
+  const twin = (p, q) => p.short_he === q.short_he && p.reviewCount >= 100 && Math.abs(p.reviewCount - q.reviewCount) <= p.reviewCount * 0.01;
+  if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q === p || (q.short_he && (sameModel(key(q.short_he), key(p.short_he)) || twin(p, q)))) === i);
   found = sameReviews(found);
   const counted = found.some((p) => p.reviewCount);
   // ✨ only for well-reviewed products (owner's spec): a pretty pick with few reviews is an ordinary product. Style searches
@@ -641,8 +650,9 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], looks = null, style = false, brands = [], cheapest = false, header, context = header, maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], looks = null, style = false, brands = [], cheapest = false, header: rawHeader, context = cardTitle(rawHeader), maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
+    const header = cardTitle(rawHeader);
     stats.count("search");
     let found;
     try {

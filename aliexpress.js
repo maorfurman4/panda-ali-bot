@@ -79,7 +79,7 @@ export async function searchProducts(query, deps = {}) {
   try {
     result = await ask().catch(async (e) => {
       // A 405 "empty" is sometimes random: 3 of ~10 live calls on 2026-11-02, all 50 on a re-ask. One more try.
-      if (e.code !== "resp_code 405") throw e;
+      if (e.code !== "resp_code 405" || deps.askAgain === false) throw e;
       console.warn(`search empty, asking again: ${query}`);
       await (deps.sleep ?? sleepMs)(RETRY_DELAY_MS);
       return ask();
