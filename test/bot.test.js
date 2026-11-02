@@ -160,6 +160,15 @@ test("orderCard: the same plain name with nearly the same review count is one pr
   assert.ok(ids.includes("3") && ids.includes("4"), "other names stay, even with close review counts");
 });
 
+test("a color search gets one line under the title: many products come in several colors", async () => {
+  const colored = setup({ understand: async () => intent({ corrected_he: "ברז שחור למטבח" }) });
+  await colored.bot.handleUpdate(textUpdate("חפש לי ברז שחור למטבח"));
+  assert.match(colored.sent()[0].caption, /🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם/);
+  const plain = setup({ understand: async () => intent({ corrected_he: "ברז למטבח" }) });
+  await plain.bot.handleUpdate(textUpdate("חפש לי ברז למטבח"));
+  assert.doesNotMatch(plain.sent()[0].caption, /🎨/);
+});
+
 test("private search also shows 4 products", async () => {
   const { sent } = await run("earbuds", {}, { chat: "private" });
   const [msg] = sent();
@@ -1299,15 +1308,16 @@ test("a named color: a multi-color listing the photo saw in another color shows 
   assert.deepEqual(asked, [["1"]], "only the listing whose title names black among other colors");
   assert.ok(collaged.includes("https://ae01.alicdn.com/kf/black1.jpg"));
   assert.ok(!collaged.includes("https://ae01.alicdn.com/kf/img1.jpg"));
-  assert.equal(ctx.sent()[0].caption.match(/🎨 בכמה צבעים: בדף המוצר בחרו את הצבע שבתמונה/g).length, 1);
+  assert.equal(ctx.sent()[0].caption.match(/🎨 חלק מהמוצרים מגיעים במבחר צבעים/g).length, 1, "one line under the title for a color search");
 });
 
 test("a named color: no photo in the asked color leaves the card as it was", async () => {
   const items = Array.from({ length: 6 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100), product_title: i === 0 ? "שמלה כחול, שחור" : `שמלה שחורה ${i}`, product_small_image_urls: { string: [`https://ae01.alicdn.com/kf/img${i + 1}.jpg`, `https://ae01.alicdn.com/kf/x${i + 1}.jpg`] } }));
   const understand = async () => intent({ corrected_he: "שמלה שחורה", keywords_en: "black dress" });
-  const ctx = setup({ search: async () => items, live: true, understand, look: async (_r, p) => ({ exact: p.slice(1), partial: p.slice(0, 1) }), pickPhoto: async (_r, p) => p.map(() => null) });
+  let collaged;
+  const ctx = setup({ search: async () => items, live: true, understand, look: async (_r, p) => ({ exact: p.slice(1), partial: p.slice(0, 1) }), pickPhoto: async (_r, p) => p.map(() => null), collage: async (urls) => ((collaged = urls), null) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי שמלה שחורה"));
-  assert.doesNotMatch(ctx.sent()[0].caption, /🎨/);
+  assert.ok(!collaged.some((u) => /\/x\d\.jpg$/.test(u)), "no photo swapped");
 });
 
 test("when the photo check drops the leader, the 🏷️ pick doesn't move into first place", async () => {

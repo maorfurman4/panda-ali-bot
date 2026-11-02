@@ -475,8 +475,9 @@ for Corolla"), it is exact only if the title names that device or brand (or list
 or other-brand one is partial.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 For "ערכת טיפוח" a kit is exact: a multi-head grooming trimmer set (beard, nose, body heads) or a beard or skin care set;
-a single hair clipper or shaver alone is left out (one tool, not a kit: the shopper got hair clippers, 2026-11-01), and
-a manicure set is partial.
+a single hair clipper or shaver alone is left out (one tool, not a kit: the shopper got hair clippers, 2026-11-01). A
+manicure or pedicure (nail) set is partial, but for a men's kit ("ערכת טיפוח לגבר") it is left out: a man's grooming kit
+is hair, beard and face, and nail sets with hundreds of reviews led that card as "close" (owner's test, 2026-11-02).
 A version made for someone else is partial, not exact: a children's, girls' or baby version when the request isn't for
 kids (flower straw bags for little girls for "תיק קש"), a men's version for a women's request and the reverse.
 A general request gets the tasteful, everyday version a grown-up buys for a home or outfit. Unless the request names it,

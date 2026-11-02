@@ -426,3 +426,4 @@ test("specialKind: a car charger is close for a charger request that doesn't say
   assert.ok(!specialKind("מטען קיר מהיר 65W GaN", "מטען מהיר fast charger"));
   assert.ok(!specialKind("מטען אלחוטי לרכב עם מחזיק", "מחזיק טלפון לרכב car phone holder"), "any car request keeps it");
 });
+
