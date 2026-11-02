@@ -378,7 +378,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
 export function orderCard(found, { context, style = false, cheapest = false, limit }) {
   // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
   // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
-  if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && sameModel(modelKey(q.short_he, context), modelKey(p.short_he, context))) === i);
+  const key = (name) => modelKey(name, context, { plainNames: style });
+  if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q === p || (q.short_he && sameModel(key(q.short_he), key(p.short_he)))) === i);
   found = sameReviews(found);
   const counted = found.some((p) => p.reviewCount);
   // ✨ only for well-reviewed products (owner's spec): a pretty pick with few reviews is an ordinary product. Style searches

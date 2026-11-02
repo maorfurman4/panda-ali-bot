@@ -289,6 +289,11 @@ test("modelKey and varied: one model once, at most 2 alike per card (the third w
   const scarves = [n("צעיף מרובע לנשים", 1), n("צעיף מרובע 65x65 ס\"מ", 2), n("צעיף מרובע מנומר", 3), n("צעיף צמר ארוך חם", 4), n("צעיף משי מרובע", 5)];
   assert.deepEqual(varied(scarves, "צעיף", 4).map((p) => p.id), [1, 2, 4, 3, 5], "two square scarves, then another kind");
   assert.notEqual(modelKey("מטען רכב USB-C"), modelKey("מטען רכב 5 יציאות"));
+  const { sameModel } = await import("../format.js");
+  const plain = (name) => modelKey(name, "", { plainNames: false });
+  assert.ok(!sameModel(plain("מטען רכב USB-C"), plain("מטען רכב USB-C")), "non-style: the same plain name is a kind, not one model (2026-11-02)");
+  assert.ok(sameModel(modelKey("שמלת מקסי שחורה"), modelKey("שמלת מקסי שחורה")), "style: the same plain name is one dress");
+  assert.ok(sameModel(plain("Lenovo LP40 Pro אוזניות"), plain("Lenovo LP40 Pro - אוזניות TWS")), "a real model still merges");
   const lamps = [n("מנורת לילה עם חיישן תנועה", 1), n("מנורת לילה חיישן תנועה USB-C", 2), n("מנורת לילה חיישן תנועה", 3), n("מנורת לילה RGB 13 צבעים", 4), n("מנורת לילה מגע לחדר", 5)];
   assert.deepEqual(varied(lamps, "מנורת לילה", 4).map((p) => p.id), [1, 2, 4, 5, 3]);
   const chargers = [n("מטען רכב USB-C", 1), n("מטען רכב 5 יציאות", 2), n("מטען רכב תצוגה דיגיטלית", 3), n("מטען רכב Baseus 30W", 4)];

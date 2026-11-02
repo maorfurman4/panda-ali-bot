@@ -133,6 +133,12 @@ test("two products with the same short name (one model, two colors) show once wh
   assert.match(caption, /4️⃣/, "the card is still filled to 4");
 });
 
+test("different products with the same plain short name all stay (three 'מטען רכב USB-C' chargers, 2026-11-02)", async () => {
+  const title = async (_r, products) => products.map((_, i) => (i < 3 ? "מטען רכב USB-C" : `שם ${i}`));
+  const { sent } = await run("/search car charger", { title });
+  assert.equal(sent()[0].caption.match(/מטען רכב USB-C/g).length, 2, "at most 2 alike per card; the third waits for the next card");
+});
+
 test("private search also shows 4 products", async () => {
   const { sent } = await run("earbuds", {}, { chat: "private" });
   const [msg] = sent();

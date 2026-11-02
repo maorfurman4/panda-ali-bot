@@ -148,16 +148,19 @@ const SPEC_WORDS = /^(?:usb|led|rgb|tws|pd|qc|hd|uv|dc|ac|gan|anc|type|ipx\d*)$/
 const VERSION_WORDS = /^(?:x|s|pro|max|plus|lite|se|mini|ultra|\+)$/i;
 // Two model keys name one model when one holds the other ("xiaomiredmibuds6active" and "redmibuds6active": the parent brand
 // is often left out, 2026-11-02). Only for keys with a model number, so plain names never merge.
-export const sameModel = (a, b) => a === b || (/\d/.test(a) && /\d/.test(b) && Math.min(a.length, b.length) >= 6 && (a.includes(b) || b.includes(a)));
+export const sameModel = (a, b) => Boolean(a && b) && (a === b || (/\d/.test(a) && /\d/.test(b) && Math.min(a.length, b.length) >= 6 && (a.includes(b) || b.includes(a))));
 
 // request: a run that holds a model number the shopper named is the device the item is FOR, not the item's model
 // (every "כיסוי שקוף ל-Samsung S24" collapsed into one, 2026-11-02).
-export function modelKey(name = "", request = "") {
+// plainNames false (non-style cards): a name without a model code or brand is a kind, never one model: three different
+// chargers (50,540, 39,546 and 13,303 sold) were all "מטען רכב USB-C" and two were dropped (2026-11-02). Style cards keep
+// it: there the same plain name is the same dress in another color's listing (a cream one came back, 2026-11-02).
+export function modelKey(name = "", request = "", { plainNames = true } = {}) {
   const asked = new Set((request.match(/[A-Za-z]*\d+[A-Za-z]*/g) ?? []).map((w) => w.toLowerCase()));
   const runs = (name.match(/[A-Za-z0-9][\w.-]*(?:\s+[A-Za-z0-9][\w.-]*)*/g) ?? []).filter((run) => !run.split(/\s+/).some((w) => asked.has(w.toLowerCase())));
   const brandLed = (run) => { const [first, ...rest] = run.split(/\s+/); return rest.length > 0 && /^[A-Z][A-Za-z]+$/.test(first) && !SPEC_WORDS.test(first); };
   const model = runs.find((run) => /[a-z]/i.test(run) && (/\d/.test(run) || brandLed(run)));
-  if (!model) return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  if (!model) return plainNames ? name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "") : "";
   const words = model.split(/\s+/);
   while (words.length > 2 && VERSION_WORDS.test(words.at(-1))) words.pop();
   return words.join("").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
