@@ -921,13 +921,13 @@ test("the same search within 24 hours reuses the products: no new AliExpress or 
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 1 }));
   t += 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 2 }));
-  assert.deepEqual([searches, checks, ctx.sent().length], [3, 1, 2], "3 AliExpress lists once, then memory");
+  assert.deepEqual([searches, checks, ctx.sent().length], [2, 1, 2], "2 AliExpress lists once, then memory");
   t += 22 * 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 3 }));
-  assert.deepEqual([searches, checks], [3, 1], "still memory after 23 hours");
+  assert.deepEqual([searches, checks], [2, 1], "still memory after 23 hours");
   t += 2 * 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 4 }));
-  assert.deepEqual([searches, checks], [6, 2], "expired after 24 hours");
+  assert.deepEqual([searches, checks], [4, 2], "expired after 24 hours");
 });
 
 test("advisor: a tap within 1.5 s of the question changing is ignored (the second tap of a double tap)", async () => {
@@ -1093,14 +1093,19 @@ test("a vague request ('מוצר למטבח') opens the advisor even when the AI
   assert.equal(specific.sent()[0].method, "sendPhoto", "'מוצרי ניקיון' is specific: searched");
 });
 
-test("live search fetches 3 AliExpress lists for the main words (best-sellers, page 2, relevance) and mixes them", async () => {
-  const seen = [];
-  const search = async (q, o) => (seen.push(o.page ?? o.sort ?? "p1"), o.sort === "relevance" ? [product(9, { lastest_volume: "3" })] : [product(o.page === 2 ? 5 : 1)]);
-  const checked = [];
-  const ctx = setup({ search, live: true, relevant: async (_r, p) => (checked.push(...p.map((x) => x.promotion_link.at(-1))), { exact: p, partial: [] }) });
-  await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
-  assert.deepEqual(seen.map(String).sort(), ["2", "p1", "relevance"]);
-  assert.deepEqual(checked.sort(), ["1", "5", "9"], "the relevance-ordered item reaches the AI even with 3 sales");
+test("live search: best sellers and page 2 for the main words; a style search adds AliExpress's default order", async () => {
+  const run = async (style) => {
+    const seen = [];
+    const search = async (q, o) => (seen.push(o.page ?? o.sort ?? "p1"), o.sort === "relevance" ? [product(9, { lastest_volume: "3" })] : [product(o.page === 2 ? 5 : 1)]);
+    const checked = [];
+    const ctx = setup({ search, live: true, understand: async () => intent({ style }), relevant: async (_r, p) => (checked.push(...p.map((x) => x.promotion_link.at(-1))), { exact: p, partial: [] }) });
+    await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
+    return { seen: seen.map(String).sort(), checked: checked.sort() };
+  };
+  assert.deepEqual(await run(false), { seen: ["2", "p1"], checked: ["1", "5"] }, "the default order isn't relevance (EV chargers for 'fast charger', 2026-11-02)");
+  const styled = await run(true);
+  assert.deepEqual(styled.seen, ["2", "p1", "relevance"]);
+  assert.ok(styled.checked.includes("9"), "a style search: the default-order item reaches the AI even with 3 sales");
 });
 
 test("with the AI's main category, two more lists search inside it; without a category there are only the 3 lists", async () => {
@@ -1109,7 +1114,7 @@ test("with the AI's main category, two more lists search inside it; without a ca
   const checked = [];
   const ctx = setup({ search, live: true, understand: async () => intent({ category_id: 6 }), relevant: async (_r, p) => (checked.push(...p.map((x) => x.promotion_link.at(-1))), { exact: p, partial: [] }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מיקרוגל"));
-  assert.deepEqual(seen.sort(), ["-/2", "-/relevance", "-/vol", "6/relevance", "6/vol"]);
+  assert.deepEqual(seen.sort(), ["-/2", "-/vol", "6/vol"]);
   assert.ok(checked.includes("7"), "items found only inside the category reach the AI");
 });
 

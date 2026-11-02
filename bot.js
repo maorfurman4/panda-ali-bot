@@ -195,8 +195,12 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // main words fetch three lists at once (free, parallel) and the AI pool mixes them, each ranked, round-robin.
   // Inside the item's main category the same words skip most accessories (microwave: 19 real microwaves of 50 vs 6; Baseus:
   // the 4,026-sold S1 Lite appeared, 2026-10-29), but a wrong category finds nothing (Ruckus): so two extra lists, never the only ones.
-  const inCategory = category ? [{ category }, { category, sort: "relevance" }] : [];
-  const LISTS = live ? [{}, { page: 2 }, { sort: "relevance" }, ...inCategory] : [{}];
+  // AliExpress's default order isn't relevance: EV chargers and car tools for "fast charger", action figures for "wall clock"
+  // (2026-11-02). Over 59 recorded searches its lists held 11% of the AI pool and found 4% of the exact matches, most of
+  // them dresses, so only style searches keep them.
+  const byDefault = style ? [{ sort: "relevance" }] : [];
+  const inCategory = category ? [{ category }, ...(style ? [{ category, sort: "relevance" }] : [])] : [];
+  const LISTS = live ? [{}, { page: 2 }, ...byDefault, ...inCategory] : [{}];
   // Each list ranked on its own (best sellers first), then lists mixed in turn: every list's top items get in.
   const fetchLists = async (q, lists) => {
     const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls, shorten: false, ...v })));
@@ -257,7 +261,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
     if (alt && exact.length + partial.length < limit && Date.now() - started < SECOND_CHANCE_BUDGET_MS) {
       const known = new Set([...first, ...more].map(keyOf));
-      const fresh = await find(alt, [{}, { sort: "relevance" }, ...inCategory.slice(1)]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
+      const fresh = await find(alt, [{}, ...byDefault, ...(category ? [inCategory.at(-1)] : [])]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
       if (fresh.length) {
         const again = await relevant({ he: context, en: alt, looks, terms: wordings, steady: !style }, fresh.slice(0, poolSize)).catch(() => ({ exact: [], partial: [] }));
         for (const p of again.brand ?? []) known.add(keyOf(p));
