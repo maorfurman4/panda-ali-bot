@@ -229,7 +229,8 @@ const HOLIDAYS = [HALLOWEEN, /christmas|xmas|חג המולד|כריסמס|סנט
 const holidaysIn = (text) => HOLIDAYS.filter((h) => h.test(text ?? ""));
 function askedHolidays(request) {
   const asked = holidaysIn(request.replace(/advent|אדוונט/gi, "christmas").replace(new RegExp(W("לשבת"), "g"), "שבת"));
-  if (asked.includes(PURIM)) asked.push(HALLOWEEN); // Purim costumes are sold as Halloween ones
+  // Costumes and costume props are sold as Halloween ones: for Purim, and for "כובע קסם" (magician hats "…להלווין", 2026-11-02)
+  if (asked.includes(PURIM) || /תחפוש|קוסם|קסם|מכשפ|מסכה|מסכות|שרביט|costume|magician|wizard|witch/i.test(request)) asked.push(HALLOWEEN);
   if (asked.some((h) => JEWISH.includes(h))) asked.push(JUDAICA); // a Star of David gift fits any Jewish holiday
   return asked;
 }

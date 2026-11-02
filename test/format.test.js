@@ -301,6 +301,8 @@ test("offTheme: holiday items are left out unless the request names a holiday", 
   for (const t of ["אוזניות עם תצוגה דיגיטלית", "מטלית מיקרופייבר", "אחיזה מגנטית משופרת", "מברשת סופר סופגנית", "ספר סיפורים לילדים", "צעיף טלית סאטן", "תושבת טלפון לרכב"])
     assert.equal(offTheme(t, "מוצר"), false, t);
   assert.equal(offTheme("תחפושת מלכה לפורים", "תחפושת"), true);
+  assert.equal(offTheme("כובעי קוסם לגברים ונשים להלווין", "כובע קסם"), false, "costume props are sold as Halloween ones");
+  assert.equal(offTheme("כובע קוסם לליל כל הקדושים", "כובע צמר"), true);
   assert.equal(offTheme("כיסוי כרית בוהו לבן קרם", "כרית נוי"), false);
 });
 
