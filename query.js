@@ -65,8 +65,14 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - A general word means the mainstream everyday version most shoppers want, so keywords_en names that one ("אגרטל" ->
   "flower vase", not a hydroponic plant vase; "צעיף" -> "women scarf", "עכבר אלחוטי" -> "wireless mouse"), never a
   specialized kind the shopper didn't ask for.
-- Never put a baby's or child's age in keywords_en ("מוצץ לתינוק בן חצי שנה" -> "baby pacifier": sellers rarely title the
-  age, and "6 month" found mostly clips); the check reads the age later.
+- Never put a baby's or child's age in keywords_en ("מוצץ לתינוק בן חצי שנה" -> "orthodontic pacifier": sellers rarely title
+  the age, and "6 month" found mostly clips); the check reads the age later.
+- A bare noun's best sellers are often its accessories, so name the item the way its own sellers do (measured 2026-11-02,
+  real items among the 50 best sellers): "עגלת תינוק" -> "lightweight baby stroller", "foldable baby stroller" (26 and 17;
+  "baby stroller" and "baby pram" found only stroller hooks and phone holders, 0); "ברז למטבח" -> "pull out kitchen faucet"
+  (25; "kitchen faucet" 2, the rest sink racks and parts); "מקרן" -> "portable projector", "home projector" (19 and 12;
+  "projector" 2, the rest cables); "מוצץ" -> "orthodontic pacifier" (34; "baby pacifier" and "silicone pacifier" 0, the
+  rest clips and chains).
 - Sets: search the way sellers name them ("סט סירים" -> "pots and pans set", "cookware set induction"; never a camping set).
 - Brands sell under their own sub-lines: search those too ("אוזניות של שיאומי" -> "Redmi Buds", "Xiaomi Buds"; Samsung earbuds
   -> "Galaxy Buds"; Apple -> "AirPods").
