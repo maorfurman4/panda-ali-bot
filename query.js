@@ -435,7 +435,8 @@ const RELEVANCE_MODEL = "gpt-5.4";
 // Final letters: "לבן"/"חום" don't match "לבנה"/"חומה", so those are listed. "לבנות"/"לבנים" alone can mean for
 // girls/boys (the AI asks which); "בצבע לבן" counts through "צבע".
 const VISUAL_WORDS = /אפור|שחור|לבן|לבנה(?![\u05D0-\u05EA])|חומה|חומים|חומות|אדום|כחול|ירוק|צהוב|ורוד|סגול|חום|בז'|כתום|זהב|כסוף|כסף|שקוף|תכלת|בורדו|קרם|פרחוני|מנוקד|פסים|משובץ|הדפס|צבע|אגוז|אלון|walnut|oak|gr[ae]y|black|white|red|blue|green|yellow|pink|purple|brown|beige|orange|gold|silver|clear|floral|striped|plaid|color/i;
-export const namesLook = (text) => VISUAL_WORDS.test(text); // a color or pattern: the card puts the right look before reviews
+// A color or pattern: the card puts the right look before reviews. "רעש לבן" / white noise isn't white (2026-11-02).
+export const namesLook = (text) => VISUAL_WORDS.test((text ?? "").replace(/רעש\s+לבן|white\s+noise/gi, ""));
 
 const RELEVANCE_SYSTEM = `You check AliExpress search results for an Israeli shopper.
 You get the request (Hebrew, with English search keywords) and numbered products: a title (often machine-translated Hebrew)
@@ -483,6 +484,10 @@ manicure or pedicure (nail) set is partial, but for a men's kit ("ערכת טי�
 is hair, beard and face, and nail sets with hundreds of reviews led that card as "close" (owner's test, 2026-11-02).
 A version made for someone else is partial, not exact: a children's, girls' or baby version when the request isn't for
 kids (flower straw bags for little girls for "תיק קש"), a men's version for a women's request and the reverse.
+A child's gender counts: "ילד", "לילד", "לבן", "בן 5" mean a boy, "ילדה", "לילדה", "לבת" a girl. An item made for the other
+gender is left out (princess dresses, Elsa or Anna, for "תחפושת לילד בן 5", owner's test 2026-11-02); "ילדים" fits both.
+"חנוכייה" is a Hanukkah menorah: nine branches (eight and a shamash). A seven-branch menorah, a Christmas candle arch or a
+church candelabra is not the item; leave it out even when the title says menorah.
 A general request gets the tasteful, everyday version a grown-up buys for a home or outfit. Unless the request names it,
 leave out (neither exact nor partial):
 - plush, stuffed-toy or animal-shaped versions (a stuffed seal, a moon-and-sun plush or a capybara doll is a toy, not a
@@ -498,7 +503,9 @@ garment (a keffiyeh for "צעיף").
 For Shabbat use ("לשבת", "שאפשר להשתמש בשבת"), anything that switches on by motion, sound, touch or an app is not
 Shabbat-friendly: leave it out (a motion-sensor night light for "מנורת לילה לשבת").
 A number the shopper named is a feature: a product that states another number contradicts it (a 2-person tent for
-"ל-4 אנשים"). A detail sellers rarely write, like a baby's age in months, is met when nothing contradicts it (a plain baby
+"ל-4 אנשים"). But a higher capability that includes the asked one meets it: an 8K or 4K@120Hz cable is exact for
+"4K 60Hz" (it does 4K 60Hz too). A product that names the asked resolution or wattage without the asked refresh rate or
+port count ("4K" alone for "4K 60Hz", one port for "3 יציאות") can't be confirmed: partial. A detail sellers rarely write, like a baby's age in months, is met when nothing contradicts it (a plain baby
 pacifier is exact for "בן חצי שנה"; a newborn-only 0-3 month one is not). A beach sun shelter, emergency or survival tent,
 or screen gazebo is not a camping tent. For a child under 3, a toy with small loose parts (beads, magnets, small balls)
 is partial. A USB 5V LED strip is for a TV or desk: partial for a ceiling, cove or room. "Works with Google/Alexa" means it works without extra gear: a Zigbee bulb that needs a hub is partial.
@@ -594,7 +601,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     // judge the final photos (6-16 of them), since one judge let a brown dress through for "שחורה" (2026-11-01).
     // The color title check on 48 photos stays one judge (Claude there would be ~1.5¢ more).
     const judged = async (content, withPhotos) => {
-      const colorLook = withPhotos && photos && !pick && VISUAL_WORDS.test(`${request.he} ${request.en}`); // not the style look
+      const colorLook = withPhotos && photos && !pick && namesLook(`${request.he} ${request.en}`); // not the style look
       if ((withPhotos && !colorLook) || !env.ANTHROPIC_API_KEY) return ask(content);
       // The color look's second judge is Haiku: Sonnet on 16 photos added ~6 s to a search (2026-11-01).
       const [a, b] = await Promise.allSettled([ask(content), requestClaude({ ...args, model: colorLook ? "claude-haiku-5-5" : claudeFor(model), content, timeoutMs: colorLook ? COLOR_JUDGE_TIMEOUT_MS : SECOND_JUDGE_TIMEOUT_MS })]);
@@ -614,7 +621,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const unchecked = (reason) => (warn(reason), { exact: [], partial: products.filter((_, i) => !parts.has(i)) });
     try {
       // One retry with titles only: covers an unreachable photo (HTTP 400) and a slow first call after a cold start.
-      const usePhotos = photos || VISUAL_WORDS.test(`${request.he} ${request.en}`);
+      const usePhotos = photos || namesLook(`${request.he} ${request.en}`);
       const out = await judged(usePhotos ? withPhotos : titles, usePhotos).catch(() => judged(titles, false));
       const ints = (a) => Array.isArray(a) && a.every(Number.isInteger);
       if (!ints(out?.exact) || !ints(out?.partial)) return unchecked("response failed validation");

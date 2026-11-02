@@ -443,3 +443,13 @@ test("specialKind: a car phone holder is close for a phone stand request that do
   assert.ok(!specialKind("מעמד שולחני מתכוונן לטלפון", "מעמד לטלפון phone stand"));
   assert.ok(!specialKind("תושבת טלפון לרכב Baseus", "מעמד טלפון לרכב של Baseus Baseus car phone holder"));
 });
+
+test("white noise is not a color: no color note and no color photo check", async () => {
+  const { formatCard } = await import("../format.js");
+  const { namesLook } = await import("../query.js");
+  const p = { product_title: "x", target_sale_price: "10", target_sale_price_currency: "ILS", lastest_volume: "100", promotion_link: "https://s.click.aliexpress.com/e/_a" };
+  assert.doesNotMatch(formatCard([p], { query: "מכונת רעש לבן" }).caption, /🎨/);
+  assert.match(formatCard([p], { query: "תיק לבן" }).caption, /🎨/);
+  assert.equal(namesLook("מכונת רעש לבן white noise machine"), false);
+  assert.equal(namesLook("תיק לבן"), true);
+});

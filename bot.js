@@ -413,6 +413,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   }
   // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
   shown = shown.map((p) => { const next = p.product_small_image_urls?.string?.[1]; return banners.has(keyOf(p)) && /^https:\/\//.test(next ?? "") ? { ...p, product_main_image_url: next } : p; });
+  // A swapped photo (ad banner, asked color) can match another listing's: two listings of one ring light, banners on
+  // their first photos, showed the same second photo in one card (owner's test, 2026-11-02). Checked again only then.
+  if (hash && (banners.size || shown.some((p) => p.colorPick))) shown = await dedupeByPhoto(shown, hash);
   shown = sellerFirst(shown, limit); // one moved up when the photo check dropped the leader
   return shown.slice(0, limit + extra);
 }

@@ -83,7 +83,9 @@ const COLORS = {
   green: /ירוק|\bgreen\b/i, yellow: /צהוב|\byellow\b/i, pink: /ורוד|\bpink\b/i, purple: /סגול|\bpurple\b/i,
   brown: /חומה|חומים|חומות|\bbrown\b|\bcoffee\b/i, beige: /בז'|\bbeige\b|\bkhaki\b/i, gray: /אפור|\bgr[ae]y\b/i, orange: /כתום|\borange\b/i,
 };
-const named = (text) => Object.keys(COLORS).filter((c) => COLORS[c].test(text ?? ""));
+// "רעש לבן" (white noise) names no color: a white noise machine search got the color note (owner's test, 2026-11-02).
+const NOT_A_COLOR = /רעש\s+לבן|white\s+noise/gi;
+const named = (text) => Object.keys(COLORS).filter((c) => COLORS[c].test((text ?? "").replace(NOT_A_COLOR, "")));
 // A listing in several colors, the asked one among them ("כחול, ירוק, שחור, צהוב…" for "שחורה", 2026-11-02).
 export const inColors = (title, request) => named(request).some((c) => named(title).includes(c)) && named(title).length > 1;
 export function offColor(title, request) {

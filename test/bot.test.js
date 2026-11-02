@@ -1342,6 +1342,16 @@ test("a named color: no photo in the asked color leaves the card as it was", asy
   assert.ok(!collaged.some((u) => /\/x\d\.jpg$/.test(u)), "no photo swapped");
 });
 
+test("two listings whose banner photos give way to the same second photo show once", async () => {
+  const items = Array.from({ length: 8 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100), product_small_image_urls: { string: [`https://ae01.alicdn.com/kf/img${i + 1}.jpg`, i < 2 ? "https://ae01.alicdn.com/kf/same.jpg" : `https://ae01.alicdn.com/kf/clean${i + 1}.jpg`] } }));
+  const look = async (_r, p) => ({ exact: p, partial: [], banner: p.slice(0, 2) });
+  const hash = async (url) => (/same/.test(url) ? "0".repeat(64) : url.padEnd(64, "x").slice(-64));
+  let collaged;
+  const ctx = setup({ search: async () => items, live: true, look, hash, collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מנורת טבעת"));
+  assert.equal(collaged.filter((u) => /same\.jpg$/.test(u)).length, 1);
+});
+
 test("when the photo check drops the leader, the 🏷️ pick doesn't move into first place", async () => {
   const items = Array.from({ length: 12 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 500), evaluate_rate: "98%" }));
   items[9] = { ...items[9], shop_name: "UGREEN Official Store" };
