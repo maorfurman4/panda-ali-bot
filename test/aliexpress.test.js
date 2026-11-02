@@ -156,7 +156,18 @@ test("zero results (resp_code 405 'The result is empty') returns [] instead of a
   const { fetch } = gateway({
     "aliexpress.affiliate.product.query": () => ({ resp_result: { resp_code: "405", resp_msg: "The result is empty" } }),
   });
-  assert.deepEqual(await searchProducts("xqzv", { fetch, env: LIVE_ENV }), []);
+  assert.deepEqual(await searchProducts("xqzv", { fetch, env: LIVE_ENV, sleep: noSleep }), []);
+});
+
+test("a random 405 'empty' is asked once more and its products come back (seen live 2026-11-02)", async () => {
+  let n = 0;
+  const { fetch, calls } = gateway({
+    "aliexpress.affiliate.product.query": () => (++n === 1
+      ? { resp_result: { resp_code: "405", resp_msg: "The result is empty" } }
+      : { resp_result: { resp_code: "200", result: { products: [{ product_id: "111" }] } } }),
+  });
+  assert.deepEqual((await searchProducts("iphone 15 case", { fetch, env: LIVE_ENV, sleep: noSleep, shorten: false })).map((p) => p.product_id), ["111"]);
+  assert.equal(calls.length, 2);
 });
 
 test("live search swaps the very long promotion links for short ones in ONE link.generate call", async () => {

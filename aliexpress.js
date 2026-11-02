@@ -58,25 +58,32 @@ export async function apiCall(method, params, { fetch = globalThis.fetch, env = 
 export async function searchProducts(query, deps = {}) {
   const env = deps.env ?? process.env;
   if (isMockMode(env)) return mockProducts(query);
+  const ask = () => apiCall(
+    "aliexpress.affiliate.product.query",
+    {
+      keywords: query,
+      tracking_id: env.ALI_TRACKING_ID,
+      ship_to_country: "IL",
+      target_currency: "ILS",
+      target_language: "HE",
+      ...(deps.sort === "relevance" ? {} : { sort: "LAST_VOLUME_DESC" }), // no sort param = AliExpress's own relevance order
+      ...(deps.page > 1 ? { page_no: String(deps.page) } : {}),
+      ...(deps.category ? { category_ids: String(deps.category) } : {}), // a main category: an extra list, never the only one
+      page_size: String(PAGE_SIZE),
+      ...(deps.minIls ? { min_sale_price: String(Math.round(deps.minIls * 100)) } : {}),
+      ...(deps.maxIls ? { max_sale_price: String(Math.round(deps.maxIls * 100)) } : {}),
+    },
+    { ...deps, env },
+  );
   let result;
   try {
-    result = await apiCall(
-      "aliexpress.affiliate.product.query",
-      {
-        keywords: query,
-        tracking_id: env.ALI_TRACKING_ID,
-        ship_to_country: "IL",
-        target_currency: "ILS",
-        target_language: "HE",
-        ...(deps.sort === "relevance" ? {} : { sort: "LAST_VOLUME_DESC" }), // no sort param = AliExpress's own relevance order
-        ...(deps.page > 1 ? { page_no: String(deps.page) } : {}),
-        ...(deps.category ? { category_ids: String(deps.category) } : {}), // a main category: an extra list, never the only one
-        page_size: String(PAGE_SIZE),
-        ...(deps.minIls ? { min_sale_price: String(Math.round(deps.minIls * 100)) } : {}),
-        ...(deps.maxIls ? { max_sale_price: String(Math.round(deps.maxIls * 100)) } : {}),
-      },
-      { ...deps, env },
-    );
+    result = await ask().catch(async (e) => {
+      // A 405 "empty" is sometimes random: 3 of ~10 live calls on 2026-11-02, all 50 on a re-ask. One more try.
+      if (e.code !== "resp_code 405") throw e;
+      console.warn(`search empty, asking again: ${query}`);
+      await (deps.sleep ?? sleepMs)(RETRY_DELAY_MS);
+      return ask();
+    });
   } catch (e) {
     if (e.code === "resp_code 405") return []; // AliExpress answers "The result is empty" with 405 (verified live 2026-10-23)
     throw e;
