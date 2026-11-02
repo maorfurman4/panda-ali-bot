@@ -5,3 +5,4 @@ node_modules
 .remember/
 reports/
 deals-state.json
+vocab-out/
