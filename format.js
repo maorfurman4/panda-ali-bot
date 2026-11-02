@@ -345,6 +345,7 @@ export const CLOSEST_NOTE = "לא מצאתי התאמה מדויקת, אלה ה�
 // Almost nothing found (real wall mirrors: only acrylic stickers, 2026-11-01): AliExpress often doesn't ship it to Israel.
 // A color search: many listings come in several colors and the photo may show another one (a faucet titled black,
 // pictured silver, black on the product page; owner, 2026-11-02). One line under the title says so.
+export const OVER_BUDGET_NOTE = "קצת מעל התקציב";
 export const COLORS_NOTE = "🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם";
 export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
@@ -377,7 +378,7 @@ function buildCard(products, query, demo, reasons, closest, rare) {
         `${p.pretty ? "✨" : p.brandSlot ? "🏷️" : MEDALS[products.slice(0, i).filter((q) => !q.pretty && !q.brandSlot).length]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
         p.pretty && "✨ מהיפים ביותר בחיפוש",
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
-        priceLine(p, { from: true }),
+        [priceLine(p, { from: true }), p.overBudget && OVER_BUDGET_NOTE].filter(Boolean).join(" · "),
         discountLine(p),
         couponLine(p),
         vatLine(p),

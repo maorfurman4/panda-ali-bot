@@ -197,6 +197,7 @@ export async function optionSales(search, keywords, { minIls = null, maxIls = nu
 // Every advisor button should lead to a strong card (owner, 2026-11-02). Each kind option is looked up on AliExpress: one
 // with fewer than STRONG_MIN best sellers (STRONG_SOLD+ sold) is dropped, the rest go strongest first. Budget options, a
 // failed or slow lookup, and the last 2 options always stay (a question needs 2 buttons).
+const OVER_BUDGET = 1.1;
 const STRONG_SOLD = 100;
 const STRONG_MIN = 4;
 const LOOKUP_MS = 4000;
@@ -227,10 +228,13 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const inCategory = category ? [{ category }, ...(style ? [{ category, sort: "relevance" }] : [])] : [];
   const LISTS = live ? [{}, { page: 2 }, ...byDefault, ...inCategory] : [{}];
   // Each list ranked on its own (best sellers first), then lists mixed in turn: every list's top items get in.
+  // Up to 10% over the budget is fine (owner, 2026-11-02): such a product says so on its card, at most one per card.
+  const cap = maxPriceIls ? maxPriceIls * OVER_BUDGET : null;
+  const markOver = (p) => (maxPriceIls && (p.target_sale_price_currency ?? p.sale_price_currency) === "ILS" && Number(p.target_sale_price ?? p.sale_price) > maxPriceIls ? { ...p, overBudget: true } : p);
   const fetchLists = async (q, lists) => {
-    const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: maxPriceIls, shorten: false, ...v })));
+    const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: cap, shorten: false, ...v })));
     if (got.every((r) => r.status === "rejected")) throw got[0].reason;
-    return got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), maxPriceIls, minPriceIls)) : []));
+    return got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), cap, minPriceIls).map(markOver)) : []));
   };
   const inTurn = (ranked, max = Infinity, seen = new Set()) => {
     const out = [];
@@ -712,6 +716,8 @@ export function createBot({
         const [linked, names, rated] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null), stars(found).catch(() => null)]);
         found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
         found = orderCard(found, { context, style, cheapest, limit });
+        const over = found.filter((p) => p.overBudget); // one over-budget product per card: the others wait for "עוד"
+        if (over.length > 1) found = [...found.filter((p) => !p.overBudget || p === over[0]), ...over.slice(1)];
         if (found.length) resultsCache.set(key, { found, at: now() });
         if (resultsCache.size > RESULTS_MAX) resultsCache.delete(resultsCache.keys().next().value);
       }

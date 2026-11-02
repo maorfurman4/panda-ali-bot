@@ -373,9 +373,16 @@ test("not_product: one short reply, no search", async () => {
   assert.equal(sent()[0].body, NOT_PRODUCT);
 });
 
-test("max price: ILS products above the cap are dropped; non-ILS results ignore the cap", async () => {
+test("max price: up to 10% over the cap, one such product per card with a note; non-ILS results ignore the cap", async () => {
   const ils = await run("חפש לי אוזניות עד 13 שקל", { understand: async () => intent({ max_price_ils: 13 }) });
-  assert.deepEqual(shownIds(ils.sent()[0]), ["1", "2", "3"]);
+  assert.deepEqual(shownIds(ils.sent()[0]), ["1", "2", "3", "4"]); // 14 ₪ is within 10% of 13; 15 ₪ is not
+  assert.equal(ils.sent()[0].body.match(/קצת מעל התקציב/g).length, 1);
+  const pricey = [product(1, { target_sale_price: "21.00" }), product(2, { target_sale_price: "21.50" }), ...SIX.slice(2)];
+  const two = await run("חפש לי אוזניות עד 20 שקל", { understand: async () => intent({ max_price_ils: 20 }), result: pricey }); // 2 over, 4 within
+  assert.equal(two.sent()[0].body.match(/קצת מעל התקציב/g).length, 1);
+  assert.equal(shownIds(two.sent()[0]).length, 4);
+  const fill = await run("חפש לי אוזניות עד 12.8 שקל", { understand: async () => intent({ max_price_ils: 12.8 }) }); // only 2 within: both over ones fill the card
+  assert.deepEqual(shownIds(fill.sent()[0]), ["1", "2", "3", "4"]);
   const tooLow = await run("חפש לי אוזניות עד 5 שקל", { understand: async () => intent({ max_price_ils: 5 }) });
   assert.equal(tooLow.sent()[0].body, NO_RESULTS);
   const usd = SIX.map((p) => ({ ...p, target_sale_price_currency: "USD" }));

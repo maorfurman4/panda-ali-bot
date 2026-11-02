@@ -78,7 +78,7 @@ for (const [request, picks] of CASES) {
     relevant: exact.length + partial.length,
     exact: exact.length,
     sold: median(shown.map((p) => Number(p.lastest_volume) || 0)),
-    priceOk: shown.every((p) => (!s.max || price(p) <= s.max) && (!s.min || price(p) >= s.min)) ? "✓" : "✗",
+    priceOk: shown.every((p) => (!s.max || price(p) <= s.max * 1.1) && (!s.min || price(p) >= s.min)) ? "✓" : "✗",
     wrong: shown.filter((p) => !exact.includes(p) && !partial.includes(p)).map((p) => String(p.product_title).slice(0, 22)).join(" ; "),
     s: ((Date.now() - t) / 1000).toFixed(1),
   });
