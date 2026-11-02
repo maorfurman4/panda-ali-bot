@@ -201,10 +201,16 @@ export function varied(products, request = "", limit = 4) {
 }
 
 // Holiday-themed items the AI sometimes keeps as "close" (Halloween and Snoopy covers for "כרית נוי לסלון", 2026-11-01):
-// left out unless the request names a holiday.
-// An advent calendar is a Christmas item: "לוח אדוונט של נידו" lost every NeeDoh calendar ("…לחג המולד") without it.
-const HOLIDAY = /halloween|ליל כל הקדושים|האלווין|הלווין|christmas|xmas|חג המולד|כריסמס|סנטה|santa|advent|אדוונט|easter|פסחא|thanksgiving/i;
-export const offTheme = (title, request = "") => HOLIDAY.test(title ?? "") && !HOLIDAY.test(request);
+// left out unless the request names the same holiday. A title that names the asked holiday among others stays (sellers list
+// "חג המולד, ליל כל הקדושים, יום הולדת"); a Halloween-only calendar for "לוח אדוונט לחג המולד" goes (owner, 2026-11-02).
+// Asking for an advent calendar is asking for Christmas ("לוח אדוונט של נידו" lost every NeeDoh calendar "…לחג המולד"
+// without it); in a title "advent" alone says nothing, since Halloween advent calendars exist too.
+const HOLIDAYS = [/halloween|ליל כל הקדושים|האלווין|הלווין/i, /christmas|xmas|חג המולד|כריסמס|סנטה|santa/i, /easter|פסחא/i, /thanksgiving/i];
+const holidaysIn = (text) => HOLIDAYS.filter((h) => h.test(text ?? ""));
+export const offTheme = (title, request = "") => {
+  const asked = holidaysIn(/advent|אדוונט/i.test(request) ? `${request} christmas` : request), named = holidaysIn(title);
+  return named.length > 0 && !named.some((h) => asked.includes(h));
+};
 
 // Specialized kinds a general request doesn't mean; the AI still called gaming mice exact for "עכבר אלחוטי" (2026-11-01),
 // so the code moves them to "close" unless the request names the kind.

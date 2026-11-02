@@ -285,6 +285,8 @@ test("offTheme: holiday items are left out unless the request names a holiday", 
   assert.equal(offTheme("כיסוי כרית חג המולד סנטה", "כרית נוי"), true);
   assert.equal(offTheme("כיסוי כרית חג המולד סנטה", "כרית לחג המולד"), false);
   assert.equal(offTheme("לוח שנה של נידו לשנת 2026, מתנה לחג המולד", "לוח אדוונט של נידו"), false, "an advent calendar is a Christmas request");
+  assert.equal(offTheme("לוח אדוונט נידו לליל כל הקדושים", "לוח אדוונט לחג המולד"), true, "another holiday only");
+  assert.equal(offTheme("בובה רכה מתנה לחג המולד, ליל כל הקדושים, יום הולדת", "לוח אדוונט לחג המולד"), false, "the asked holiday among others");
   assert.equal(offTheme("כיסוי כרית בוהו לבן קרם", "כרית נוי"), false);
 });
 
