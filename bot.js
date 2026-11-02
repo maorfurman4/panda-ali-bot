@@ -57,6 +57,7 @@ import {
   offTheme,
   specialKind,
   fakeLuxury,
+  singleForSet,
   modelKey,
   sameModel,
   varied,
@@ -269,7 +270,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   partial = [...partial.map((p) => (wrongColor(p) ? { ...p, offColor: true } : p)), ...[...exact, ...near].filter(wrongColor).map((p) => ({ ...p, offColor: true }))];
   exact = exact.filter((p) => !wrongColor(p));
   near = near.filter((p) => !wrongColor(p));
-  const special = exact.filter((p) => specialKind(p.product_title, `${context} ${keywords}`));
+  const special = exact.filter((p) => specialKind(p.product_title, `${context} ${keywords}`) || singleForSet(p.product_title, context));
   if (special.length) (exact = exact.filter((p) => !special.includes(p))), (partial = [...special, ...partial]);
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
   // "ergonomic Logitech mouse"). brandOnly is the brand name, or true when unknown.
@@ -370,10 +371,19 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
   if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q.short_he && sameModel(modelKey(q.short_he, context), modelKey(p.short_he, context))) === i);
   found = sameReviews(found);
-  if (style) return varied(found, context, limit); // style searches as at 17:30: best sellers and ✨ in turn, no review order
   const counted = found.some((p) => p.reviewCount);
-  // ✨ only for well-reviewed products (owner's spec): a pretty pick with few reviews is an ordinary product.
+  // ✨ only for well-reviewed products (owner's spec): a pretty pick with few reviews is an ordinary product. Style searches
+  // too: white sneakers with 3 reviews got "✨ מהיפים ביותר" (live test, 2026-11-02).
   if (counted) found = found.map((p) => (p.pretty && !(p.reviewCount >= 20 && p.avgStars >= 4.5) ? { ...p, pretty: false } : p));
+  if (style) {
+    // Style searches as at 17:30: best sellers and ✨ in turn, no review order. But 🥇 is a proven seller when the card has
+    // one (owner, 2026-11-02): a black evening dress with 4 reviews and 13 sold led the card.
+    found = varied(found, context, limit);
+    const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && !(parseFloat(p.evaluate_rate) < TRUSTED_FEEDBACK);
+    const lead = found.slice(0, limit).findIndex(proven);
+    if (lead > 0 && !proven(found[0])) found.unshift(...found.splice(lead, 1));
+    return found;
+  }
   // Only what the photo look saw can rise into the card: the review order pulled unseen ones up (a polka-dot green dress
   // titled "black", a steel faucet for "שחור", 2026-11-01). "הכי זול" stays cheapest first.
   const order = (list) => trustedFirst(list, { bySales: !style, look: namesLook(context) });

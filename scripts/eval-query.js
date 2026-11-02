@@ -35,6 +35,12 @@ const CASES = [
   { q: "אוזניות עד 50 שקל", status: "ok", kw: [EARBUDS], noKw: /\d/, max: 50 },
   { q: "שעון חכם לריצה", status: "ok", kw: [/smart ?watch|running watch|gps watch|sport watch/i] },
   { q: "מתנה לאמא", status: "clarify" },
+  // Live test 2026-11-02
+  { q: "חודים לאייפד", status: "ok", kw: [/tip|nib|pencil/i], noKw: /case|cover/i },
+  { q: "מכונת גילוח עם דירוג", status: "ok", kw: [/clipper|trimmer/i], noKw: /foil|rotary/i },
+  { q: "מגן לאייפון", status: "ok", kw: [/case|cover/i, /iphone/i] },
+  { q: "נעלי ספורט לבנות", status: "clarify" },
+  { q: "נעלי ספורט בצבע לבן", status: "ok", kw: [/white/i] },
   { q: "משהו לבית", status: "clarify" },
   { q: "מה נשמע", status: "not_product" },
   { q: "בקבוק מים תרמי 500 מל", status: "ok", kw: [/thermos|insulated|vacuum|thermal/i, /500 ?ml/i] },

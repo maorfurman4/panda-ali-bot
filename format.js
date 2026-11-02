@@ -136,7 +136,10 @@ const PART_TITLE = /(?:חלקי|חלק) חילוף|חלופי|spare parts?|repla
 // A title that STARTS with a part/accessory word ("כבל מקלדת", "סוללת קטנוע", "משענות יד") is a part, unless the request
 // itself names that word ("כיסוי לאייפון" still finds covers, "מטען" still finds chargers). Matched by a 3-letter stem.
 const PART_FIRST_WORDS = /^(?:סוללת|סוללה|סוללות|כבל|כבלי|מעמד|משענת|משענות|גלגל|גלגלים|צמיג|צמיגים|מטען|כיסוי|כיסויים|מגן|מגני|רצועה|רצועת|תושבת|ידית|הרמת|מתאם)$/;
-const BUNDLE_PREFIX = /^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
+// A phone/tablet case under any of its names (title's first word / the request).
+const CASE_WORDS = /^(?:כיסוי|כיסויים|מגן|מגני|נרתיק|נרתיקים|קייס|קייסים)$/;
+const CASE_REQUEST = /כיסו|מגן|מגני|נרתיק|קייס|\bcase\b|\bcover\b/i;
+const BUNDLE_PREFIX =/^(?:סט(?: של)?\s*\d*|\d+\s*(?:יחידות|יח'|pcs)|זוג)\s+/i;
 // The same model under two names ("Lenovo LP40 Pro אוזניות TWS" and "Lenovo LP40 Pro אוזניות", 2026-11-01): the first
 // run of Latin words that holds a model number (brand + model), else the whole name.
 // A run without a digit counts when it starts with a capitalized brand ("KZ EDX Pro X"), not a spec ("USB C", "Type C").
@@ -218,6 +221,12 @@ export const specialKind = (title, request = "") => SPECIAL_KINDS.some((k) => k.
 // Luxury brands AliExpress sells only as fakes (a ₪127 "Diptyque" candle, 2026-11-01): left out unless the shopper names
 // the brand (then the search handles it as a brand request).
 const LUXURY = /diptyque|דיפיקס|dior|דיור|chanel|שאנל|gucci|גוצ'י|louis vuitton|לואי ויטון|herm[eè]s|הרמס|prada|פראדה|rolex|רולקס|cartier|קרטייה|versace|ורסצ'ה|balenciaga|ysl|yves saint|burberry|ברברי|fendi|tiffany|טיפאני|jo malone|ג'ו מלון/i;
+// A set or kit was asked for ("סט מברגים", "ערכת מאצ'ה", "ערכת טיפוח לגבר"): a title that doesn't say it's a set is a single
+// tool (one screwdriver, one whisk, one nose trimmer, 2026-11-02) and goes after the real sets (owner: last, not out).
+const SET_REQUEST = /(?:^|\s)(?:סט|סטים|ערכה|ערכת|ערכות)(?:\s|$)|\b(?:set|kit)\b/i;
+const SET_TITLE = /סט|ערכ|מארז|חלקים|יחידות|ב-?\s?1|\b\d+\s*(?:in|ב)\s*1\b|\bset\b|\bkit\b|\bpcs\b|\d+\s*(?:pcs|יח)/i;
+export const singleForSet = (title, request = "") => SET_REQUEST.test(request) && !SET_TITLE.test(title ?? "");
+
 export const fakeLuxury = (title, request = "") => LUXURY.test(title ?? "") && !LUXURY.test(request);
 
 // Items mostly sold as their cover: for "כרית נוי" a cushion cover IS the item (45x45 covers were dropped, 2026-11-01).
@@ -228,7 +237,13 @@ export function isPartFor(title, request = "") {
   if (PART_TITLE.test(t)) return true;
   const cover = t.replace(BUNDLE_PREFIX, "").match(SOLD_AS_COVER);
   if (cover && request.includes(cover[1].slice(0, 3))) return false;
-  const first = t.replace(BUNDLE_PREFIX, "").split(/[\s,]/)[0];
+  const body = t.replace(BUNDLE_PREFIX, "");
+  const first = body.split(/[\s,]/)[0];
+  // "מגן לאייפון" and "כיסוי לאייפון" are the same item: AliExpress titles every case "כיסוי…", so a request for a "מגן"
+  // dropped them all as parts (0 results for "מגן לאייפון", 1 for "מגן לסמסונג s24", 2026-11-02). A screen protector
+  // ("מגן מסך") is still a part for a case request.
+  const screen = /^(?:מגן|מגני)\s+מסך/.test(body) && !/מסך/.test(request);
+  if (CASE_WORDS.test(first) && CASE_REQUEST.test(request) && !screen) return false;
   return PART_FIRST_WORDS.test(first) && !request.includes(first.slice(0, 4)); // 4 letters: "כיסוי" isn't "כיסא"
 }
 

@@ -488,3 +488,15 @@ test("the final photo look: two judges for a named color (350 px photos), one ju
   assert.equal((await run("שמלת ערב", { photos: true })).claude, false);
   assert.equal((await run("שמלת ערב שחורה", {})).claude, false, "the 48-product color title check: gpt alone");
 });
+
+test("namesLook: 'לבנות'/'לבנים' alone isn't a color (can mean for girls/boys); 'לבן', 'לבנה', 'בצבע לבן' are", async () => {
+  const { namesLook } = await import("../query.js");
+  for (const t of ["נעלי ספורט לבנות", "חולצות לבנים"]) assert.equal(namesLook(t), false, t);
+  for (const t of ["חולצה לבנה", "תיק לבן", "נעלי ספורט לבנות · בצבע לבן"]) assert.equal(namesLook(t), true, t);
+});
+
+test("explainer: a reason that argues against the product is dropped (no 💡 for it), the others stay", async () => {
+  const products = [{ product_title: "מחזיק מפתחות" }, { product_title: "טבעת פותחן בקבוקים" }];
+  const api = openai({ reasons: ["גאדג'ט קטן ושימושי", "פתיחת בקבוקים, פחות מתאים לאווירה"] });
+  assert.deepEqual(await createExplainer({ fetch: api.fetch, env: ENV })({ request: "מתנה לגבר", history: [] }, products), ["גאדג'ט קטן ושימושי", null]);
+});

@@ -1323,3 +1323,12 @@ test("one brand slot per card: when the sales order brings the next card's brand
   assert.equal(out.slice(0, 4).filter((x) => x.brandSlot).length, 1);
   assert.equal(out[1].brandSlot, true, "the card's brand item stays second");
 });
+
+test("style cards: ✨ only for 20+ reviews and 4.5+ stars, and a proven seller leads when the card has one (live test, 2026-11-02)", async () => {
+  const { orderCard } = await import("../bot.js");
+  const p = (id, sold, reviews, more = {}) => ({ product_id: id, product_title: `שמלת ערב ${id}`, match: "exact", lastest_volume: String(sold), evaluate_rate: "98%", reviewCount: reviews, avgStars: 4.9, ...more });
+  const out = orderCard([p("new", 13, 4), p("pretty", 110, 3, { pretty: true }), p("proven", 460, 276), p("ok", 220, 24, { pretty: true })], { context: "שמלת ערב שחורה", style: true, limit: 4 });
+  assert.equal(out[0].product_id !== "new" && Number(out[0].lastest_volume) >= 50, true, "🥇 is a proven seller, not the 13-sold dress");
+  assert.equal(out.find((x) => x.product_id === "pretty").pretty, false, "3 reviews: no ✨");
+  assert.equal(out.find((x) => x.product_id === "ok").pretty, true, "24 reviews, 4.9: keeps ✨");
+});

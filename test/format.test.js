@@ -15,6 +15,7 @@ import {
   withinPrice,
   dedupeProducts,
   isPartFor,
+  singleForSet,
   vatLine,
   esc,
   RLM,
@@ -242,6 +243,16 @@ test("isPartFor: spare parts for the item are spotted, unless the shopper asked 
     ["מגן מסך לאייפון 15", "מגן מסך לאייפון"]]) assert.ok(!isPartFor(t, req), t);
 });
 
+test("isPartFor: a case is a case under any name (מגן/כיסוי/נרתיק/קייס); a screen protector is still a part for a case request", () => {
+  // "מגן לאייפון" returned 0 results: every "כיסוי…" title was dropped as a part (live test, 2026-11-02).
+  for (const [t, req] of [["כיסוי סיליקון לאייפון 15", "מגן לאייפון"], ["כיסוי מתכתי לסמסונג S24", "מגן לסמסונג s24"],
+    ["כיסוי ורוד לאייפון 15", "מגן לאייפון 15 ורוד"], ["נרתיק עור לאייפון", "כיסוי לאייפון"], ["מגן שקוף לאייפון 16", "כיסוי לאייפון"],
+    ["כיסוי חום לאייפון 17", "קייס לאייפון 17"]]) assert.equal(isPartFor(t, req), false, `${t} | ${req}`);
+  assert.equal(isPartFor("מגן מסך זכוכית לאייפון 15", "כיסוי לאייפון 15"), true, "a screen protector isn't a case");
+  assert.equal(isPartFor("מגן מסך זכוכית לאייפון 15", "מגן מסך לאייפון"), false, "unless a screen protector was asked for");
+  assert.equal(isPartFor("כיסוי לשעון חכם", "שעון חכם"), true, "a cover is still a part when no case was asked for");
+});
+
 test("VAT note: items above $75 (≈₪277) pay 18% VAT at checkout; cheaper or non-ILS items get no note", () => {
   assert.match(vatLine({ target_sale_price: "300", target_sale_price_currency: "ILS" }), /מע״מ 18%/);
   assert.equal(vatLine({ target_sale_price: "200", target_sale_price_currency: "ILS" }), null);
@@ -383,4 +394,12 @@ test("shaver heads and blades are parts for a grooming kit, unless asked for", a
   const { isPartFor } = await import("../format.js");
   assert.equal(isPartFor("ראשי גילוח חלופיים 7 להבים", "ערכת טיפוח לגבר"), true);
   assert.equal(isPartFor("ראשי גילוח חלופיים", "ראש גילוח למכונה"), false, "asked for");
+});
+
+test("singleForSet: for a set/kit request, a title that isn't a set is a single item (goes last); other requests are untouched", () => {
+  for (const [t, req] of [["מברג ראצ'ט רב שימושי", "סט מברגים"], ["מקצפת מאצ'ה מבמבוק", "ערכת מאצ'ה להכנה ביתית"], ["מכשיר להסרת שיער מהאף", "ערכת טיפוח לגבר"]])
+    assert.equal(singleForSet(t, req), true, t);
+  for (const [t, req] of [["ערכת מברגים מדויקים 152 ב-1", "סט מברגים"], ["סט מאצ'ה יפני 6 חלקים", "ערכת מאצ'ה"], ["WEEME ערכת טיפוח 4 ב-1", "ערכת טיפוח לגבר"],
+    ["סט מברגים דיוק מיקרו 11 חלקים", "סט מברגים"], ["מברג ראצ'ט", "מברג חשמלי"], ["שמלת ערב", "שמלת ערב שחורה"]])
+    assert.equal(singleForSet(t, req), false, t);
 });
