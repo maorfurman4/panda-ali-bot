@@ -537,3 +537,16 @@ test("validateIntent: 'נעלי ספורט לבנות' asks white or for girls (
   assert.equal(whiteOrKids("חולצות לבנים"), "לבנים");
   for (const t of ["נעלי ספורט בצבע לבן", "שמלה לבנה", "נעליים לבנות בנות 8", "מתנה לבנות", "בלונים לבנים", "נעלי ספורט לבנות קטנות"]) assert.equal(whiteOrKids(t), null, t);
 });
+
+test("pickColorPhotos: the photo number per listing becomes its URL; bad numbers and failures give null", async () => {
+  const { createPhotoPicker } = await import("../query.js");
+  const listing = (n) => ({ product_title: `dress ${n}`, product_small_image_urls: { string: [`https://a/${n}-0.jpg`, `https://a/${n}-1.jpg`, `https://a/${n}-2.jpg`] } });
+  const api = openai({ picks: [{ listing: 0, photo: 2 }, { listing: 1, photo: 9 }] });
+  const out = await createPhotoPicker({ fetch: api.fetch, env: ENV })({ he: "שמלה שחורה", en: "black dress" }, [listing(0), listing(1)]);
+  assert.deepEqual(out, ["https://a/0-2.jpg", null]);
+  const sent = api.requests[0].body;
+  assert.equal(sent.temperature, 0);
+  assert.ok(sent.input[0].content.some((c) => c.type === "input_image" && c.image_url === "https://a/0-1.jpg_350x350.jpg"), "photos after the first");
+  assert.ok(!sent.input[0].content.some((c) => c.image_url === "https://a/0-0.jpg_350x350.jpg"), "never the first, already seen");
+  assert.deepEqual(await createPhotoPicker({ fetch: api.fetch, env: {} })({ he: "x", en: "x" }, [listing(0)]), [null], "no key: nothing");
+});

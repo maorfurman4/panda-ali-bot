@@ -83,8 +83,10 @@ const COLORS = {
   green: /ירוק|\bgreen\b/i, yellow: /צהוב|\byellow\b/i, pink: /ורוד|\bpink\b/i, purple: /סגול|\bpurple\b/i,
   brown: /חומה|חומים|חומות|\bbrown\b|\bcoffee\b/i, beige: /בז'|\bbeige\b|\bkhaki\b/i, gray: /אפור|\bgr[ae]y\b/i, orange: /כתום|\borange\b/i,
 };
+const named = (text) => Object.keys(COLORS).filter((c) => COLORS[c].test(text ?? ""));
+// A listing in several colors, the asked one among them ("כחול, ירוק, שחור, צהוב…" for "שחורה", 2026-11-02).
+export const inColors = (title, request) => named(request).some((c) => named(title).includes(c)) && named(title).length > 1;
 export function offColor(title, request) {
-  const named = (text) => Object.keys(COLORS).filter((c) => COLORS[c].test(text ?? ""));
   const asked = named(request);
   if (!asked.length) return false;
   const has = named(title);
@@ -351,6 +353,7 @@ function buildCard(products, query, demo, reasons, closest, rare) {
         // A ✨ or 🏷️ pick isn't ranked by sales, so it has no medal; the medals count the best sellers only (🥇 ✨ 🥈 ✨).
         `${p.pretty ? "✨" : p.brandSlot ? "🏷️" : MEDALS[products.slice(0, i).filter((q) => !q.pretty && !q.brandSlot).length]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
         p.pretty && "✨ מהיפים ביותר בחיפוש",
+        p.colorPick && "🎨 בכמה צבעים: בדף המוצר בחרו את הצבע שבתמונה",
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
         priceLine(p, { from: true }),
         discountLine(p),

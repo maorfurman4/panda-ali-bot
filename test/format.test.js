@@ -408,3 +408,11 @@ test("singleForSet: for a set/kit request, a title that isn't a set is a single 
     ["סט מברגים דיוק מיקרו 11 חלקים", "סט מברגים"], ["מברג ראצ'ט", "מברג חשמלי"], ["שמלת ערב", "שמלת ערב שחורה"]])
     assert.equal(singleForSet(t, req), false, t);
 });
+
+test("inColors: a listing in several colors that include the asked one", async () => {
+  const { inColors } = await import("../format.js");
+  assert.ok(inColors("שמלות ארוכות עם סרט סאטן, כחול, ירוק, שחור, צהוב", "שמלת ערב שחורה ארוכה"));
+  assert.ok(!inColors("שמלת ערב שחורה", "שמלת ערב שחורה"), "one color is not several");
+  assert.ok(!inColors("שמלה כחול, ירוק", "שמלה שחורה"), "the asked color isn't there");
+  assert.ok(!inColors("שמלה כחול, שחור", "שמלת ערב"), "no color asked");
+});

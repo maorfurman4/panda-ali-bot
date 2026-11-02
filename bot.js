@@ -3,7 +3,7 @@
 import { Bot, InputFile } from "grammy";
 import { searchProducts, convertToAffiliate, isMockMode, shortenLinks, addStars } from "./aliexpress.js";
 import { findAliExpressUrl } from "./links.js";
-import { understandQuery, filterRelevant, nextAdvice, explainFit, shortTitles } from "./query.js";
+import { understandQuery, filterRelevant, nextAdvice, explainFit, shortTitles, pickColorPhotos } from "./query.js";
 import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
@@ -15,6 +15,7 @@ import {
   filterProducts,
   rankProducts,
   offColor,
+  inColors,
   trustedFirst,
   sameReviews,
   sellerFirst,
@@ -73,6 +74,7 @@ const PHOTO_SPARE = 2; // the photo check sees the products to show plus this ma
 // A named color: listings show their main photo, often another color than the one asked for (AliExpress's own search shows
 // the asked color's photo), so the photo check sees more of them, and only what it saw can be shown.
 const COLOR_PHOTO_SPARE = 8;
+const COLOR_PICK_MAX = 4; // multi-color listings whose other photos are looked at for the asked color (≈5 photos each)
 // Titles only on gpt-5.4: ~$0.008 per 48. Non-style searches get 72: the three readings' words make up to ~17 lists, and
 // at 48 they pushed out sellers each single reading had (8,298 shavers, 16,652 car chargers; simulated 2026-11-02).
 // Style searches stay at 48, as approved (with 72 a blue gown got into "שמלת ערב שחורה ארוכה", 2026-11-02).
@@ -182,7 +184,7 @@ export async function dedupeByPhoto(products, hash) {
   });
 }
 
-export async function pickProducts({ search, relevant, look = null, live, hash = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, look = null, live, hash = null, pickPhoto = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0 }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -322,6 +324,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // faucet sprayer head, 2026-10-30). A product the photos show isn't the item drops out and the next one moves up.
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
   const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
+  const otherColor = new Set(); // products the photo look saw as only close (often another color)
   const namedColor = namesLook(context);
   const lookRequest = { he: context, en: keywords, looks, terms: wordings, steady: !style };
   const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
@@ -353,6 +356,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       const unseen = shown.filter((p) => !byKey.has(keyOf(p)) && !head.includes(p));
       // A named color: what the photo shows as only close (often another color) follows every right-color one.
       const photoClose = keys(seen?.partial);
+      for (const k of photoClose) otherColor.add(k);
       const right = (list) => (namedColor ? [...list.filter((p) => !photoClose.has(keyOf(p))), ...list.filter((p) => photoClose.has(keyOf(p)))] : list);
       shown = [...right([...mixed, ...kept.filter((p) => plain.has(keyOf(p)))]), ...(namedColor ? [] : unseen)];
     }
@@ -364,8 +368,26 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       const ok = new Set((Array.isArray(seen) ? seen : [...(seen.exact ?? []), ...(seen.near ?? []), ...(seen.partial ?? [])]).map(keyOf));
       // What the photo shows as only close (a silver faucet for "שחור") follows the real matches (2026-11-01).
       const close = new Set((Array.isArray(seen) ? [] : [...(seen.near ?? []), ...(seen.partial ?? [])]).map(keyOf)); // near: one judge saw another shade
+      for (const k of close) otherColor.add(k);
       const kept = head.filter((p) => ok.has(keyOf(p)));
       if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))).map((p) => ({ ...p, looked: true })), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", offColor: true, looked: true })), ...(namedColor ? [] : shown.slice(head.length))];
+    }
+  }
+  // A named color, a listing in several colors that include it, and the photo look saw another color: the listing's photo
+  // in the asked color takes the card's place, with a note to pick that color on the product page (a 1,554-sold gown,
+  // light blue on its 1st photo and black on its 6th, sat in a black dress card; owner, 2026-11-02). The photo shows the
+  // requested item in the asked color, so it counts as an exact match and moves ahead of the other-color ones.
+  if (namedColor && live && pickPhoto && otherColor.size) {
+    const multi = shown.slice(0, limit + extra).filter((p) => otherColor.has(keyOf(p)) && inColors(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 1).slice(0, COLOR_PICK_MAX);
+    const urls = multi.length ? await pickPhoto({ he: context, en: keywords }, multi).catch(() => []) : [];
+    const picked = new Map(multi.map((p, i) => [keyOf(p), urls[i]]).filter(([, u]) => u));
+    if (picked.size) {
+      shown = shown.map((p) => (picked.has(keyOf(p)) ? { ...p, product_main_image_url: picked.get(keyOf(p)), match: "exact", offColor: false, titleOff: false, colorPick: true } : p));
+      const off = (p) => otherColor.has(keyOf(p)) && !p.colorPick;
+      // Back to its sales place among the right-color ones; a style card keeps its seller/✨ turns (orderCard ranks it).
+      const place = new Map(ranked.map((p, i) => [keyOf(p), i]));
+      const right = shown.filter((p) => !off(p));
+      shown = [...(style ? right : right.sort((a, b) => place.get(keyOf(a)) - place.get(keyOf(b)))), ...shown.filter(off)];
     }
   }
   // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
@@ -447,6 +469,7 @@ export function createBot({
   understand = understandQuery,
   relevant = filterRelevant,
   look = (request, products, opts = {}) => filterRelevant(request, products, { photos: true, ...opts }),
+  pickPhoto = pickColorPhotos,
   advise = nextAdvice,
   explain = explainFit,
   title = shortTitles,
@@ -629,7 +652,7 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES });
+        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.

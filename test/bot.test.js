@@ -1259,6 +1259,31 @@ test("an ad-banner photo gives way to the listing's next photo; a card never sta
   assert.equal(collaged[1], "https://ae01.alicdn.com/kf/img2.jpg");
 });
 
+test("a named color: a multi-color listing the photo saw in another color shows its photo in the asked color, with a note", async () => {
+  const gallery = (n) => ({ string: [`https://ae01.alicdn.com/kf/img${n}.jpg`, `https://ae01.alicdn.com/kf/blue${n}.jpg`, `https://ae01.alicdn.com/kf/black${n}.jpg`] });
+  const items = Array.from({ length: 6 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100), product_small_image_urls: gallery(i + 1),
+    product_title: i === 0 ? "שמלת ערב סאטן, כחול, ירוק, שחור, אדום" : i === 1 ? "שמלת ערב תכלת" : `שמלת ערב שחורה ${i + 1}` }));
+  const understand = async () => intent({ corrected_he: "שמלת ערב שחורה", keywords_en: "black evening dress" });
+  const look = async (_r, p) => ({ exact: p.slice(2), partial: p.slice(0, 2) }); // 1 and 2 look light blue
+  const asked = [];
+  const pickPhoto = async (_r, p) => (asked.push(p.map((x) => x.promotion_link.slice(-1))), p.map((x) => x.product_small_image_urls.string[2]));
+  let collaged;
+  const ctx = setup({ search: async () => items, live: true, understand, look, pickPhoto, collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שמלת ערב שחורה"));
+  assert.deepEqual(asked, [["1"]], "only the listing whose title names black among other colors");
+  assert.ok(collaged.includes("https://ae01.alicdn.com/kf/black1.jpg"));
+  assert.ok(!collaged.includes("https://ae01.alicdn.com/kf/img1.jpg"));
+  assert.equal(ctx.sent()[0].caption.match(/🎨 בכמה צבעים: בדף המוצר בחרו את הצבע שבתמונה/g).length, 1);
+});
+
+test("a named color: no photo in the asked color leaves the card as it was", async () => {
+  const items = Array.from({ length: 6 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100), product_title: i === 0 ? "שמלה כחול, שחור" : `שמלה שחורה ${i}`, product_small_image_urls: { string: [`https://ae01.alicdn.com/kf/img${i + 1}.jpg`, `https://ae01.alicdn.com/kf/x${i + 1}.jpg`] } }));
+  const understand = async () => intent({ corrected_he: "שמלה שחורה", keywords_en: "black dress" });
+  const ctx = setup({ search: async () => items, live: true, understand, look: async (_r, p) => ({ exact: p.slice(1), partial: p.slice(0, 1) }), pickPhoto: async (_r, p) => p.map(() => null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שמלה שחורה"));
+  assert.doesNotMatch(ctx.sent()[0].caption, /🎨/);
+});
+
 test("when the photo check drops the leader, the 🏷️ pick doesn't move into first place", async () => {
   const items = Array.from({ length: 12 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 500), evaluate_rate: "98%" }));
   items[9] = { ...items[9], shop_name: "UGREEN Official Store" };
