@@ -511,7 +511,7 @@ test("relevance filter decides which products are shown, using the corrected Heb
   const relevant = async (req, products) => (calls.push(req), products.filter((p) => /model (2|5)/.test(p.product_title)));
   const ctx = setup({ search: async () => SIX, understand: async () => intent({ looks_like: "two small in-ear buds in a case" }), relevant, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי אושניות"));
-  assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds", looks: "two small in-ear buds in a case", terms: [] }]);
+  assert.deepEqual(calls, [{ he: "אוזניות", en: "wireless earbuds", looks: "two small in-ear buds in a case", terms: [], steady: true }]);
   assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "5"]);
 });
 
@@ -656,11 +656,19 @@ test("no-results message no longer claims English works better", () => {
 });
 
 
-test("at most 48 candidates go to the relevance check (keeps it fast)", async () => {
-  const many = Array.from({ length: 60 }, (_, i) => product(i + 1, { lastest_volume: String(1000 - i) }));
+test("at most 72 candidates go to the relevance check (keeps it fast)", async () => {
+  const many = Array.from({ length: 90 }, (_, i) => product(i + 1, { lastest_volume: String(1000 - i) }));
   let sentToAi = 0;
   const ctx = setup({ search: async () => many, relevant: async (_r, p) => ((sentToAi = p.length), p), live: true });
   await ctx.bot.handleUpdate(textUpdate("/search x"));
+  assert.equal(sentToAi, 72);
+});
+
+test("a style search keeps 48 candidates for the relevance check, as approved", async () => {
+  const many = Array.from({ length: 90 }, (_, i) => product(i + 1, { lastest_volume: String(1000 - i) }));
+  let sentToAi = 0;
+  const ctx = setup({ search: async () => many, understand: async () => intent({ style: true }), relevant: async (_r, p) => ((sentToAi = p.length), p), live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שמלה"));
   assert.equal(sentToAi, 48);
 });
 

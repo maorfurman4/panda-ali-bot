@@ -82,7 +82,7 @@ test("fail-open: returns null on missing key, HTTP error, timeout, bad JSON, sch
 test("plain English queries go through the AI too (look description, other wording, Hebrew header)", async () => {
   const api = openai({ ...STRICT_OK, corrected_he: "לוח אדוונט", keywords_en: "christmas advent calendar box", looks_like: "a box with 24 numbered doors" });
   const r = await createUnderstander({ fetch: api.fetch, env: ENV })(" advent calendar gift box ");
-  assert.equal(api.requests.length, 1);
+  assert.equal(api.requests.length, 3, "three readings at once");
   assert.equal(api.requests[0].body.input[0].content, "advent calendar gift box");
   assert.equal(r.looks_like, "a box with 24 numbered doors");
 });
@@ -91,6 +91,14 @@ test("relevance: the other wordings reach the check as 'Also searched as'", asyn
   const api = openai({ exact: [0], partial: [] });
   await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "מטהר אוויר לרכב", en: "car air purifier", terms: ["car air freshener", "car aromatherapy diffuser"] }, [{ product_title: "Car air freshener jar" }]);
   assert.match(api.requests[0].body.input[0].content, /^Request: "מטהר אוויר לרכב" \(car air purifier\)\nAlso searched as: car air freshener; car aromatherapy diffuser\n0\. /);
+});
+
+test("relevance: temperature 0 only for a steady (non-style) request", async () => {
+  const api = openai({ exact: [0], partial: [] });
+  const check = createRelevanceFilter({ fetch: api.fetch, env: ENV });
+  await check({ he: "מטען לרכב", en: "car charger", steady: true }, [{ product_title: "Car charger" }]);
+  await check({ he: "שמלה", en: "dress" }, [{ product_title: "Dress" }]);
+  assert.deepEqual(api.requests.map((r) => r.body.temperature), [0, undefined]);
 });
 
 test("relevance with photos: one photo per product goes along, even without a color in the request", async () => {
@@ -112,36 +120,54 @@ test("cache: two identical (normalized) queries make one AI call; it expires aft
   const understand = createUnderstander({ fetch: api.fetch, env: ENV, now: () => t });
   await understand("אושניות");
   await understand("  אושניות ");
-  assert.equal(api.requests.length, 1);
+  assert.equal(api.requests.length, 3);
   t += 24 * 60 * 60_000 + 1;
   await understand("אושניות");
-  assert.equal(api.requests.length, 2);
+  assert.equal(api.requests.length, 6);
 });
 
 test("failures are not cached", async (t) => {
   t.mock.method(console, "warn", () => {});
   let n = 0;
   const good = openai(STRICT_OK).fetch;
-  const fetch = async (...args) => (++n <= 2 ? { ok: false, status: 500, json: async () => ({}) } : good(...args)); // both tries fail
+  const fetch = async (...args) => (++n <= 4 ? { ok: false, status: 500, json: async () => ({}) } : good(...args)); // 3 readings + the retry fail
   const understand = createUnderstander({ fetch, env: ENV });
   assert.equal(await understand("אושניות"), null);
   assert.deepEqual(await understand("אושניות"), OK);
 });
 
-test("understand: one failed AI call is retried once", async (t) => {
+test("understand: a failed reading leaves the other two; all three failing get one more try", async (t) => {
   t.mock.method(console, "warn", () => {});
-  let n = 0;
   const good = openai(STRICT_OK).fetch;
-  const fetch = async (...args) => (++n === 1 ? { ok: false, status: 500, json: async () => ({}) } : good(...args));
-  assert.deepEqual(await createUnderstander({ fetch, env: ENV })("אושניות"), OK);
-  assert.equal(n, 2);
+  const failing = (k) => { let n = 0; const fetch = async (...args) => (++n <= k ? { ok: false, status: 500, json: async () => ({}) } : good(...args)); return { fetch, calls: () => n }; };
+  const one = failing(1);
+  assert.deepEqual(await createUnderstander({ fetch: one.fetch, env: ENV })("אושניות"), OK);
+  assert.equal(one.calls(), 3);
+  const all = failing(3);
+  assert.deepEqual(await createUnderstander({ fetch: all.fetch, env: ENV })("אושניות"), OK);
+  assert.equal(all.calls(), 4);
+});
+
+test("understand: the three readings' words are combined on non-style searches; a style search keeps the first reading's", async () => {
+  const answers = [
+    { ...STRICT_OK, keywords_en: "men grooming kit", alt_en: "male grooming set", terms_en: ["beard care kit"] },
+    { ...STRICT_OK, keywords_en: "men grooming kit", alt_en: "men grooming set", terms_en: ["beard care kit", "multi grooming kit 5 in 1"] },
+    { ...STRICT_OK, keywords_en: "Men Grooming Set", alt_en: null, terms_en: ["male grooming set"] },
+  ];
+  const by = (list) => { let i = 0; return async () => ({ ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(list[i++ % 3]) }] }] }) }); };
+  const r = await createUnderstander({ fetch: by(answers), env: ENV })("ערכת טיפוח לגבר");
+  assert.equal(r.keywords_en, "men grooming kit");
+  assert.equal(r.alt_en, "male grooming set");
+  assert.deepEqual(r.terms_en, ["beard care kit", "men grooming set", "multi grooming kit 5 in 1"]);
+  const styled = answers.map((a) => ({ ...a, style: true }));
+  assert.deepEqual((await createUnderstander({ fetch: by(styled), env: ENV })("שמלה")).terms_en, ["beard care kit"]);
 });
 
 test("onUsage receives token counts for each AI call (used by the eval for cost)", async () => {
   const seen = [];
   const api = openai(STRICT_OK, { usage: { input_tokens: 612, output_tokens: 37 } });
   await createUnderstander({ fetch: api.fetch, env: ENV, onUsage: (u) => seen.push(u) })("אושניות");
-  assert.deepEqual(seen, [{ input_tokens: 612, output_tokens: 37 }]);
+  assert.deepEqual(seen, Array(3).fill({ input_tokens: 612, output_tokens: 37 }));
 });
 
 test("validateIntent normalizes and checks each status (nulls from strict mode are fine)", () => {
@@ -462,8 +488,8 @@ test("backup: when OpenAI fails at once and the Claude key is set, the same requ
   const fetch = async (url) => (urls.push(url), url.includes("anthropic") ? claudeAnswer({ ...STRICT_OK, keywords_en: "car charger" }) : { ok: false, status: 503, json: async () => ({}) });
   const r = await createUnderstander({ fetch, env: CLAUDE_ENV })("מטען לרכב");
   assert.equal(r.keywords_en, "car charger");
-  assert.equal(urls.length, 2);
-  assert.match(urls[1], /anthropic/);
+  assert.equal(urls.length, 6, "each of the three readings: OpenAI, then Claude");
+  assert.equal(urls.filter((u) => /anthropic/.test(u)).length, 3);
 });
 
 test("two judges: one exact + one close is 'near'", async () => {

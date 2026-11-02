@@ -300,7 +300,7 @@ async function requestClaude({ fetch, env, model, instructions, content, schema,
 }
 
 // One strict-JSON call to the OpenAI Responses API. Throws Error(reason) on any failure; reasons never contain user text.
-async function requestOnce({ fetch, env, model, instructions, content, name, schema, onUsage, timeoutMs, maxTokens = MAX_OUTPUT_TOKENS }) {
+async function requestOnce({ fetch, env, model, instructions, content, name, schema, onUsage, timeoutMs, maxTokens = MAX_OUTPUT_TOKENS, temperature }) {
   let res;
   try {
     res = await fetch(API_URL, {
@@ -313,6 +313,7 @@ async function requestOnce({ fetch, env, model, instructions, content, name, sch
         text: { format: { type: "json_schema", name, strict: true, schema } },
         ...(/^gpt-4/.test(model) ? {} : { reasoning: { effort: "none" } }), // gpt-4.x models have no reasoning step
         max_output_tokens: maxTokens,
+        ...(temperature === undefined ? {} : { temperature }),
         store: false, // no server-side application state (API data is not used for training by default)
       }),
       signal: AbortSignal.timeout(timeoutMs),
@@ -361,6 +362,8 @@ export function seasonNote(t) {
   return `\n- It is now ${season} in Israel. A general request for a seasonal item means this season's everyday version, in keywords_en, alt_en AND every terms_en wording: ${examples}. A season the shopper names wins.`;
 }
 
+const MAX_TERMS = 9; // the three readings' other wordings together: one free AliExpress list each
+
 export function createUnderstander({ fetch = globalThis.fetch, env = process.env, now = Date.now, onUsage = () => {} } = {}) {
   const cache = new Map(); // shortcut: per-process cache, lost on restart; move to Redis if we ever run several instances
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI query understanding failed (${reason}); searching the raw query`);
@@ -376,10 +379,22 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
     if (!env.OPENAI_API_KEY) return null; // reported once at startup by index.js
 
     try {
-      // One retry: a timeout or an odd answer happened in 2 of 66 searches (2026-10-25); a second try usually succeeds.
+      // All three failing gets one more try: a timeout or an odd answer happened in 2 of 66 searches (2026-10-25).
       const ask = async () => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()), content: text, name: "search_intent", schema: SCHEMA, onUsage }));
-      const value = (await ask().catch(() => null)) ?? (await ask());
+      // Three readings at once (≈0.05¢ each, parallel): each picks other English words, and each found a top seller the
+      // others missed (Kemei 10,011 only via "men grooming set", Lenovo 28,938 only via "wireless earbuds", 2026-11-02).
+      // The first good reading decides everything; the others only add their words, on non-style searches (style ones
+      // stay as approved: the combined words let a blue gown into "שמלת ערב שחורה ארוכה", 2026-11-02).
+      const asks = [ask(), ask(), ask()].map((r) => r.catch(() => null));
+      const value = (await asks[0]) ?? (await Promise.all(asks)).find(Boolean) ?? (await ask());
       if (!value) return warn("response failed validation"), null;
+      if (value.status === "ok" && !value.style) {
+        const readings = await Promise.all(asks);
+        const seen = new Set([value.keywords_en, value.alt_en].filter(Boolean).map((t) => t.toLowerCase()));
+        const words = [...(value.terms_en ?? []), ...readings.filter((r) => r && r !== value && r.status === "ok").flatMap((r) => [r.keywords_en, r.alt_en, ...(r.terms_en ?? [])])];
+        const terms = words.filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, MAX_TERMS);
+        if (terms.length) value.terms_en = terms;
+      }
       if (value.status === "ok" || value.status === "clarify") {
         const { min, max } = statedPrice(text);
         if (max && !value.max_price_ils) value.max_price_ils = max;
@@ -558,7 +573,9 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const titles = [head, ...lines].join("\n");
     const withPhotos = [{ type: "input_text", text: head }, ...products.flatMap((p, i) => [{ type: "input_text", text: lines[i] }, ...photo(p)])];
     const model = env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL;
-    const args = { fetch, env, instructions: pick ? RELEVANCE_SYSTEM + styleNote(pick) : RELEVANCE_SYSTEM, name: "relevant_products", schema: pick ? STYLE_SCHEMA : RELEVANCE_SCHEMA, onUsage };
+    // request.steady (non-style searches): temperature 0, so the same product gets the same verdict (VGR 9,832 was exact
+    // once and "near" twice in 3 runs, 2026-11-02). Style searches keep the default, as approved.
+    const args = { fetch, env, instructions: pick ? RELEVANCE_SYSTEM + styleNote(pick) : RELEVANCE_SYSTEM, name: "relevant_products", schema: pick ? STYLE_SCHEMA : RELEVANCE_SCHEMA, onUsage, ...(request.steady ? { temperature: 0 } : {}) };
     const ask = (content) => requestJson({ ...args, model, content });
     // Two judges on the title check (2026-11-02 test, 288 decisions: Claude Sonnet followed the "ordinary shopper" rules far
     // better: 0 whiskey glasses for "כוס" and 0 cycling bottles for "בקבוק מים", against 9 and 4 from gpt-5.4). Exact needs

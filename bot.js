@@ -73,7 +73,11 @@ const PHOTO_SPARE = 2; // the photo check sees the products to show plus this ma
 // A named color: listings show their main photo, often another color than the one asked for (AliExpress's own search shows
 // the asked color's photo), so the photo check sees more of them, and only what it saw can be shown.
 const COLOR_PHOTO_SPARE = 8;
-const RELEVANCE_POOL = 48; // titles only on gpt-5.4: ~$0.008 per check; up to 10 lists (main sorts, other wordings) share it
+// Titles only on gpt-5.4: ~$0.008 per 48. Non-style searches get 72: the three readings' words make up to ~17 lists, and
+// at 48 they pushed out sellers each single reading had (8,298 shavers, 16,652 car chargers; simulated 2026-11-02).
+// Style searches stay at 48, as approved (with 72 a blue gown got into "שמלת ערב שחורה ארוכה", 2026-11-02).
+const RELEVANCE_POOL = 48;
+const WIDE_POOL = 72;
 const PROVEN_SALES = 50; // 34- and 10-sold items took 2nd place at 10 (2026-11-02)
 const CHEAPEST = /הכי זול|הזול ביותר|הזולים ביותר|זול ביותר|במחיר הכי נמוך|הכי משתלם במחיר|cheapest|самый дешев|الأرخص/i;
 const SECOND_CHANCE_BUDGET_MS = 7000; // a slow AliExpress day: show what was found rather than wait another ~5 s (18-24 s outliers seen)
@@ -224,8 +228,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // Every list (the main words' best sellers, page 2, relevance order and category lists; each other wording; the broader
     // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
     // wordings pushed out the strong gaming headsets, 2026-10-31).
-    const pool = inTurn([...mainLists, ...otherLists], RELEVANCE_POOL);
-    const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings }, pool).catch(() => ({ exact: [], partial: pool }));
+    const poolSize = style ? RELEVANCE_POOL : WIDE_POOL;
+    const pool = inTurn([...mainLists, ...otherLists], poolSize);
+    // steady: the same verdict every time (temperature 0), on non-style searches only.
+    const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();
     // "Nothing fits" on a full pool is often a one-off AI verdict on a vague request ("מתקן להחזקת מסך לרכב": 0 of 36 in the
     // group, 9 fitting holders on a rerun, 2026-10-29), so it is asked once more (≈0.7¢, only on these rare searches).
@@ -245,7 +251,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       const known = new Set([...first, ...more].map(keyOf));
       const fresh = await find(alt, [{}, { sort: "relevance" }, ...inCategory.slice(1)]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
       if (fresh.length) {
-        const again = await relevant({ he: context, en: alt, looks, terms: wordings }, fresh.slice(0, RELEVANCE_POOL)).catch(() => ({ exact: [], partial: [] }));
+        const again = await relevant({ he: context, en: alt, looks, terms: wordings, steady: !style }, fresh.slice(0, poolSize)).catch(() => ({ exact: [], partial: [] }));
         for (const p of again.brand ?? []) known.add(keyOf(p));
         exact = exact.concat(again.exact ?? []);
         partial = partial.concat(again.partial ?? []);
@@ -317,7 +323,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
   const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
   const namedColor = namesLook(context);
-  const lookRequest = { he: context, en: keywords, looks, terms: wordings };
+  const lookRequest = { he: context, en: keywords, looks, terms: wordings, steady: !style };
   const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
   if (styled.length >= limit) {
     // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
