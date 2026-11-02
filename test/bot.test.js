@@ -1336,8 +1336,18 @@ test("style cards: ✨ only for 20+ reviews and 4.5+ stars, and a proven seller 
 test("style cards: a strong seller the AI called 'close' (1,900 sold, 203 reviews) leads over barely-sold exact ones; another color doesn't", async () => {
   const { orderCard } = await import("../bot.js");
   const p = (id, sold, reviews, more = {}) => ({ product_id: id, product_title: `שמלת ערב שחורה ${id}`, match: "exact", lastest_volume: String(sold), evaluate_rate: "98%", reviewCount: reviews, avgStars: 4.8, ...more });
-  const found = [p("e1", 79, 5), p("e2", 9, 2), p("e3", 7, 0), p("e4", 6, 0), p("c1", 1900, 203, { match: "partial" }), p("c2", 1100, 146, { match: "partial" }), p("white", 5000, 400, { match: "partial", offColor: true })];
+  const found = [p("e1", 79, 5), p("e2", 9, 2), p("e3", 7, 0), p("e4", 6, 0), p("c1", 1900, 203, { match: "partial" }), p("c2", 1100, 146, { match: "partial" }), p("white", 5000, 400, { match: "partial", offColor: true, titleOff: true })];
   const card = orderCard(found, { context: "שמלת ערב שחורה", style: true, limit: 4 }).slice(0, 4).map((x) => x.product_id);
   assert.deepEqual(card.slice(0, 2).sort(), ["c1", "c2"], "the strong sellers lead the first card");
   assert.ok(!card.includes("white"), "a dress in another color doesn't rise");
+});
+
+test("style cards: a 510-sold, 96-review dress the photo called 'close' comes before a 79-sold, 5-review one; a title in another color doesn't (owner, 2026-11-02)", async () => {
+  const { orderCard } = await import("../bot.js");
+  const p = (id, sold, reviews, more = {}) => ({ product_id: id, product_title: `שמלת ערב שחורה ${id}`, match: "exact", lastest_volume: String(sold), evaluate_rate: "98%", reviewCount: reviews, avgStars: 4.9, ...more });
+  const found = [p("tight", 1100, 146), p("lace", 110, 17), p("mermaid", 92, 117), p("lucy", 79, 5), p("m9", 9, 2), p("v7", 7, 0), p("big6", 6, 0),
+    p("club", 510, 96, { match: "partial", offColor: true }), p("red", 900, 80, { match: "partial", offColor: true, titleOff: true })];
+  const card = orderCard(found, { context: "שמלת ערב שחורה", style: true, limit: 4 }).slice(0, 4).map((x) => x.product_id);
+  assert.ok(card.includes("club"), `club dress in the first card: ${card}`);
+  assert.ok(!card.includes("lucy") && !card.includes("red"), `${card}`);
 });

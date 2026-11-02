@@ -84,6 +84,7 @@ const TRUSTED_FEEDBACK = 92; // ≈4.6-4.7 stars; 95 (≈4.8) pushed down 45% of
 // to trust (2026-11-01), so 100.
 const STYLE_PHOTOS = 16;
 const STYLE_MIN_SOLD = 100;
+const DECENT_REVIEWS = 10;
 const STRONG_REVIEWS = 20; // a style item with 100+ sold and 20+ reviews (4.5+) leads its card even if the AI called it "close"
 const STYLE_MIN_FEEDBACK = 90;
 // Each card holds one item of a trusted brand when there is one: an official brand store, or a well-known brand the title
@@ -268,7 +269,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   near = near.filter(keep);
   // A title naming only another color is close, whatever the judges said (a brown dress for "שחורה", 2026-11-01).
   const wrongColor = (p) => !style && offColor(p.product_title, context); // style searches as at 17:30
-  partial = [...partial.map((p) => (wrongColor(p) ? { ...p, offColor: true } : p)), ...[...exact, ...near].filter(wrongColor).map((p) => ({ ...p, offColor: true }))];
+  // titleOff: the title itself names another color (offColor alone can also be the photo look's "close").
+  partial = [...partial.map((p) => (wrongColor(p) ? { ...p, offColor: true, titleOff: true } : p)), ...[...exact, ...near].filter(wrongColor).map((p) => ({ ...p, offColor: true, titleOff: true }))];
   exact = exact.filter((p) => !wrongColor(p));
   near = near.filter((p) => !wrongColor(p));
   const special = exact.filter((p) => specialKind(p.product_title, `${context} ${keywords}`) || singleForSet(p.product_title, context));
@@ -382,9 +384,16 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
     // Strong sellers first, across the card and its "עוד" pages: the "עוד" page of "שמלת ערב שחורה" held dresses with
     // 1,900 and 1,100 sold and 100-200 reviews (the AI called them "close") while the first card showed 6-79 sold
     // (owner, 2026-11-02: "the more-results ones are much better"). A product shown in another color stays out of this.
-    const rated = (p) => (p.reviewCount ? p.reviewCount >= STRONG_REVIEWS && p.avgStars >= 4.5 : !(parseFloat(p.evaluate_rate) < TRUSTED_FEEDBACK));
-    const strong = (p) => !p.offColor && Number(p.lastest_volume) >= STYLE_MIN_SOLD && rated(p);
-    found = [...found.filter(strong), ...found.filter((p) => !strong(p))];
+    // Then the decent ones (50+ sold, 10+ reviews), most sold first, before barely-sold ones: a 510-sold, 96-review club
+    // dress the photo look called "close" sat on the "עוד" page behind a 79-sold, 5-review one (owner, 2026-11-02).
+    const rated = (p, n) => (p.reviewCount ? p.reviewCount >= n && p.avgStars >= 4.5 : !(parseFloat(p.evaluate_rate) < TRUSTED_FEEDBACK));
+    const sold = (p) => Number(p.lastest_volume) || 0;
+    const strong = (p) => !p.offColor && sold(p) >= STYLE_MIN_SOLD && rated(p, STRONG_REVIEWS);
+    const decent = (p) => !strong(p) && !p.titleOff && sold(p) >= PROVEN_SALES && rated(p, DECENT_REVIEWS);
+    // A decent one the photo look called only "close" (maybe another shade) follows the decent right-looking ones.
+    const bySold = (list) => list.sort((a, b) => sold(b) - sold(a));
+    const ok = found.filter(decent);
+    found = [...found.filter(strong), ...bySold(ok.filter((p) => !p.offColor)), ...bySold(ok.filter((p) => p.offColor)), ...found.filter((p) => !strong(p) && !decent(p))];
     found = varied(found, context, limit);
     const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && !(parseFloat(p.evaluate_rate) < TRUSTED_FEEDBACK);
     const lead = found.slice(0, limit).findIndex(proven);
