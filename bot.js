@@ -13,6 +13,7 @@ import {
   shortTitle,
   soldText,
   filterProducts,
+  bigSeller,
   rankProducts,
   offColor,
   inColors,
@@ -306,7 +307,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Trusted products first (≥10 sold and ≥92% positive feedback, ≈4.6 stars; checked against the site's stars), so a card isn't led by unknown
   // or so-so sellers.
   const rate = (p) => parseFloat(p.evaluate_rate);
-  const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && !(rate(p) < TRUSTED_FEEDBACK);
+  // A big seller (1,000+ sold, 85%+ feedback) counts as proven too: kept by the quality filter, it should compete, not trail.
+  const trusted = (p) => !(rate(p) < TRUSTED_FEEDBACK) || bigSeller(p);
+  const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && trusted(p);
   // Suspiciously cheap: under a quarter of the typical price of the matches AND barely sold (proven cheap items stay).
   const prices = [...exact, ...partial].map((p) => Number(p.target_sale_price ?? p.sale_price)).filter((n) => n > 0).sort((a, b) => a - b);
   const median = prices.length >= 4 ? prices[Math.floor(prices.length / 2)] : 0;
@@ -339,7 +342,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Proven real matches, then proven close ones, then barely-sold real matches: a 2,775-sold advent calendar the check called
   // "close" beat ones with 5 sales (2026-10-31). But when no real match is proven, the best one that has sold still leads
   // (Logitech Lift, 6 sold, before an M750 that only calls itself ergonomic). Never-sold items come last.
-  const sold = (p) => Number(p.lastest_volume) >= 1 && !(rate(p) < TRUSTED_FEEDBACK);
+  const sold = (p) => Number(p.lastest_volume) >= 1 && trusted(p);
   const exactProven = exact.filter(proven);
   const exactSold = rankProducts(exact.filter((p) => !proven(p) && sold(p)));
   const lead = exactProven.length ? [] : exactSold.slice(0, 1);

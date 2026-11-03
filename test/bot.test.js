@@ -1070,11 +1070,17 @@ test("help in Hebrew: 'עזרה', 'איך זה עובד?' and the like show the 
   assert.notEqual(chat.sent()[0]?.body, HELP);
 });
 
-test("trusted sellers first: ≥10 sold AND ≥92% positive feedback (≈4.6 stars) lead; 90-91% sellers come after", async () => {
-  const items = [product(1, { evaluate_rate: "91%", lastest_volume: "5000" }), product(2, { evaluate_rate: "97%", lastest_volume: "300" }), product(3, { evaluate_rate: "93%", lastest_volume: "2000" })];
+test("trusted sellers first: ≥92% positive feedback, or a big seller (1,000+ sold, 85%+); small 90-91% sellers come after", async () => {
+  const items = [product(1, { evaluate_rate: "91%", lastest_volume: "5000" }), product(2, { evaluate_rate: "97%", lastest_volume: "300" }), product(3, { evaluate_rate: "93%", lastest_volume: "2000" }), product(4, { evaluate_rate: "91%", lastest_volume: "400" })];
   const ctx = setup({ search: async () => items, live: true });
   await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
-  assert.deepEqual(shownIds(ctx.sent()[0]), ["3", "2", "1"], "a 4.7-star item with 2,000 sold is trusted");
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "3", "2", "4"], "a 91% item with 5,000 sold is a big seller (owner, 2026-11-03)");
+});
+
+test("quality filter: under 90% feedback is left out, unless a big seller (1,000+ sold) with 85%+", async () => {
+  const { filterProducts } = await import("../format.js");
+  const items = [product(1, { evaluate_rate: "87%", lastest_volume: "19921" }), product(2, { evaluate_rate: "87%", lastest_volume: "900" }), product(3, { evaluate_rate: "80%", lastest_volume: "60000" }), product(4, { evaluate_rate: "92%", lastest_volume: "5" })];
+  assert.deepEqual(filterProducts(items).map((p) => p.promotion_link.at(-1)), ["1", "4"]);
 });
 
 test("suspiciously cheap and barely sold items are dropped; cheap but proven ones stay", async () => {

@@ -301,10 +301,16 @@ export function isPartFor(title, request = "") {
   return PART_FIRST_WORDS.test(first) && !request.includes(first.slice(0, 4)); // 4 letters: "כיסוי" isn't "כיסא"
 }
 
+// A best seller with 85-90% positive feedback stays (owner, 2026-11-03): the 90% bar alone left out 14% of the top-20 best
+// sellers in 50 common searches, 118 of them sold 1,000+ times (a 19,921-sold charger at 87%); the competitor shows them.
+const BIG_SELLER_SOLD = 1000;
+const BIG_SELLER_FEEDBACK = 85;
+export const bigSeller = (p) => Number(p.lastest_volume) > BIG_SELLER_SOLD && parseEvaluateRate(p.evaluate_rate) >= BIG_SELLER_FEEDBACK;
+
 export function filterProducts(products) {
   return products.filter((p) => {
     const rate = parseEvaluateRate(p.evaluate_rate);
-    return rate === null || rate >= MIN_FEEDBACK;
+    return rate === null || rate >= MIN_FEEDBACK || bigSeller(p);
   });
 }
 
