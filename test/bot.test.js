@@ -907,19 +907,21 @@ test("the AI's price floor (big-ticket items) filters the search; if it finds no
   assert.equal(ctx.sent()[0].method, "sendPhoto");
 });
 
-test("a brand was asked for and found: only that brand is shown (even 2), no other brands as 'close'", async () => {
+test("a brand was asked for and found: the brand first; other brands only fill a short card, and the card says so", async () => {
   const first2 = (x) => /_p[12]$/.test(x.promotion_link);
   const relevant = async (_r, p) => ({ exact: p.filter(first2), partial: p.filter((x) => !first2(x)) });
   const brand = setup({ search: async () => SIX, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
   await brand.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
-  assert.equal(shownIds(brand.sent()[0]).length, 2);
+  assert.deepEqual(shownIds(brand.sent()[0]).slice(0, 2), ["1", "2"], "the brand's items first");
+  assert.equal(shownIds(brand.sent()[0]).length, 4, "always 4 (owner, 2026-11-03)");
+  assert.match(brand.sent()[0].body, /הוספתי גם דומים ממותגים אחרים/);
   const plain = setup({ search: async () => SIX, relevant, live: true, understand: async () => intent() });
   await plain.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
   assert.equal(shownIds(plain.sent()[0]).length, 4, "without a brand, close matches still fill the card");
   const sameBrand = SIX.map((p, i) => (i === 3 ? { ...p, product_title: `Xiaomi ${p.product_title}` } : p));
   const near = setup({ search: async () => sameBrand, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
   await near.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
-  assert.deepEqual(shownIds(near.sent()[0]), ["1", "2", "4"], "a close item of the same brand still shows");
+  assert.deepEqual(shownIds(near.sent()[0]), ["1", "2", "4", "3"], "a close item of the same brand still shows, before another brand's fill");
 });
 
 test("a named brand: its items go first into the AI pool, ahead of bigger-selling generic ones", async () => {
@@ -1531,4 +1533,19 @@ test("an explicit search the AI calls 'not a product' gets a second look before 
   assert.equal(spy.queries[0], "rain shower system");
   const one = await run("חפש לי עבודה", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
   assert.equal(one.sent()[0].body, NOT_PRODUCT, "one word: no second look");
+});
+
+test("a link AliExpress didn't shorten hides behind a word instead of filling the card", async () => {
+  const { formatCard } = await import("../format.js");
+  const long = `https://s.click.aliexpress.com/s/${"x".repeat(600)}`;
+  const { caption } = formatCard([product(1, { promotion_link: long })], { query: "access point" });
+  assert.ok(!caption.includes(`🔗 ${long}`), "not as visible text");
+  assert.match(caption, /<a href="https:\/\/s\.click\.aliexpress\.com\/s\/x+">לקנייה בעלי אקספרס<\/a>/);
+});
+
+test("the search fails only when every list failed: other wordings carry it when the main words time out", async () => {
+  const search = async (q) => (q === "wireless earbuds" ? Promise.reject(new Error("timeout")) : SIX);
+  const ctx = setup({ search, live: true, understand: async () => intent({ alt_en: "bluetooth earphones" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
+  assert.equal(ctx.sent()[0].method, "sendPhoto");
 });

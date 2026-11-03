@@ -4,6 +4,7 @@ import COUPONS from "./coupons.json" with { type: "json" };
 
 export const RLM = "‏";
 const MIN_FEEDBACK = 90;
+const LONG_LINK = 80;
 const TITLE_MAX = 40; // photo captions are only as wide as the photo
 const QUERY_MAX = 80; // the header lists every advisor choice
 // Seller filler at the start of machine-translated titles ("2022 חדש", "NEW", "1 יחידה").
@@ -391,6 +392,8 @@ export const CLOSEST_NOTE = "לא מצאתי התאמה מדויקת, אלה ה�
 // pictured silver, black on the product page; owner, 2026-11-02). One line under the title says so.
 export const OVER_BUDGET_NOTE = "קצת מעל התקציב";
 export const COLORS_NOTE = "🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם";
+// A brand search with few items of the brand: other brands fill the card, and the card says so (owner: always 4, 2026-11-03).
+export const FILL_NOTE = "מצאתי מעט מוצרים של המותג שביקשתם, הוספתי גם דומים ממותגים אחרים 👇";
 export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
 // Israel: personal imports above $75 pay 18% VAT, collected by AliExpress at checkout (the $75 cap is back since June 2026).
@@ -411,7 +414,8 @@ function withBadges(p, [rating, sold]) {
 }
 
 function buildCard(products, query, demo, reasons, closest, rare) {
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : [])];
+  const fill = !closest && products.some((p) => p.brandFill);
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
@@ -429,7 +433,8 @@ function buildCard(products, query, demo, reasons, closest, rare) {
         // Trust badges ride on the short sold line (a line each would push the 4th product past the caption limit; on the long
         // rating line "✅ Choice" wrapped onto a line of its own on a phone, live test 2026-11-02).
         ...withBadges(p, [ratingText(p), sold ? `🛒 נמכרו: ${sold}` : `${p.lastest_volume}` === "0" && "🆕 עוד לא נקנה"]), // never-sold come last; the buyer should know (unknown: no line)
-        link && `🔗 ${esc(link)}`,
+        // A link AliExpress didn't shorten (a 900-character "/s/" link filled the card, 2026-11-03) hides behind a word.
+        link && (link.length > LONG_LINK ? `🔗 <a href="${esc(link)}">לקנייה בעלי אקספרס</a>` : `🔗 ${esc(link)}`),
       ].filter(Boolean),
     );
   });

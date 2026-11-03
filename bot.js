@@ -293,8 +293,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
   // no second ask, which would only wait 1.2 s.
   const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [brandWords.has(t) ? { askAgain: false } : {}]))]);
-  if (main.status === "rejected" && (!broader || wide.status === "rejected")) throw main.reason;
-  if (main.status === "rejected") console.error(`main search failed, using the broader one: ${main.reason.message}`);
+  // The search fails only when every list failed: with AliExpress slow, the main words timed out at 10 s while other
+  // wordings had come back, and the shopper got "תקלה בחיבור" (owner, 2026-11-03).
+  if (main.status === "rejected" && (!broader || wide.status === "rejected") && reworded.every((r) => r.status === "rejected")) throw main.reason;
+  if (main.status === "rejected") console.error(`main search failed, using the other wordings: ${main.reason.message}`);
   const mainLists = main.status === "fulfilled" ? main.value : [];
   const otherLists = [...reworded, wide].flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   const first = inTurn(mainLists);
@@ -372,6 +374,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
   // "ergonomic Logitech mouse"). brandOnly is the brand name, or true when unknown.
   const ofBrand = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
+  // A brand search shows the brand; other brands only fill a card that would be short (always 4, owner): the Aruba AP22
+  // came alone once found, its close alternatives all removed (2026-11-03).
+  const brandFill = brandOnly && exact.length ? partial.filter((p) => !ofBrand(p)) : [];
   if (brandOnly && exact.length) partial = partial.filter(ofBrand);
   const brandTag = (p) => (/official store/i.test(p.shop_name ?? "") ? "official" : known.has(keyOf(p)) ? "known" : null);
   // match: the card says so when nothing shown is an exact match; brandTag: the card names a trusted brand.
@@ -393,7 +398,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // 34,784-sold desk stands without this limit.
   const bestExact = Math.max(0, ...exactProven.map((p) => Number(p.lastest_volume)));
   const strongNear = style ? [] : near.filter((p) => proven(p) && Number(p.lastest_volume) >= 2 * bestExact);
-  const tiers = [style ? exactProven : rankProducts([...exactProven, ...strongNear]), lead, near.filter((p) => proven(p) && !strongNear.includes(p)), partial.filter(proven), exactSold.slice(lead.length), near.filter((p) => !proven(p)), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p))];
+  const short = Math.max(0, limit - exact.length - near.length - partial.length);
+  const tiers = [style ? exactProven : rankProducts([...exactProven, ...strongNear]), lead, near.filter((p) => proven(p) && !strongNear.includes(p)), partial.filter(proven), exactSold.slice(lead.length), near.filter((p) => !proven(p)), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p)), rankProducts(brandFill).slice(0, short).map((p) => ({ ...p, brandFill: true }))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
   const byPrice = (list) => [...list].sort((a, b) => Number(a.target_sale_price ?? a.sale_price) - Number(b.target_sale_price ?? b.sale_price));
   const all = cheapest ? [...byPrice(exact), ...byPrice(near), ...byPrice(partial)] : tiers.flatMap(rankProducts);
