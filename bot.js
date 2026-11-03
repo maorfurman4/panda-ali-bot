@@ -98,6 +98,7 @@ const STYLE_MIN_FEEDBACK = 90;
 // Each card holds one item of a trusted brand when there is one: an official brand store, or a well-known brand the title
 // check names (Baseus, Ugreen, Anker…), with ≥100 sold and ≥92% feedback (owner request, 2026-11-01).
 const BRAND_MIN_SOLD = 100;
+const BRAND_SHARE = 0.1;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
 const FOOD_WORDS = /חטיף|ממתק|שוקולד|סוכרי|עוגיות|\bתה\b|קפה טחון|פולי קפה|אוכל|מזון|תבלין|דבש|אגוזים|food|snack|candy|tea\b/i;
 const RESULTS_TTL_MS = 24 * 60 * 60_000; // one answer a day: the judges vary run to run (owner, 2026-11-01). shortcut: prices may drift within the day; shorten if that matters
@@ -196,6 +197,19 @@ export async function optionSales(search, keywords, { minIls = null, maxIls = nu
   return withinPrice(filterProducts(list), maxIls, minIls).map((p) => Number(p.lastest_volume) || 0).sort((a, b) => b - a);
 }
 
+// A brand-and-model request also searches the brand and the model alone: "access point Aruba AP22" finds nothing on
+// AliExpress, "Aruba AP22" finds the AP22 (owner's comparison, 2026-11-03). The model = the words after the brand that are
+// capitalized or carry a digit ("Aruba AP22", "Xiaomi Redmi Note 13"); null when there is none or it is the whole search.
+export function brandModel(brand, keywords) {
+  if (typeof brand !== "string" || !keywords) return null;
+  const words = keywords.split(/\s+/);
+  const at = words.findIndex((w) => w.toLowerCase() === brand.toLowerCase());
+  const model = [];
+  for (const w of words.slice(at + 1)) if (/\d|^[A-Z]/.test(w)) model.push(w); else if (model.length) break;
+  const short = model.length ? `${brand} ${model.join(" ")}` : null;
+  return short && short.toLowerCase() !== keywords.toLowerCase() ? short : null;
+}
+
 // The pool the AI judges (non-style searches): the top POOL_EACH of every list in turn, so every wording, meaning and brand
 // list keeps a voice, then the strongest of all lists together, a product found by more lists counting more (+15% each).
 // By turns alone a 25,335-sold LED strip at #20 in 9 of 15 lists, and a 15,417-sold toothbrush at #10 of the main list,
@@ -274,7 +288,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // The trusted brands the AI names for the item are searched as "<brand> <item>" too (free): Baseus and Ugreen car chargers
   // weren't in a pool led by ₪5 no-name ones (2026-11-01).
   const brandWords = new Set(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`));
-  const wordings = live ? [...new Set([alt, ...terms, ...brandWords].filter((t) => t && t !== keywords))] : [];
+  const shortModel = brandModel(brandOnly, keywords);
+  const wordings = live ? [...new Set([shortModel, alt, ...terms, ...brandWords].filter((t) => t && t !== keywords))] : [];
   // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
   // no second ask, which would only wait 1.2 s.
   const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [brandWords.has(t) ? { askAgain: false } : {}]))]);
@@ -339,7 +354,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const suspicious = (p) => median && Number(p.target_sale_price ?? p.sale_price) < median / 4 && Number(p.lastest_volume) < 100;
   // Suspiciously expensive: over 4× the typical price AND under 10 sold (a ₪4,035 laundry basket, 0 sold, 2026-10-31);
   // a pricey item people do buy stays.
-  const overpriced = (p) => median && Number(p.target_sale_price ?? p.sale_price) > median * 4 && Number(p.lastest_volume) < PROVEN_SALES;
+  // The exact model the shopper named is never "too expensive": the ₪928 Aruba AP22 among ₪150 access points (2026-11-03).
+  const namesModel = (p) => Boolean(shortModel) && shortModel.split(" ").slice(1).every((w) => (p.product_title ?? "").toLowerCase().includes(w.toLowerCase()));
+  const overpriced = (p) => median && Number(p.target_sale_price ?? p.sale_price) > median * 4 && Number(p.lastest_volume) < PROVEN_SALES && !namesModel(p);
   const keep = (p) => !suspicious(p) && !overpriced(p) && !offTheme(p.product_title, `${context} ${keywords}`) && !fakeLuxury(p.product_title, `${context} ${keywords}`);
   exact = exact.filter(keep);
   partial = partial.filter(keep);
@@ -386,12 +403,19 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   if (ranked.length < limit) ranked = ranked.concat(all.filter((p) => !ranked.includes(p)).slice(0, limit - ranked.length));
   // Photo check on the candidates that can still be shown (2× the need, so removed repeats get refilled).
   let shown = hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : [...ranked];
+  // Always 4 when there are 4 (owner): with few matches the same model from another seller, dropped as a photo repeat, comes
+  // back ("אוזניות אנקר ליברטי פרו" showed 2 while the competitor showed 4 Liberty Pro listings, 2026-11-03).
+  if (shown.length < limit) shown = shown.concat(ranked.filter((p) => !shown.includes(p)).slice(0, limit - shown.length));
   // A card without a trusted-brand item gets the best one from further down, second: 🥇 best seller, 🏷️ brand, 🥈, 🥉.
   // Before the photo check, so the brand item is looked at too. Style searches keep their own mix (✨).
   const strongBrand = (p) => p.brandTag && p.match === "exact" && Number(p.lastest_volume) >= BRAND_MIN_SOLD && !(rate(p) < TRUSTED_FEEDBACK);
+  // The brand item must sell at least BRAND_SHARE of the product it pushes out of the card: a 430-sold Homefish towel rail
+  // took 2nd place over 15,000-sold rails (owner's comparison, 2026-11-03); a 15,000-sold Baseus charger next to 40,000-sold
+  // ones still gets the slot.
   for (let start = 0; !style && !cheapest && start < Math.min(shown.length, limit + extra); start += limit) {
     if (shown.slice(start, start + limit).some(strongBrand)) continue;
-    const j = shown.findIndex((p, i) => i >= start + limit && strongBrand(p));
+    const out = Number(shown[start + limit - 1]?.lastest_volume) || 0;
+    const j = shown.findIndex((p, i) => i >= start + limit && strongBrand(p) && Number(p.lastest_volume) >= out * BRAND_SHARE);
     if (j < 0) break;
     const [b] = shown.splice(j, 1);
     shown.splice(start + 1, 0, { ...b, brandSlot: true });
@@ -653,7 +677,10 @@ export function createBot({
 
   async function searchOne(ctx, query) {
     return withTyping(ctx, async () => {
-      const intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
+      let intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
+      // An explicit search of 2+ words gets a second look before "לא הבנתי": "מוט פינוק לאינטרפול 4 דרך" is Israeli slang for
+      // a rain shower system (owner, 2026-11-03). One more AI call (≈0.15¢), only on these rare searches.
+      if (intent?.status === "not_product" && /\S\s+\S/.test(query)) intent = (await understand(query, { retry: true }).catch(() => null)) ?? intent;
       if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
       if (isBlocked(intent, query)) return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);

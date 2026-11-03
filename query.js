@@ -33,9 +33,16 @@ const HEDGE_MS = 4000;
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60_000;
 
+const RETRY_NOTE = `
+The shopper explicitly asked the bot to search for this, so it names a product: the words may be Israeli trade slang, a
+brand you don't know, or a misspelling. Give the most likely product; not_product only if no product reading makes sense.`;
 const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebrew, sometimes mixed with English) into an AliExpress search.
 - Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות", "פניצטה" ->
   "פינצטה": a word one swap away from a product is that product, never not_product; the shopper got "לא הבנתי", 2026-11-02). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות"), keeping every feature the shopper named, negations too ("קשת לשיער לא גומייה" keeps "לא גומייה"), always in Hebrew even when the shopper wrote another language ("auriculares" -> "אוזניות", "чехол для айфона" -> "כיסוי לאייפון"); brand and model names stay as written.
+- Israeli trade slang names real products: "מוט פינוק" is a rain shower system (a shower column with an overhead rain head
+  and a hand shower, "rain shower system"), "אינטרפוץ" (often typed "אינטרפול") is a concealed shower mixer valve and "4 דרך"
+  its 4-way diverter: "מוט פינוק לאינטרפוץ 4 דרך" -> "rain shower system", terms ["concealed shower mixer 4 way", "shower
+  column set"] (the shopper got "לא הבנתי", 2026-11-03).
 - Take the home shopper's meaning, the everyday product sold to households, over a commercial or industrial one that
   shares the words ("לוח מחורץ"/"לוח מחורר" -> "pegboard wall organizer", not shop slatwall panels).
 - terms_en = 2-3 more English searches the way AliExpress sellers title this item, each different from keywords_en and
@@ -383,19 +390,20 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
   const cache = new Map(); // shortcut: per-process cache, lost on restart; move to Redis if we ever run several instances
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI query understanding failed (${reason}); searching the raw query`);
 
-  return async function understand(query) {
+  // retry: a second look at an explicit search the first answer called "not a product" (slang, an unknown brand, a typo).
+  return async function understand(query, { retry = false } = {}) {
     const text = query.normalize("NFC").replace(/\s+/g, " ").trim();
     // English goes through the AI too (≈0.05¢): skipping it lost the look description, the other wording and the Hebrew
     // header ("advent calendar gift box" found 3 weak partial matches, 2026-10-31).
 
-    const key = text.toLowerCase();
+    const key = (retry ? "retry:" : "") + text.toLowerCase();
     const hit = cache.get(key);
     if (hit && now() - hit.at < CACHE_TTL_MS) return hit.value;
     if (!env.OPENAI_API_KEY) return null; // reported once at startup by index.js
 
     try {
       // All three failing gets one more try: a timeout or an odd answer happened in 2 of 66 searches (2026-10-25).
-      const ask = async (temperature) => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()), content: text, name: "search_intent", schema: SCHEMA, onUsage, ...(temperature === undefined ? {} : { temperature }) }));
+      const ask = async (temperature) => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()) + (retry ? RETRY_NOTE : ""), content: text, name: "search_intent", schema: SCHEMA, onUsage, ...(temperature === undefined ? {} : { temperature }) }));
       // Three readings at once (≈0.05¢ each, parallel): each picks other English words, and each found a top seller the
       // others missed (Kemei 10,011 only via "men grooming set", Lenovo 28,938 only via "wireless earbuds", 2026-11-02).
       // The first good reading decides everything; the others only add their words, on non-style searches (style ones

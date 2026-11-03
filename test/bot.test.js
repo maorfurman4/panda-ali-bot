@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -1502,4 +1502,33 @@ test("judge pool: the top 3 of every list, then the strongest of all lists, prod
   const pool = strongPool([a, b], 8).map((x) => x.product_id);
   assert.deepEqual(pool.slice(0, 6), ["a1", "b1", "a2", "b2", "a3", "b3"], "every list keeps a voice");
   assert.deepEqual(pool.slice(6), ["strong", "a6"], "found by 2 lists beats a slightly bigger seller found by one");
+});
+
+test("brand and model alone: the words after the brand that are capitalized or carry a digit", () => {
+  assert.equal(brandModel("Aruba", "access point Aruba AP22"), "Aruba AP22");
+  assert.equal(brandModel("Xiaomi", "Xiaomi Redmi Note 13 phone"), "Xiaomi Redmi Note 13");
+  assert.equal(brandModel("Baseus", "Baseus solar security camera"), null, "no model");
+  assert.equal(brandModel("Soundcore", "Soundcore Liberty 4 Pro"), null, "already the whole search");
+  assert.equal(brandModel(false, "wireless earbuds"), null);
+});
+
+test("brand slot: a brand item selling under 10% of the product it would push out of the card doesn't get the slot", async () => {
+  const items = Array.from({ length: 8 }, (_, i) => product(i + 1, { lastest_volume: String(16000 - i * 100), evaluate_rate: "98%" }));
+  items[6] = { ...items[6], lastest_volume: "430", product_title: "Homefish towel rail" }; // #7: a weak brand item
+  const relevant = async (_r, p) => ({ exact: p, partial: [], brand: p.filter((x) => /Homefish/.test(x.product_title)) });
+  const ctx = setup({ search: async () => items, live: true, relevant });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מתלה מגבת"));
+  assert.ok(!shownIds(ctx.sent()[0]).includes("7"), "430 sold would push out a 15,700-sold rail");
+});
+
+test("an explicit search the AI calls 'not a product' gets a second look before 'לא הבנתי'", async () => {
+  const calls = [];
+  const understand = async (q, o = {}) => (calls.push(o.retry ?? false), o.retry ? intent({ corrected_he: "מוט פינוק", keywords_en: "rain shower system" }) : intent({ status: "not_product", keywords_en: "" }));
+  const spy = searchSpy();
+  const ctx = setup({ understand, search: spy.search });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מוט פינוק לאינטרפול 4 דרך"));
+  assert.deepEqual(calls, [false, true]);
+  assert.equal(spy.queries[0], "rain shower system");
+  const one = await run("חפש לי עבודה", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  assert.equal(one.sent()[0].body, NOT_PRODUCT, "one word: no second look");
 });
