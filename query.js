@@ -395,12 +395,14 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
 
     try {
       // All three failing gets one more try: a timeout or an odd answer happened in 2 of 66 searches (2026-10-25).
-      const ask = async () => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()), content: text, name: "search_intent", schema: SCHEMA, onUsage }));
+      const ask = async (temperature) => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()), content: text, name: "search_intent", schema: SCHEMA, onUsage, ...(temperature === undefined ? {} : { temperature }) }));
       // Three readings at once (≈0.05¢ each, parallel): each picks other English words, and each found a top seller the
       // others missed (Kemei 10,011 only via "men grooming set", Lenovo 28,938 only via "wireless earbuds", 2026-11-02).
       // The first good reading decides everything; the others only add their words, on non-style searches (style ones
       // stay as approved: the combined words let a blue gown into "שמלת ערב שחורה ארוכה", 2026-11-02).
-      const asks = [ask(), ask(), ask()].map((r) => r.catch(() => null));
+      // The first reading, which decides the main words, at temperature 0: the same request gets the same main search every
+      // time (one search gave a good card once and hooks only the next run, owner, 2026-11-03); the other two still vary.
+      const asks = [ask(0), ask(), ask()].map((r) => r.catch(() => null));
       const value = (await asks[0]) ?? (await Promise.all(asks)).find(Boolean) ?? (await ask());
       if (!value) return warn("response failed validation"), null;
       const readings = await Promise.all(asks);

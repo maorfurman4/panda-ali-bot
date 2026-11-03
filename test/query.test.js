@@ -28,7 +28,7 @@ test("sends only the query text to OpenAI Responses with a strict schema, storag
   const [req] = api.requests;
   assert.equal(req.url, "https://api.openai.com/v1/responses");
   assert.equal(req.init.headers.authorization, "Bearer sk-test");
-  assert.deepEqual(Object.keys(req.body).sort(), ["input", "instructions", "max_output_tokens", "model", "reasoning", "store", "text"]);
+  assert.deepEqual(Object.keys(req.body).sort(), ["input", "instructions", "max_output_tokens", "model", "reasoning", "store", "temperature", "text"]); // the first reading is steady
   assert.equal(req.body.model, "gpt-5.4-mini", "nano wrote weak search words on real requests (2026-10-29)");
   assert.deepEqual(req.body.reasoning, { effort: "none" });
   assert.equal(req.body.store, false);
@@ -161,6 +161,13 @@ test("understand: the three readings' words are combined on non-style searches; 
   assert.deepEqual(r.terms_en, ["beard care kit", "men grooming set", "multi grooming kit 5 in 1"]);
   const styled = answers.map((a) => ({ ...a, style: true }));
   assert.deepEqual((await createUnderstander({ fetch: by(styled), env: ENV })("שמלה")).terms_en, ["beard care kit"]);
+});
+
+test("understand: the first reading (the main words) runs at temperature 0, the other two vary", async () => {
+  const temps = [];
+  const fetch = async (_url, init) => (temps.push(JSON.parse(init.body).temperature), { ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(STRICT_OK) }] }] }) });
+  await createUnderstander({ fetch, env: ENV })("אושניות");
+  assert.deepEqual(temps, [0, undefined, undefined]);
 });
 
 test("understand: the fashion (style) mode is the majority of the three readings, not the first one", async () => {
