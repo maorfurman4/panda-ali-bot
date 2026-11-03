@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -1492,4 +1492,14 @@ test("live advisor: a button whose words find few best sellers is not shown", as
   await ctx.bot.handleUpdate(textUpdate("חפש לי מוצר למטבח"));
   const buttons = ctx.sent()[0].reply_markup.inline_keyboard.slice(0, -1).map((r) => r[0].text);
   assert.deepEqual(buttons, ["אחסון", "כלי בישול"]);
+});
+
+test("judge pool: the top 3 of every list, then the strongest of all lists, products found by more lists first", () => {
+  const p = (id, sold) => ({ product_id: id, lastest_volume: String(sold), evaluate_rate: "95%" });
+  const strong = p("strong", 25000); // at #5 in both lists: never in by turns of 3, in by strength
+  const a = [p("a1", 900), p("a2", 800), p("a3", 700), p("a4", 600), strong, p("a6", 30000)];
+  const b = [p("b1", 500), p("b2", 400), p("b3", 300), p("b4", 200), strong];
+  const pool = strongPool([a, b], 8).map((x) => x.product_id);
+  assert.deepEqual(pool.slice(0, 6), ["a1", "b1", "a2", "b2", "a3", "b3"], "every list keeps a voice");
+  assert.deepEqual(pool.slice(6), ["strong", "a6"], "found by 2 lists beats a slightly bigger seller found by one");
 });

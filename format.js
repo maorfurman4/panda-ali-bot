@@ -41,9 +41,9 @@ export const CHOICE_SHOP_ID = "1103573332";
 export const isChoice = (p) => String(p.shop_id ?? "") === CHOICE_SHOP_ID;
 // Choice (AliExpress's fast shipping): a big boost (owner, 2026-11-01), worth about 4x the sales on the log score.
 export const CHOICE_BOOST = 1.2;
+export const strength = (p) => Math.log10((Number(p.lastest_volume) || 0) + 1) * ((parseEvaluateRate(p.evaluate_rate) ?? 90) / 100) * (isChoice(p) ? CHOICE_BOOST : 1);
 export function rankProducts(products) {
-  const score = (p) => Math.log10((Number(p.lastest_volume) || 0) + 1) * ((parseEvaluateRate(p.evaluate_rate) ?? 90) / 100) * (isChoice(p) ? CHOICE_BOOST : 1);
-  return products.map((p, i) => ({ p, i, s: score(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
+  return products.map((p, i) => ({ p, i, s: strength(p) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.p);
 }
 
 // Reviews prove a product, read with its rating (owner's spec, 2026-11-01): trusted = 20+ reviews and 4.5+ stars; a 4.9

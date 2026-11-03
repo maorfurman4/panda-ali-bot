@@ -15,6 +15,7 @@ import {
   filterProducts,
   bigSeller,
   rankProducts,
+  strength,
   offColor,
   inColors,
   trustedFirst,
@@ -195,6 +196,27 @@ export async function optionSales(search, keywords, { minIls = null, maxIls = nu
   return withinPrice(filterProducts(list), maxIls, minIls).map((p) => Number(p.lastest_volume) || 0).sort((a, b) => b - a);
 }
 
+// The pool the AI judges (non-style searches): the top POOL_EACH of every list in turn, so every wording, meaning and brand
+// list keeps a voice, then the strongest of all lists together, a product found by more lists counting more (+15% each).
+// By turns alone a 25,335-sold LED strip at #20 in 9 of 15 lists, and a 15,417-sold toothbrush at #10 of the main list,
+// never reached the AI. On 20 searches' lists: products with 5,000+ sales reaching the AI 295 -> 472 of 638, no search
+// fewer, every list still in (owner, 2026-11-03).
+const POOL_EACH = 3;
+const PER_LIST = 0.15;
+export function strongPool(lists, size, keyOf = (p) => p.product_id ?? p.promotion_link) {
+  const head = [], seen = new Set();
+  for (let i = 0; i < POOL_EACH && head.length < size; i++) {
+    for (const l of lists) if (l[i] && !seen.has(keyOf(l[i])) && head.length < size) seen.add(keyOf(l[i])) && head.push(l[i]);
+  }
+  const count = new Map(), rest = new Map();
+  for (const l of lists) for (const p of l) {
+    count.set(keyOf(p), (count.get(keyOf(p)) ?? 0) + 1);
+    if (!seen.has(keyOf(p)) && !rest.has(keyOf(p))) rest.set(keyOf(p), p);
+  }
+  const weight = (p) => strength(p) * (1 + PER_LIST * (count.get(keyOf(p)) - 1));
+  return head.concat([...rest.values()].sort((a, b) => weight(b) - weight(a)).slice(0, size - head.length));
+}
+
 // Every advisor button should lead to a strong card (owner, 2026-11-02). Each kind option is looked up on AliExpress: one
 // with fewer than STRONG_MIN best sellers (STRONG_SOLD+ sold) is dropped, the rest go strongest first. Budget options, a
 // failed or slow lookup, and the last 2 options always stay (a question needs 2 buttons).
@@ -275,7 +297,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // out of the pool ("מעמד טלפון לרכב של Baseus": 8 Baseus holders came back, none reached the AI, 2026-11-02).
     const named = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
     const brandFirst = (l) => (typeof brandOnly === "string" ? [...l.filter(named), ...l.filter((p) => !named(p))] : l);
-    const pool = inTurn([...mainLists, ...otherLists].map(brandFirst), poolSize);
+    const lists = [...mainLists, ...otherLists].map(brandFirst);
+    const pool = style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf); // style searches as approved
     // steady: the same verdict every time (temperature 0), on non-style searches only.
     const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();
