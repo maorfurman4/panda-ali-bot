@@ -433,6 +433,15 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const otherColor = new Set(); // products the photo look saw as only close (often another color)
   const namedColor = namesLook(context);
   const lookRequest = { he: context, en: keywords, looks, terms: wordings, steady: !style };
+  // A named color with fewer than 4 confirmed: the photo look checks the next candidates too, and those it sees in the right
+  // color fill the card (one more call, only then): "שמלת ערב שחורה" came out with 3 dresses (owner, 2026-11-03).
+  const moreInColor = async (candidates, have) => {
+    const next = candidates.filter((p) => !have.some((h) => keyOf(h) === keyOf(p))).slice(0, STYLE_PHOTOS);
+    const seen = next.length ? await look(lookRequest, next).catch(() => null) : null;
+    for (const p of seen?.banner ?? []) banners.add(keyOf(p));
+    const right = new Set((seen?.exact ?? []).map(keyOf)); // the right color only: "close" is often another color
+    return next.filter((p) => right.has(keyOf(p))).slice(0, limit - have.length);
+  };
   const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
   if (styled.length >= limit) {
     // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
@@ -465,6 +474,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       for (const k of photoClose) otherColor.add(k);
       const right = (list) => (namedColor ? [...list.filter((p) => !photoClose.has(keyOf(p))), ...list.filter((p) => photoClose.has(keyOf(p)))] : list);
       shown = [...right([...mixed, ...kept.filter((p) => plain.has(keyOf(p)))]), ...(namedColor ? [] : unseen)];
+      if (namedColor && shown.length < limit) shown = shown.concat(await moreInColor(unseen, shown));
     }
   } else if (live && look && shown.length) {
     const head = shown.slice(0, limit + (namedColor ? COLOR_PHOTO_SPARE : PHOTO_SPARE));
@@ -475,8 +485,12 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       // What the photo shows as only close (a silver faucet for "שחור") follows the real matches (2026-11-01).
       const close = new Set((Array.isArray(seen) ? [] : [...(seen.near ?? []), ...(seen.partial ?? [])]).map(keyOf)); // near: one judge saw another shade
       for (const k of close) otherColor.add(k);
-      const kept = head.filter((p) => ok.has(keyOf(p)));
-      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))).map((p) => ({ ...p, looked: true })), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", offColor: true, looked: true })), ...(namedColor ? [] : shown.slice(head.length))];
+      // A fill item of another brand (a brand search with few items of the brand) stays: the photo look drops it for "not
+      // Aruba", though both title judges called it the same kind of item (the AP22 card came out with 1 product, 2026-11-03).
+      const kept = head.filter((p) => ok.has(keyOf(p)) || p.brandFill);
+      const rest = shown.slice(head.length);
+      if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))).map((p) => ({ ...p, looked: true })), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", offColor: true, looked: true })), ...(namedColor ? [] : rest)];
+      if (namedColor && shown.length < limit) shown = shown.concat((await moreInColor(rest, shown)).map((p) => ({ ...p, looked: true })));
     }
   }
   // A named color, a listing in several colors that include it, and the photo look saw another color: the listing's photo

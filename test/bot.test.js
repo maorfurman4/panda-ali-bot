@@ -1426,16 +1426,17 @@ test("only products the photo look saw rise into the card: an unseen one with mo
   assert.deepEqual(shownIds(ctx.sent()[0]), ["1", "2", "3", "4"], "the seen ones by sales");
 });
 
-test("a named color: the photo look sees 12 and only what it saw is shown (no unchecked refill)", async () => {
+test("a named color: the photo look sees 12, a short card gets a second look, only what it saw is shown", async () => {
   const items = Array.from({ length: 20 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 300), evaluate_rate: "98%" }));
   const id = (x) => x.promotion_link.split("_p")[1];
-  let seen;
-  const look = async (_r, ps) => ((seen = ps.map(id)), { exact: ps.filter((p) => ["2", "11"].includes(id(p))), partial: [] });
+  const seen = [];
+  const look = async (_r, ps) => (seen.push(ps.map(id)), { exact: ps.filter((p) => ["2", "11", "15"].includes(id(p))), partial: [] });
   const understand = async () => ({ status: "ok", corrected_he: "מטען שחור", keywords_en: "black charger", max_price_ils: null });
   const ctx = setup({ search: async () => items, live: true, look, understand });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מטען שחור"));
-  assert.equal(seen.length, 12);
-  assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "11"], "two black ones passed; no unchecked product fills the card");
+  assert.equal(seen[0].length, 12);
+  assert.ok(seen[1]?.length, "fewer than 4 in the right color: the next candidates get a photo look too (owner, 2026-11-03)");
+  assert.deepEqual(shownIds(ctx.sent()[0]), ["2", "11", "15"], "only photo-checked right-color products; nothing unchecked fills the card");
 });
 
 test("one brand slot per card: when the sales order brings the next card's brand item up, it shows as an ordinary product", async () => {

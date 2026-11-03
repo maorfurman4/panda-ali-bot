@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // AI query understanding with OpenAI (Responses API): fixes typos, turns Hebrew into AliExpress English keywords,
 // extracts a shekel price cap, or asks to clarify. Fail-open: any problem returns null and the caller
 // searches the raw query. Only the query text is sent — never user/chat IDs, names or other messages.
@@ -32,6 +33,13 @@ const TIMEOUT_MS = 12000;
 const HEDGE_MS = 4000;
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60_000;
+
+// Israeli slang and everyday Hebrew product names the AI and AliExpress don't read well (slang.json, owner-reviewed): a
+// matching word adds one line to the request, so the reading knows what it is ("מוט פינוק" got "לא הבנתי", 2026-11-03).
+// Whole words only, with a Hebrew prefix letter allowed ("למוט פינוק"); "מגב" must not match "מגבת".
+const SLANG = Object.entries(JSON.parse(readFileSync(new URL("./slang.json", import.meta.url), "utf8"))).filter(([k]) => !k.startsWith("_"))
+  .map(([he, en]) => ({ he, en, re: new RegExp(`(?<![א-ת])[ולהבמשכ]?${he.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![א-ת])`) }));
+export const slangHints = (text) => SLANG.filter((s) => s.re.test(text)).map((s) => `"${s.he}" (Israeli usage) = ${s.en}`);
 
 const RETRY_NOTE = `
 The shopper explicitly asked the bot to search for this, so it names a product: the words may be Israeli trade slang, a
@@ -115,7 +123,9 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - An emoji alone is the product it shows ("🎧" -> headphones, "⌚" -> watch).
 - fallback_en = the core item as a good standalone AliExpress search, 2-3 English words ("merino arm warmers thumb holes" -> "arm warmers", "Zara men clothing" -> "men casual shirts"; never a vague word like "clothing" or "shoes" alone), used if the first search finds too few, or null when keywords_en is already that.
 - brand = the brand the shopper asked for ("אוזניות של שיאומי" -> "Xiaomi"), or null. A device something is FOR is not a requested brand ("כיסוי לאייפון", "מטען לגלקסי" -> null).
-- Brands: when the shopper names a brand (Nike, Zara, Dior, Rolex, Xiaomi, Lenovo, Apple…), keep it in keywords_en, as shoppers do on AliExpress ("נייקי אייר מקס" -> "Nike Air Max", "נעליים של UGG" -> "UGG boots", "בושם של דיור" -> "Dior perfume", "שעון רולקס" -> "Rolex watch", "בגדים של זארה" -> "Zara women clothing"). fallback_en = the same item WITHOUT the brand name, always ("Zara men clothing" -> fallback "men casual shirts"; "Dior perfume" -> "women perfume long lasting"), because AliExpress often has few or no items of a big brand. Compatibility brands stay too ("כיסוי לאייפון" -> "iPhone case"). A brand in Hebrew letters is written the way its sellers spell it, small toy brands too: "נידו" -> "NeeDoh" (the squishy fidget toys, not Nido milk) (owner's test 2026-11-02: "Nido" found 0 of 59 NeeDoh calendars).
+- Brands: when the shopper names a brand (Nike, Zara, Dior, Rolex, Xiaomi, Lenovo, Apple…), keep it in keywords_en, as shoppers do on AliExpress ("נייקי אייר מקס" -> "Nike Air Max", "נעליים של UGG" -> "UGG boots", "בושם של דיור" -> "Dior perfume", "שעון רולקס" -> "Rolex watch", "בגדים של זארה" -> "Zara women clothing"). fallback_en = the same item WITHOUT the brand name, always ("Zara men clothing" -> fallback "men casual shirts"; "Dior perfume" -> "women perfume long lasting"), because AliExpress often has few or no items of a big brand. Compatibility brands stay too ("כיסוי לאייפון" -> "iPhone case"). A brand that sells a line under its own name is searched by that name, the way sellers title it: Anker earbuds and
+speakers are "Soundcore" ("אוזניות אנקר ליברטי פרו" -> "Soundcore Liberty Pro earbuds", brand "Soundcore"; "Anker Liberty
+Pro" found 2 earbuds, 2026-11-03), Xiaomi's are often "Redmi" or "Mijia", Lenovo's earbuds "thinkplus". A brand in Hebrew letters is written the way its sellers spell it, small toy brands too: "נידו" -> "NeeDoh" (the squishy fidget toys, not Nido milk) (owner's test 2026-11-02: "Nido" found 0 of 59 NeeDoh calendars).
 - status "not_allowed" for products the group bot must not search: weapons (switchblades "סכין קפיצית", brass knuckles "אגרופן", real or replica guns "אקדח", tasers), drugs, medicines and diet pills ("תרופה להרזיה"), vapes and e-cigarettes, sex and adult products, and hidden cameras or trackers meant to secretly watch or follow a person ("מצלמה נסתרת לשירותים").
   Allowed (status "ok"): kitchen and chef knives, folding multitools, toy guns ("אקדח מים" -> "water gun toy", "רובה נרף" -> "foam blaster toy"), security and dash cameras, GPS trackers for keys, bags or cars.
 - Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "חכה לדייג" (a fishing rod), "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
@@ -397,13 +407,14 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
     // header ("advent calendar gift box" found 3 weak partial matches, 2026-10-31).
 
     const key = (retry ? "retry:" : "") + text.toLowerCase();
+    const hints = slangHints(text);
     const hit = cache.get(key);
     if (hit && now() - hit.at < CACHE_TTL_MS) return hit.value;
     if (!env.OPENAI_API_KEY) return null; // reported once at startup by index.js
 
     try {
       // All three failing gets one more try: a timeout or an odd answer happened in 2 of 66 searches (2026-10-25).
-      const ask = async (temperature) => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()) + (retry ? RETRY_NOTE : ""), content: text, name: "search_intent", schema: SCHEMA, onUsage, ...(temperature === undefined ? {} : { temperature }) }));
+      const ask = async (temperature) => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()) + (retry ? RETRY_NOTE : ""), content: hints.length ? `${text}\n\nNote: ${hints.join("; ")}` : text, name: "search_intent", schema: SCHEMA, onUsage, ...(temperature === undefined ? {} : { temperature }) }));
       // Three readings at once (≈0.05¢ each, parallel): each picks other English words, and each found a top seller the
       // others missed (Kemei 10,011 only via "men grooming set", Lenovo 28,938 only via "wireless earbuds", 2026-11-02).
       // The first good reading decides everything; the others only add their words, on non-style searches (style ones

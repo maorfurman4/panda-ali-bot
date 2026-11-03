@@ -563,3 +563,14 @@ test("pickColorPhotos: the photo number per listing becomes its URL; bad numbers
   assert.ok(!sent.input[0].content.some((c) => c.image_url === "https://a/0-0.jpg_350x350.jpg"), "never the first, already seen");
   assert.deepEqual(await createPhotoPicker({ fetch: api.fetch, env: {} })({ he: "x", en: "x" }, [listing(0)]), [null], "no key: nothing");
 });
+
+test("slang: a known Israeli word adds its meaning to the request; whole words only", async () => {
+  const { slangHints } = await import("../query.js");
+  assert.match(slangHints("חפש לי מוט פינוק לאינטרפוץ 4 דרך").join(" "), /rain shower system.*concealed shower mixer/);
+  assert.deepEqual(slangHints("מגבת לים"), [], "מגב is not מגבת");
+  assert.match(slangHints("סקוטש לבגדים").join(" "), /velcro/);
+  const bodies = [];
+  const fetch = async (_u, init) => (bodies.push(JSON.parse(init.body)), { ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(STRICT_OK) }] }] }) });
+  await createUnderstander({ fetch, env: ENV })("מגב לרצפה");
+  assert.match(bodies[0].input[0].content, /^מגב לרצפה\n\nNote: "מגב" \(Israeli usage\) = floor squeegee/);
+});
