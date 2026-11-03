@@ -639,7 +639,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
       const colorLook = withPhotos && photos && !pick && namesLook(`${request.he} ${request.en}`); // not the style look
       if ((withPhotos && !colorLook) || !env.ANTHROPIC_API_KEY) return ask(content);
       // The color look's second judge is Haiku: Sonnet on 16 photos added ~6 s to a search (2026-11-01).
-      const [a, b] = await Promise.allSettled([ask(content), requestClaude({ ...args, model: colorLook ? "claude-haiku-5-5" : claudeFor(model), content, timeoutMs: colorLook ? COLOR_JUDGE_TIMEOUT_MS : SECOND_JUDGE_TIMEOUT_MS })]);
+      const [a, b] = await Promise.allSettled([ask(content), requestClaude({ ...args, model: colorLook ? "claude-haiku-5-5" : env.CLAUDE_JUDGE_MODEL || claudeFor(model), content, timeoutMs: colorLook ? COLOR_JUDGE_TIMEOUT_MS : SECOND_JUDGE_TIMEOUT_MS })]);
       if (a.status === "rejected" || b.status === "rejected") return a.status === "fulfilled" ? a.value : b.status === "fulfilled" ? b.value : Promise.reject(a.reason);
       const [x, y] = [a.value, b.value];
       const list = (o, k) => (Array.isArray(o?.[k]) ? o[k] : []);
