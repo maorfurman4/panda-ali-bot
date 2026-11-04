@@ -485,3 +485,12 @@ test("a card for 'תיק לעבודה לבנות' has no colors note: 'לבנו�
   assert.doesNotMatch(formatCard([p], { query: "תיק לעבודה לבנות" }).caption, /מבחר צבעים/);
   assert.match(formatCard([p], { query: "נעליים לבנות" }).caption, /מבחר צבעים/, "white shoes keep the note");
 });
+
+test("family 3: a search for something that fits a named device or car gets the 'pick your model' note", async () => {
+  const { formatCard, namesModel, MODELS_NOTE } = await import("../format.js");
+  for (const t of ["כיסוי לאייפון 17", "רצועה לאפל ווטש", "כיסוי למפתח של טויוטה קורולה", "case for iphone 15"]) assert.ok(namesModel(t), t);
+  for (const t of ["אוזניות אלחוטיות", "כיסוי לכרית", "מטען מהיר"]) assert.ok(!namesModel(t), t);
+  const p = { product_title: "Case", target_sale_price: "10", target_sale_price_currency: "ILS", promotion_link: "https://s.click.aliexpress.com/e/_x" };
+  assert.ok(formatCard([p], { query: "כיסוי לאייפון 17" }).caption.includes(MODELS_NOTE));
+  assert.ok(!formatCard([p], { query: "אוזניות" }).caption.includes(MODELS_NOTE));
+});

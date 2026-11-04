@@ -408,6 +408,12 @@ export const CLOSEST_NOTE = "לא מצאתי התאמה מדויקת, אלה ה�
 // A color search: many listings come in several colors and the photo may show another one (a faucet titled black,
 // pictured silver, black on the product page; owner, 2026-11-02). One line under the title says so.
 export const OVER_BUDGET_NOTE = "קצת מעל התקציב";
+// A search for something that fits a named device or car ("כיסוי לאייפון 17", "שטיחונים לטסלה"): most listings cover many
+// models at once (70-100% of the top sellers for cases, protectors, bands, key covers; free study, 2026-11-04), so the card
+// says the model is picked on the product page (owner, 2026-11-04).
+const DEVICES = /(?:אייפון|iphone|גלקסי|galaxy|סמסונג|samsung|שיאומי|xiaomi|רדמי|redmi|פיקסל|pixel|וואווי|huawei|אייפד|ipad|אפל\s?ווטש|apple\s?watch|שעון\s?אפל|איירפודס|airpods|מקבוק|macbook|טויוטה|toyota|קורולה|corolla|מאזדה|mazda|יונדאי|hyundai|קיה|kia|טסלה|tesla|סקודה|skoda|פולקסווגן|volkswagen|ניסאן|nissan|הונדה|honda|שברולט|chevrolet|סובארו|subaru|מיצובישי|mitsubishi|פיג'ו|peugeot|רנו|renault|סוזוקי|suzuki|מרצדס|mercedes|אאודי|audi|פורד|ford|bmw|ב\.?מ\.?וו)/;
+export const namesModel = (text = "") => new RegExp(`(?:(?<![א-ת])ל|של\\s+|\\bfor\\s+)${DEVICES.source}`, "i").test(text);
+export const MODELS_NOTE = "📱 רוב המוצרים מגיעים לכמה דגמים: בדף המוצר בחרו את הדגם שלכם";
 export const COLORS_NOTE = "🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם";
 // A brand search with few items of the brand: other brands fill the card, and the card says so (owner: always 4, 2026-11-03).
 export const FILL_NOTE = "מצאתי מעט מוצרים של המותג שביקשתם, הוספתי גם דומים ממותגים אחרים 👇";
@@ -432,7 +438,7 @@ function withBadges(p, [rating, sold]) {
 
 function buildCard(products, query, demo, reasons, closest, rare) {
   const fill = !closest && products.some((p) => p.brandFill);
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : [])];
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);

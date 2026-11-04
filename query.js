@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
 import { stats } from "./stats.js";
-import { isPartFor, forWhom } from "./format.js";
+import { isPartFor, forWhom, namesModel } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
 // USD per 1M tokens [input, output], for the owner's daily cost line (unknown models are priced as gpt-5.4).
@@ -512,7 +512,8 @@ really has it (an ergonomic mouse is vertical, trackball or clearly contoured, l
 a plain office or gaming mouse titled "ergonomic" is partial).
 When the request names the device or brand the item is FOR ("filter for Melitta Solo", "case for iPhone 15", "seat covers
 for Corolla"), it is exact only if the title names that device or brand (or lists it among compatible models); a generic
-or other-brand one is partial.
+or other-brand one is partial. A universal one that fits any model (it says universal or fits all models: a car phone
+holder, a steering wheel cover) is exact too.
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 For "ערכת טיפוח" a kit is exact: a multi-head grooming trimmer set (beard, nose, body heads) or a beard or skin care set;
 a single hair clipper or shaver alone is left out (one tool, not a kit: the shopper got hair clippers, 2026-11-01). A
@@ -621,7 +622,9 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     if (!products.length || !env.OPENAI_API_KEY) return { exact: products, partial: [] };
     const also = (request.terms ?? []).map((t) => clean(t, 80)).filter(Boolean);
     const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})` + (also.length ? `\nAlso searched as: ${also.join("; ")}` : "") + (request.looks ? `\nLooks like: ${clean(request.looks, 200)}` : "");
-    const lines = products.map((p, i) => `${i}. ${clean(p.product_title, 120)}`);
+    // A device or car search sees the whole title: sellers list every model, and the asked one came after the 120th character
+    // in ~7% of the top sellers (cases, bands, protectors; 2026-11-04).
+    const lines = products.map((p, i) => `${i}. ${clean(p.product_title, namesModel(request.he) ? 250 : 120)}`);
     // The final photo look gets 350 px photos: at 220 a dark brown dress passed as black (2026-11-01). Same price on gpt
     // ("low" is one 512 px tile either way); ~160 tokens each on Claude.
     const size = photos && !pick ? "350x350" : "220x220"; // style looks stay as they were at 17:30 (owner, 2026-11-01)
@@ -837,8 +840,8 @@ export const explainFit = createExplainer();
 
 const TITLE_SYSTEM = `You write store shelf labels. For each numbered AliExpress product, give ONE Hebrew product name of 2-6 words,
 with the product's number as i. Keep the brand and model if the title has them, plus the one detail that matters for the
-shopper's request (the device it fits, size, power, set size). A title that lists many compatible brands gets the one the
-shopper asked for. Examples: "מסנן מים לקפה - מתאים למליטה", "Logitech Lift - עכבר אנכי", "כבל USB ל-Type C ‏100W".
+shopper's request (the device it fits, size, power, set size). A title that lists many compatible brands or models gets the one
+the shopper asked for (a case listed for "iPhone 15 16 17 Air" is "כיסוי לאייפון 17" for "כיסוי לאייפון 17"). Examples: "מסנן מים לקפה - מתאים למליטה", "Logitech Lift - עכבר אנכי", "כבל USB ל-Type C ‏100W".
 Honest names: leave out a claim the item can't really have at its price (a ₪6 car charger isn't 350W: "מטען לרכב USB-C";
 a ₪20 flash drive isn't 2TB); cheap gold-colored jewelry is "מצופה זהב", never "זהב 18 קראט"; never add an audience
 ("לבנות", "לגברים") the title doesn't say; name what it really is (acrylic mirror stickers are "מדבקות מראה", not a

@@ -593,3 +593,14 @@ test("slang: 'לדים' is LED strip lights", async () => {
   const { slangHints } = await import("../query.js");
   assert.match(slangHints("לדים לחדר").join(" "), /LED strip lights/);
 });
+
+test("family 3: the judges see up to 250 characters of the title on a device search, 120 otherwise", async () => {
+  const bodies = [];
+  const fetch = async (_u, init) => (bodies.push(JSON.parse(init.body)), { ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ exact: [0], partial: [], brand: [], banner: [] }) }] }] }) });
+  const long = `Case for iPhone 11 12 13 14 15 16 Pro Max Plus Mini magnetic silicone shockproof cover with camera protection ring and stand 17`;
+  const judge = createRelevanceFilter({ fetch, env: ENV });
+  await judge({ he: "כיסוי לאייפון 17", en: "iphone 17 case" }, [{ product_title: long }]);
+  assert.match(JSON.stringify(bodies.at(-1)), /stand 17/);
+  await judge({ he: "כיסוי סיליקון", en: "silicone case" }, [{ product_title: long }]);
+  assert.doesNotMatch(JSON.stringify(bodies.at(-1)), /stand 17/);
+});
