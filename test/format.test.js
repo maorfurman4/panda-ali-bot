@@ -334,6 +334,7 @@ test("specialKind: gaming, shower, hydroponic, keffiyeh, Tesla-only are special 
   const { specialKind } = await import("../format.js");
   assert.equal(specialKind("עכבר גיימינג אלחוטי ATTACK SHARK X8", "עכבר אלחוטי wireless mouse"), true);
   assert.equal(specialKind("עכבר אנכי של HOMEFISH ארגונומי 2.4GHz", "עכבר אלחוטי wireless mouse"), true, "a vertical mouse for a plain mouse");
+  assert.equal(specialKind("360 °   מתקן טלפון לרכב מסתובב ויציב", "מעמד לטלפון"), true, "a car phone mount called מתקן");
   assert.equal(specialKind("עכבר אנכי של HOMEFISH ארגונומי 2.4GHz", "עכבר אנכי vertical mouse"), false);
   assert.equal(specialKind("עכבר אלחוטי נטען, עיצוב ארגונומי", "עכבר אלחוטי wireless mouse"), false, "ergonomic alone is a plain mouse");
   assert.equal(specialKind("עכבר גיימינג אלחוטי", "עכבר גיימינג"), false);

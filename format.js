@@ -282,7 +282,7 @@ const SPECIAL_KINDS = [
 export const specialKind = (title, request = "") => SPECIAL_KINDS.some((k) => k.test(title ?? "") && !k.test(request)) || carCharger(title, request);
 // A car charger or a car phone holder is close unless the request is about a car at all (a car charger sat 4th for
 // "מטען מהיר"; car holders led "מעמד לטלפון", a desk stand; live tests 2026-11-02).
-const CAR_CHARGER = /(?:מטען|מחזיק|מעמד|תושבת|charger|holder|mount)[^,]{0,45}?(?:\sל?רכב|\bcar\b|מצית|למזגן|למיזוג)|\bcar\s+(?:fast\s+)?(?:charger|phone\s+(?:holder|mount))/i;
+const CAR_CHARGER = /(?:מטען|מחזיק|מעמד|מתקן|תושבת|charger|holder|mount)[^,]{0,45}?(?:\sל?רכב|\bcar\b|מצית|למזגן|למיזוג)|\bcar\s+(?:fast\s+)?(?:charger|phone\s+(?:holder|mount))/i;
 const carCharger = (title, request) => CAR_CHARGER.test(title ?? "") && !/רכב|\bcar\b|מצית/i.test(request);
 
 // Luxury brands AliExpress sells only as fakes (a ₪127 "Diptyque" candle, 2026-11-01): left out unless the shopper names
