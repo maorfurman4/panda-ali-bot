@@ -513,7 +513,10 @@ a plain office or gaming mouse titled "ergonomic" is partial).
 When the request names the device or brand the item is FOR ("filter for Melitta Solo", "case for iPhone 15", "seat covers
 for Corolla"), it is exact only if the title names that device or brand (or lists it among compatible models); a generic
 or other-brand one is partial. A universal one that fits any model (it says universal or fits all models: a car phone
-holder, a steering wheel cover) is exact too.
+holder, a steering wheel cover) is exact too. A listing that names many models is exact when the asked one is among them:
+the other models it names (Ultra, Pro, Plus, Air, Model Y, S23, other years) never make it near or partial, since the
+shopper picks the model on the product page (a 29,627-sold protector for "S23 S24 S24 Ultra A54" fell to near for "S24",
+owner, 2026-11-04).
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 For "ערכת טיפוח" a kit is exact: a multi-head grooming trimmer set (beard, nose, body heads) or a beard or skin care set;
 a single hair clipper or shaver alone is left out (one tool, not a kit: the shopper got hair clippers, 2026-11-01). A
