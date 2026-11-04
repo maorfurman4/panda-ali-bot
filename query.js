@@ -41,6 +41,20 @@ const SLANG = Object.entries(JSON.parse(readFileSync(new URL("./slang.json", imp
   .map(([he, en]) => ({ he, en, re: new RegExp(`(?<![א-ת])[ולהבמשכ]?${he.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![א-ת])`) }));
 export const slangHints = (text) => SLANG.filter((s) => s.re.test(text)).map((s) => `"${s.he}" (Israeli usage) = ${s.en}`);
 
+// The look description never rules out a kind the bot searches for: "a spray…; not a scraper" while one wording was
+// "sticker removal scraper tool" made both judges leave out a 34,910-sold scraper set (2026-11-03). A "not …" item that is
+// one of the searched phrases is removed (whole phrase, so "tube light" stays for "LED strip light").
+export function trimLooks(looks, words) {
+  const m = /^(.*?)(;?\s*not\s+)(.*)$/i.exec(looks ?? "");
+  if (!m) return looks;
+  const hay = words.filter(Boolean).join(" | ").toLowerCase();
+  const items = m[3].replace(/\.$/, "").split(/,\s*|\s+or\s+/i).map((t) => t.trim()).filter(Boolean);
+  const phrase = (t) => t.toLowerCase().replace(/^(?:an?|the)\s+/, "").replace(/s$/, "");
+  const keep = items.filter((t) => !hay.includes(phrase(t)));
+  if (keep.length === items.length) return looks;
+  return keep.length ? `${m[1]}${m[2]}${keep.join(", ")}` : m[1].replace(/[;,\s]+$/, "");
+}
+
 const RETRY_NOTE = `
 The shopper explicitly asked the bot to search for this, so it names a product: the words may be Israeli trade slang, a
 brand you don't know, or a misspelling. Give the most likely product; not_product only if no product reading makes sense.`;
@@ -56,7 +70,10 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - terms_en = 2-3 more English searches the way AliExpress sellers title this item, each different from keywords_en and
   alt_en, together covering every common meaning of the words: "מטהר אוויר לרכב" -> ["car air freshener", "car aromatherapy
   diffuser", "car negative ion air purifier"]; "מסרק לשיער" -> ["detangling hair brush", "wide tooth comb"]. Strong sellers
-  often hide under the other names, and all of them are searched. When the request names a use, place or occasion
+  often hide under the other names, and all of them are searched. When the words name more than one kind of product, each
+  common kind gets its own precise search: "מסיר מדבקות" -> "sticker remover spray" and "sticker removal scraper tool";
+  "מסחטת מיצים" -> "slow juicer", "citrus juicer", "portable juicer cup" (only sprays and ₪400 slow juicers came back, the
+  34,910-sold scraper set and the cheap juicers never did; owner's test, 2026-11-04). When the request names a use, place or occasion
   ("לקופסאות", "ליום הולדת", "למטבח"), one wording is the item alone the way most sellers title it, without that use:
   "סרטי קישוט לקופסאות" -> "satin ribbon" (the 4,260-sold satin ribbon never came back for "gift box ribbon" words,
   owner's comparison 2026-11-02). [] for a brand-and-model request. Every wording names
@@ -440,6 +457,7 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
         const terms = words.filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, MAX_TERMS);
         if (terms.length) value.terms_en = terms;
       }
+      if (value.looks_like) value.looks_like = trimLooks(value.looks_like, [value.keywords_en, value.alt_en, ...(value.terms_en ?? [])]);
       if (value.status === "ok" || value.status === "clarify") {
         const { min, max } = statedPrice(text);
         if (max && !value.max_price_ils) value.max_price_ils = max;

@@ -604,3 +604,10 @@ test("family 3: the judges see up to 250 characters of the title on a device sea
   await judge({ he: "כיסוי סיליקון", en: "silicone case" }, [{ product_title: long }]);
   assert.doesNotMatch(JSON.stringify(bodies.at(-1)), /stand 17/);
 });
+
+test("trimLooks: a 'not …' kind that the bot searches for is removed; other exclusions stay", async () => {
+  const { trimLooks } = await import("../query.js");
+  assert.equal(trimLooks("a spray or liquid used to dissolve sticker glue; not a scraper, cleaner wipe or car polish", ["sticker remover spray", "sticker removal scraper tool"]), "a spray or liquid used to dissolve sticker glue; not cleaner wipe, car polish");
+  assert.equal(trimLooks("a flexible light strip; not a rigid lamp, tube light or cable", ["LED strip light"]), "a flexible light strip; not a rigid lamp, tube light or cable");
+  assert.equal(trimLooks("a towel bar; not a hook", ["towel bar", "towel hook"]), "a towel bar");
+});
