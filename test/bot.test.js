@@ -1581,3 +1581,15 @@ test("stage A (2026-11-04): a fake from a known brand's official store never tak
   assert.ok(!out.slice(0, 4).some((p) => /Lenovo/.test(p.product_title)), "the fake stays at the end");
   assert.equal(out[0].fakesSkipped, "2TB ב-20 ₪", "the note's example matches the kind skipped");
 });
+
+test("/pin_welcome (owner, in private): posts the welcome to the group, clears old pins, pins it; anyone else gets nothing", async () => {
+  const ctx = setup({ adminId: "7", groupId: "-100555" });
+  await ctx.bot.handleUpdate(textUpdate("/pin_welcome", { userId: 8, chat: "private" }));
+  assert.equal(ctx.calls.length, 0, "not the owner");
+  await ctx.bot.handleUpdate(textUpdate("/pin_welcome", { userId: 7, chat: "private" }));
+  const methods = ctx.calls.map((c) => c.method);
+  assert.deepEqual(methods.slice(0, 3), ["sendMessage", "unpinAllChatMessages", "pinChatMessage"]);
+  assert.equal(String(ctx.calls[0].payload.chat_id), "-100555");
+  assert.match(ctx.calls[0].payload.text, /ברוכים הבאים לפנדה אקספרס/);
+  assert.doesNotMatch(ctx.calls[0].payload.text, /קישורי שותפים/);
+});

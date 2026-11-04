@@ -28,6 +28,7 @@ import {
   formatCard,
   formatLinkReply,
   questionText,
+  WELCOME_PIN,
   chosenText,
   cooldownMessage,
   HELP,
@@ -953,6 +954,20 @@ export function createBot({
   bot.command("search", (ctx) => runSearch(ctx, ctx.match));
   bot.command("myid", (ctx) => ctx.chat.type === "private" && reply(ctx, `🆔 ${ctx.from.id}`));
   // Owner-only health report: version, counters, last errors and live checks of the AI and AliExpress.
+  // The owner, in private: post the welcome to the group, remove the old pins, pin it (owner, 2026-11-04). Needs the bot's
+  // "pin messages" right in the group.
+  bot.command("pin_welcome", async (ctx) => {
+    if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId) || !groupId) return;
+    try {
+      const msg = await ctx.api.sendMessage(groupId, WELCOME_PIN, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+      await ctx.api.unpinAllChatMessages(groupId);
+      await ctx.api.pinChatMessage(groupId, msg.message_id, { disable_notification: true });
+      return ctx.reply("✅ הודעת הפתיחה נשלחה לקבוצה והוצמדה. ההצמדות הישנות בוטלו.");
+    } catch (e) {
+      return ctx.reply(`😕 לא הצלחתי: ${esc(e.description ?? e.message)}. בדקו שלבוט יש הרשאת "הצמדת הודעות" בקבוצה.`);
+    }
+  });
+
   bot.command("status", async (ctx) => {
     if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId)) return;
     const { startedAt, counters, lastError, lists } = stats.snapshot();
