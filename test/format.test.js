@@ -478,3 +478,10 @@ test("white noise is not a color: no color note and no color photo check", async
   assert.equal(namesLook("מכונת רעש לבן white noise machine"), false);
   assert.equal(namesLook("תיק לבן"), true);
 });
+
+test("a card for 'תיק לעבודה לבנות' has no colors note: 'לבנות' there means for women", async () => {
+  const { formatCard } = await import("../format.js");
+  const p = { product_title: "Women work bag", target_sale_price: "50", target_sale_price_currency: "ILS", promotion_link: "https://s.click.aliexpress.com/e/_x" };
+  assert.doesNotMatch(formatCard([p], { query: "תיק לעבודה לבנות" }).caption, /מבחר צבעים/);
+  assert.match(formatCard([p], { query: "נעליים לבנות" }).caption, /מבחר צבעים/, "white shoes keep the note");
+});

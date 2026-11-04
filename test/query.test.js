@@ -547,7 +547,9 @@ test("validateIntent: 'נעלי ספורט לבנות' asks white or for girls (
   assert.deepEqual(out.options.map((o) => o.label_he), ["בצבע לבן", "לילדות"]);
   assert.match(out.options[0].keywords_en, /white sneakers/);
   assert.match(out.options[1].keywords_en, /girls sneakers/);
-  assert.equal(whiteOrKids("חולצות לבנים"), "לבנים");
+  assert.equal(whiteOrKids("מגפיים לבנים"), "לבנים");
+  assert.equal(whiteOrKids("חולצות לבנים"), null, "shirts can't be 'לבנים' white: for boys, no question (2026-11-04)");
+  assert.equal(whiteOrKids("תיק לעבודה לבנות"), null, "a bag can't be 'לבנות' white: a women's bag");
   for (const t of ["נעלי ספורט בצבע לבן", "שמלה לבנה", "נעליים לבנות בנות 8", "מתנה לבנות", "בלונים לבנים", "נעלי ספורט לבנות קטנות"]) assert.equal(whiteOrKids(t), null, t);
 });
 
@@ -573,4 +575,21 @@ test("slang: a known Israeli word adds its meaning to the request; whole words o
   const fetch = async (_u, init) => (bodies.push(JSON.parse(init.body)), { ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(STRICT_OK) }] }] }) });
   await createUnderstander({ fetch, env: ENV })("מגב לרצפה");
   assert.match(bodies[0].input[0].content, /^מגב לרצפה\n\nNote: "מגב" \(Israeli usage\) = floor squeegee/);
+});
+
+test("forWhom: 'לבנות'/'לבנים' is the color only after a matching plural item; otherwise who it is for", async () => {
+  const { forWhom } = await import("../format.js");
+  assert.equal(forWhom("תיק לעבודה לבנות"), "women");
+  assert.equal(forWhom("מתנה לבנות"), "girls");
+  assert.equal(forWhom("חולצות לבנים"), "boys");
+  for (const t of ["נעלי ספורט לבנות", "נעליים לבנות", "בלונים לבנים", "מגפיים לבנים", "שמלה לבנה"]) assert.equal(forWhom(t), null, t);
+  const bodies = [];
+  const fetch = async (_u, init) => (bodies.push(JSON.parse(init.body)), { ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(STRICT_OK) }] }] }) });
+  await createUnderstander({ fetch, env: ENV })("תיק לעבודה לבנות");
+  assert.match(bodies[0].input[0].content, /means for women, not the color white/);
+});
+
+test("slang: 'לדים' is LED strip lights", async () => {
+  const { slangHints } = await import("../query.js");
+  assert.match(slangHints("לדים לחדר").join(" "), /LED strip lights/);
 });

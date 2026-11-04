@@ -86,7 +86,24 @@ const COLORS = {
 };
 // "רעש לבן" (white noise) names no color: a white noise machine search got the color note (owner's test, 2026-11-02).
 const NOT_A_COLOR = /רעש\s+לבן|white\s+noise/gi;
-const named = (text) => Object.keys(COLORS).filter((c) => COLORS[c].test((text ?? "").replace(NOT_A_COLOR, "")));
+// "לבנות" is the color only after a feminine plural item ("נעליים לבנות"), "לבנים" only after a masculine plural one
+// ("בלונים לבנים"); otherwise it says who the item is for: "תיק לעבודה לבנות" (a bag can't be "לבנות" white) is a women's
+// bag. The bot read it as white and showed men's black laptop bags (owner's test, 2026-11-04).
+const FEM_PLURAL = /^(?:נעליים|נעלי|סניקרס)$|ות$/;
+const MASC_PLURAL = /^(?:סניקרס)$|(?<!^נעל)(?:ים|י)$/;
+const WHO_WORD = /(?<![א-ת])(לבנות|לבנים)(?![א-ת])/;
+export function forWhom(text = "") {
+  const m = WHO_WORD.exec(text);
+  if (!m) return null;
+  const item = text.slice(0, m.index).replace(/^\s*(?:חפש|תחפש|מצא|תמצא)\s+לי\s+/, "").trim().split(/\s+/)[0] ?? "";
+  if (m[1] === "לבנות" ? FEM_PLURAL.test(item) : MASC_PLURAL.test(item)) return null; // the color fits: ambiguous
+  const adult = /עבודה|משרד|אירוע|חתונה|ערב|נשף|כלה|אמא|אבא|אישה|נשים|גבר/.test(text);
+  return m[1] === "לבנות" ? (adult ? "women" : "girls") : adult ? "men" : "boys";
+}
+const named = (text) => {
+  const t = (text ?? "").replace(NOT_A_COLOR, "");
+  return Object.keys(COLORS).filter((c) => COLORS[c].test(forWhom(t) ? t.replace(WHO_WORD, "") : t));
+};
 // A listing in several colors, the asked one among them ("כחול, ירוק, שחור, צהוב…" for "שחורה", 2026-11-02).
 export const inColors = (title, request) => named(request).some((c) => named(title).includes(c)) && named(title).length > 1;
 export function offColor(title, request) {

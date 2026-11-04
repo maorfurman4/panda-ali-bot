@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
 import { stats } from "./stats.js";
-import { isPartFor } from "./format.js";
+import { isPartFor, forWhom } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
 // USD per 1M tokens [input, output], for the owner's daily cost line (unknown models are priced as gpt-5.4).
@@ -207,6 +207,7 @@ export function statedPrice(text) {
 const WEARABLE = /(?:^|\s)(?:נעל|נעלי|נעליים|סניקרס|סנדל|כפכפ|מגפ|חולצ|טישירט|מכנס|ג'ינס|שמל|חצאי|מעיל|ג'קט|סווטשירט|קפוצ|טייץ|פיג'מ|בגד|גרבי|תיק|כובע)/;
 export function whiteOrKids(text = "") {
   const t = String(text).replace(/[.!?,\s]+$/, "");
+  if (forWhom(t)) return null; // the grammar says who it is for: no question
   const m = t.match(/\s(לבנות|לבנים)$/);
   if (!m || !WEARABLE.test(t) || /צבע|גיל|\d|קטנ|נוער|בנות\s|בנים\s|ילד/.test(t.slice(0, m.index))) return null;
   return m[1];
@@ -407,7 +408,8 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
     // header ("advent calendar gift box" found 3 weak partial matches, 2026-10-31).
 
     const key = (retry ? "retry:" : "") + text.toLowerCase();
-    const hints = slangHints(text);
+    const who = forWhom(text);
+    const hints = [...slangHints(text), ...(who ? [`"לבנות"/"לבנים" here means for ${who}, not the color white (a singular item can't be "לבנות" white)`] : [])];
     const hit = cache.get(key);
     if (hit && now() - hit.at < CACHE_TTL_MS) return hit.value;
     if (!env.OPENAI_API_KEY) return null; // reported once at startup by index.js
@@ -570,7 +572,9 @@ off AliExpress). A close shade of the named color is partial, not left out (waln
 black, olive or sage for green). A clearly different color in the photo is left out, never partial, even when the title
 names the asked color (a light blue, red or orange dress for "שמלה שחורה": the listing's photo shows another variant).
 banner = (with photos only) kept products whose photo is mostly an ad rather than the item: big text, a price, sale or
-percent banner, spec callouts covering the product ([] without photos).
+percent banner, spec callouts covering the product, a table or grid of coupon codes, a text-only infographic, a collage of
+usage scenes where the item itself is small ([] without photos). A coupon-code table showed as an LED strip's photo twice
+(owner's test, 2026-11-04).
 brand = the kept products of a well-known brand shoppers trust for quality (Baseus, Ugreen, Anker, Essager, Joyroom, Xiaomi,
 Redmi, QCY, Soundcore, Haylou, Lenovo, Logitech, Edifier, Vention, Orico…), by the brand the title says it IS (not a phone
 it is "for"); a seller's own made-up or store name doesn't count.
