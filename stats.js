@@ -54,6 +54,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
       const d = (k) => (counters[k] ?? 0) - (prev[k] ?? 0);
       const bad = (lists.thumbsDown ?? []).filter((x) => x.at > since).map((x) => x.text);
       const none = (lists.noResults ?? []).filter((x) => x.at > since).map((x) => x.text);
+      const weak = (lists.weak ?? []).filter((x) => x.at > since).map((x) => x.text);
       lastDigest = { at: t, counters: { ...counters } };
       if (!d("search")) return null;
       return [
@@ -63,6 +64,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
         `💰 עלות בינה מלאכותית: $${d("aiCost").toFixed(2)} (${((d("aiCost") * 100) / d("search")).toFixed(1)} סנט לחיפוש)`,
         ...(bad.length ? ["", "חיפושים שקיבלו 🐼 (כדאי לבדוק):", ...bad.map((b) => `• ${b}`)] : []),
         ...(none.length ? ["", "חיפושים בלי תוצאות:", ...none.map((b) => `• ${b}`)] : []),
+        ...(weak.length ? ["", "חיפושים עם כרטיס חלש (מעט מכירות):", ...weak.map((b) => `• ${b}`)] : []),
       ].join("\n");
     },
     snapshot: () => ({ startedAt, counters: { ...counters }, lastError: { ...lastError }, lists: structuredClone(lists) }),

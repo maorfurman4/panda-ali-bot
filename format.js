@@ -417,6 +417,29 @@ export const MODELS_NOTE = "📱 רוב המוצרים מגיעים לכמה ד�
 export const COLORS_NOTE = "🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם";
 // A brand search with few items of the brand: other brands fill the card, and the card says so (owner: always 4, 2026-11-03).
 export const FILL_NOTE = "מצאתי מעט מוצרים של המותג שביקשתם, הוספתי גם דומים ממותגים אחרים 👇";
+// Big items AliExpress hardly ships to Israel: a search returns only their accessories (fridge glue, washing machine
+// bags, sofa covers; free check, 2026-11-04). The shopper gets buttons for what does ship (owner, 2026-11-04). A request
+// that already asks for the small kind ("מכונת כביסה ניידת") is searched as is.
+const SMALL_KIND = /מיני|נייד|קטן|לרכב|מתנפח|מתקפל|לבובות|צעצוע|כיסוי|מגן|מארגן|אביזר|חלק|מסנן|פילטר/;
+const BIG_ITEMS = [
+  { re: /^(?:מכונת|מכונות)\s+כביסה/, he: "מכונות כביסה", alts: [["מכונת כביסה ניידת", "portable washing machine"], ["אביזרים למכונת כביסה", "washing machine accessories"]] },
+  { re: /^(?:מייבש|מייבשי)\s+כביסה/, he: "מייבשי כביסה", alts: [["מתקן ייבוש כביסה", "clothes drying rack"], ["חבל כביסה מתקפל", "retractable clothesline"]] },
+  { re: /^(?:מקרר|מקררים)(?:\s|$)/, he: "מקררים", alts: [["מקרר נייד קטן", "portable mini fridge"], ["מארגנים למקרר", "refrigerator organizer bins"]] },
+  { re: /^(?:מדיח|מדיחי)(?:\s|$)/, he: "מדיחי כלים", alts: [["מתקן ייבוש כלים", "dish drying rack"], ["אביזרים למדיח", "dishwasher accessories"]] },
+  { re: /^(?:ספה|ספות)(?:\s|$)/, he: "ספות", alts: [["ספה מתנפחת", "inflatable sofa"], ["כיסוי לספה", "sofa cover"]] },
+  { re: /^(?:מיטה|מיטות)(?:\s|$)/, he: "מיטות", alts: [["מזרון מתנפח", "inflatable air mattress"], ["מצעים", "bed sheet set"]] },
+  { re: /^(?:מזגן|מזגנים)(?:\s|$)/, he: "מזגנים", alts: [["מצנן אוויר נייד", "portable air cooler"], ["מאוורר נטען", "rechargeable fan"]] },
+  { re: /^(?:טלוויזיה|טלויזיה|טלוויזיות)(?:\s|$)/, he: "טלוויזיות", alts: [["מקרן נייד", "portable projector"], ["סטרימר לטלוויזיה", "android tv box"]] },
+];
+export function bigItem(text = "") {
+  const t = text.trim();
+  if (SMALL_KIND.test(t)) return null;
+  const b = BIG_ITEMS.find((x) => x.re.test(t));
+  return b ? { question: `עלי אקספרס כמעט לא שולח ${b.he} לישראל. אפשר למצוא:`, options: b.alts.map(([label_he, keywords_en]) => ({ label_he, keywords_en, max_price_ils: null })) } : null;
+}
+// A weak card (its best product sold under WEAK_SOLD times, or fewer than 4): the shopper is told it is AliExpress, not the bot.
+export const WEAK_SOLD = 50;
+export const WEAK_NOTE = "ℹ️ בעלי אקספרס יש מעט מוצרים נמכרים מהסוג הזה לישראל: כדאי לבדוק דירוג וביקורות לפני קנייה";
 export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
 // Israel: personal imports above $75 pay 18% VAT, collected by AliExpress at checkout (the $75 cap is back since June 2026).
@@ -436,9 +459,9 @@ function withBadges(p, [rating, sold]) {
   return rating ? [[rating, ...badges].join(" · ")] : [badges.join(" · ")];
 }
 
-function buildCard(products, query, demo, reasons, closest, rare) {
+function buildCard(products, query, demo, reasons, closest, rare, weak) {
   const fill = !closest && products.some((p) => p.brandFill);
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
@@ -466,10 +489,10 @@ function buildCard(products, query, demo, reasons, closest, rare) {
 }
 
 // Result card for up to 5 products; drops trailing products until the caption fits Telegram's limit.
-export function formatCard(products, { query, demo = false, reasons = null, closest = false, rare = false }) {
+export function formatCard(products, { query, demo = false, reasons = null, closest = false, rare = false, weak = false }) {
   let n = Math.min(products.length, MEDALS.length);
   let card;
-  do card = buildCard(products.slice(0, n--), query, demo, reasons, closest, rare);
+  do card = buildCard(products.slice(0, n--), query, demo, reasons, closest, rare, weak);
   while (n > 0 && parsedLength(card.caption) > CAPTION_MAX);
   return card;
 }

@@ -37,6 +37,8 @@ import {
   EMPTY_QUERY,
   NO_RESULTS,
   NO_FOOD,
+  bigItem,
+  WEAK_SOLD,
   NOT_PRODUCT,
   NOT_ALLOWED,
   OFF_TOPIC,
@@ -333,7 +335,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     for (const p of out.brand ?? []) known.add(keyOf(p));
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
-    if (alt && exact.length + partial.length < limit && Date.now() - started < SECOND_CHANCE_BUDGET_MS) {
+    // Also when the matches barely sell (the best under WEAK_SOLD): often the words, not the supply (slow juicers only for
+    // "מסחטת מיצים", 2026-11-04). One more AI call, only on these weak searches.
+    const weakSold = !style && Math.max(0, ...[...exact, ...near].map((p) => Number(p.lastest_volume) || 0)) < WEAK_SOLD;
+    if (alt && (exact.length + partial.length < limit || weakSold) && Date.now() - started < SECOND_CHANCE_BUDGET_MS) {
       const known = new Set([...first, ...more].map(keyOf));
       const fresh = await find(alt, [{}, ...byDefault, ...(category ? [inCategory.at(-1)] : [])]).then((l) => l.filter((p) => !known.has(keyOf(p))), () => []);
       if (fresh.length) {
@@ -704,6 +709,8 @@ export function createBot({
       if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
       if (isBlocked(intent, query)) return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);
+      const big = bigItem(intent?.corrected_he || query);
+      if (big) return showQuestion(ctx, Object.assign(newSession(ctx, query, null, null, intent?.keywords_en ?? null), { direct: true }), big.question, big.options);
       // "מוצר למטבח", "משהו לבית", "מתנה לאמא": always the advisor, even when the AI said "search" (it did for a typo).
       if (intent?.status === "ok" && VAGUE_START.test(intent.corrected_he || query)) {
         const step = await advise({ request: intent.corrected_he || query, history: [] }).catch(() => null);
@@ -821,7 +828,9 @@ export function createBot({
     // e.g. a brand AliExpress doesn't carry. Style items: "close" is usually another cut of the same thing (a maxi for an
     // evening dress), so the note is only for a card that is all another color.
     const closest = style ? shown.every((p) => p.offColor) : !shown.some((p) => p.match !== "partial");
-    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2 });
+    const weak = shown.length < GROUP_RESULTS || Math.max(0, ...shown.map((p) => Number(p.lastest_volume) || 0)) < WEAK_SOLD;
+    if (weak) stats.remember("weak", `${header} (${shown.map((p) => soldText(p.lastest_volume) ?? 0).join(" / ")})`);
+    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2, weak });
     const keyboard = [
       [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
       [{ text: MORE_LABEL, callback_data: `m:${id}` }], // nothing left -> the press answers "אין עוד תוצאות"

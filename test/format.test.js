@@ -494,3 +494,13 @@ test("family 3: a search for something that fits a named device or car gets the 
   assert.ok(formatCard([p], { query: "כיסוי לאייפון 17" }).caption.includes(MODELS_NOTE));
   assert.ok(!formatCard([p], { query: "אוזניות" }).caption.includes(MODELS_NOTE));
 });
+
+test("family 6: big items AliExpress hardly ships get buttons for what does ship; a weak card says so", async () => {
+  const { bigItem, formatCard, WEAK_NOTE } = await import("../format.js");
+  assert.deepEqual(bigItem("מכונת כביסה").options.map((o) => o.label_he), ["מכונת כביסה ניידת", "אביזרים למכונת כביסה"]);
+  assert.match(bigItem("ספה תלת מושבית").question, /כמעט לא שולח ספות/);
+  for (const t of ["מכונת כביסה ניידת", "כיסוי לספה", "מקרר קטן לרכב", "מגנט למקרר", "אוזניות"]) assert.equal(bigItem(t), null, t);
+  const p = (sold) => ({ product_title: "x", target_sale_price: "10", target_sale_price_currency: "ILS", lastest_volume: String(sold), promotion_link: "https://s.click.aliexpress.com/e/_x" });
+  assert.ok(formatCard([p(20), p(5)], { query: "מפזר חום", weak: true }).caption.includes(WEAK_NOTE));
+  assert.ok(!formatCard([p(2000)], { query: "אוזניות" }).caption.includes(WEAK_NOTE));
+});

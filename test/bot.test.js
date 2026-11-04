@@ -1550,3 +1550,18 @@ test("the search fails only when every list failed: other wordings carry it when
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
   assert.equal(ctx.sent()[0].method, "sendPhoto");
 });
+
+test("family 6: 'מכונת כביסה' gets a question with buttons for what ships; a weak card gets the note and the digest", async () => {
+  const ctx = setup({ search: async () => assert.fail("no search before a button"), understand: async () => intent({ corrected_he: "מכונת כביסה", keywords_en: "washing machine" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מכונת כביסה"));
+  assert.match(ctx.sent()[0].body, /כמעט לא שולח מכונות כביסה/);
+  assert.deepEqual(ctx.sent()[0].reply_markup.inline_keyboard.slice(0, 2).map((r) => r[0].text), ["מכונת כביסה ניידת", "אביזרים למכונת כביסה"]);
+  const { createStats } = await import("../stats.js");
+  const stats = createStats();
+  const weak = SIX.map((p) => ({ ...p, lastest_volume: "12" }));
+  const c2 = setup({ search: async () => weak, stats, understand: async () => intent({ corrected_he: "מפזר חום", keywords_en: "space heater" }) });
+  await c2.bot.handleUpdate(textUpdate("חפש לי מפזר חום"));
+  assert.match(c2.sent()[0].body, /מעט מוצרים נמכרים/);
+  stats.count("search");
+  assert.match(stats.digest(), /כרטיס חלש[\s\S]*מפזר חום/);
+});
