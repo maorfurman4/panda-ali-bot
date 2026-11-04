@@ -462,7 +462,7 @@ export function bigItem(text = "") {
   const t = text.trim();
   if (SMALL_KIND.test(t)) return null;
   const b = BIG_ITEMS.find((x) => x.re.test(t));
-  return b ? { question: `עלי אקספרס כמעט לא שולח ${b.he} לישראל. אפשר למצוא:`, options: b.alts.map(([label_he, keywords_en]) => ({ label_he, keywords_en, max_price_ils: null })) } : null;
+  return b ? { question: `עלי אקספרס כמעט לא שולחת ${b.he} לישראל. אפשר למצוא:`, options: b.alts.map(([label_he, keywords_en]) => ({ label_he, keywords_en, max_price_ils: null })) } : null;
 }
 // A weak card (its best product sold under WEAK_SOLD times, or fewer than 4): the shopper is told it is AliExpress, not the bot.
 export const WEAK_SOLD = 50;
@@ -582,7 +582,7 @@ export const PRIVATE_INVITE = rtl([
 ]);
 export const PRIVATE_BUTTON = "החיפוש עובד בקבוצת פנדה אקספרס 🐼";
 
-export const NOT_PRODUCT = rtl(["🤔 לא הבנתי מה לחפש.", 'נסו לכתוב שוב: "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
+export const NOT_PRODUCT = rtl(["🤔 לא הבנתי מה לחפש.", 'כתבו "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
 export const OFF_TOPIC = rtl(["🐼 שימו לב: הקבוצה מיועדת למוצרים ודילים מעלי אקספרס.", 'לחיפוש מוצר כתבו "חפש לי" ואחריו שם המוצר, למשל: חפש לי מטען לרכב']);
 export const LINK_HELP = rtl(["🔗 אני ממיר רק קישורים של מוצרים מעלי אקספרס.", "באפליקציה: נכנסים למוצר ← שיתוף ← העתקת קישור, ומדביקים כאן."]);
 export const NOT_ALLOWED = rtl(["🙏 את זה אני לא מחפש בקבוצה.", "אשמח לעזור עם כל מוצר אחר, למשל: חפש לי אוזניות אלחוטיות"]);
@@ -600,8 +600,8 @@ export const ADVICE_EMPTY = rtl(["על מה להתייעץ? לדוגמה: /advic
 export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
 export const CLARIFY_EXPIRED = "הבקשה פגה, חפשו שוב";
 export const EMPTY_QUERY = rtl(["מה לחפש? לדוגמה: חפש לי אוזניות אלחוטיות"]);
-export const NO_FOOD = rtl(["😕 עלי אקספרס כמעט לא שולח מזון לישראל, ולכן אין תוצאות.", "אפשר לחפש אביזרים, למשל: חפש לי מטחנת קפה ידנית"]);
-export const NO_RESULTS = rtl(["😕 לא מצאתי מוצרים שמתאימים בדיוק למה שביקשתם, אבל אני כאן בשבילכם!", "נסו לנסח את הבקשה קצת אחרת או יותר כללי, למשל: חפש לי מטען לאייפון 🙂"]);
+export const NO_FOOD = rtl(["😕 עלי אקספרס כמעט לא שולחת מזון לישראל, ולכן אין תוצאות.", "אפשר לחפש אביזרים, למשל: חפש לי מטחנת קפה ידנית"]);
+export const NO_RESULTS = rtl(["🙈 לא מצאתי משהו שמתאים בדיוק, אבל אני כאן בשבילכם!", "נסו לכתוב את זה קצת אחרת או כללי יותר, למשל: חפש לי מטען לאייפון 😊"]);
 export const HOW_TO_SEARCH = rtl(["🐼 היי! הקבוצה מיועדת לדילים ולמוצרים מעלי אקספרס בלבד.", 'מחפשים משהו? כתבו "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
 export const guideText = (name) => rtl(['🙂 כדי שאוכל לעזור בצורה הכי טובה, כתבו "חפש לי" ואחריו שם המוצר.', `למשל: חפש לי ${esc(name)}`]);
 export const SEARCH_ERROR = rtl(["😕 הייתה תקלה בחיבור לעלי אקספרס. נסו שוב בעוד דקה."]);

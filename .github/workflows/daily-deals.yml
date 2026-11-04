@@ -45,6 +45,7 @@ jobs:
         env:
           DEALS_BOT_TOKEN: ${{ secrets.DEALS_BOT_TOKEN }}
           DEALS_CHAT_ID: ${{ secrets.DEALS_CHAT_ID }}
+          DEALS_OWNER_ID: ${{ secrets.DEALS_OWNER_ID }}
           DEALS_FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
           DEALS_SPECIAL: ${{ inputs.special }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

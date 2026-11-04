@@ -226,7 +226,8 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     if (api) await sendDeal(api, chatId, p, caption, { collage, log });
     else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
-    return { ...state, [topicKey]: topic, posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED) };
+    const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };
+    return { ...state, [topicKey]: topic, posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
   }
   log("no topic gave a good item; nothing posted");
   return state;
@@ -276,7 +277,7 @@ export async function postSet(state, { api, chatId, search = searchProducts, sho
     }
   } else log(`[dry run, nothing sent]\n${caption}`);
   log(`posted the set "${set.name}": ${shortened.map((p) => p.product_id).join(", ")}`);
-  return { ...state, setIndex: index, posted: [...posted, ...shortened.map((p) => String(p.product_id))].slice(-KEEP_POSTED) };
+  return { ...state, setIndex: index, posted: [...posted, ...shortened.map((p) => String(p.product_id))].slice(-KEEP_POSTED), log: [...(state.log ?? []), { at: Date.now(), name: `סט של ${shortened.length} מוצרים` }].slice(-40) };
 }
 
 // One hourly run: posts only at this kind of day's hours (force: post now). One post a day may be a holiday or series
@@ -317,4 +318,35 @@ export async function runDeals(state, { now = new Date(), force = false, special
   }
   if (next === state) next = await postDeal(state, { ...deps, log, banner });
   return next === state ? state : { ...next, slot, ...(sale ? { saleTurn: turn + 1 } : {}) };
+}
+
+// The owner's nightly summary (owner, 2026-11-04), sent once a day after the last post (23:00 Israel time): members and the
+// change since yesterday, and the day's posts. Who clicked a link Telegram never tells a bot; views per post show in the
+// channel itself. The owner must have pressed Start in this bot once, or Telegram refuses the message.
+export function statusText({ day, members, prevMembers, posts }) {
+  const diff = prevMembers == null ? "" : ` (${members - prevMembers >= 0 ? "+" : ""}${(members - prevMembers).toLocaleString("en-US")} מאתמול)`;
+  const hhmm = (at) => new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit" }).format(new Date(at));
+  return [
+    `📊 <b>סיכום יומי: פנדה דילים יומיים</b> (${day.split("-").reverse().join(".")})`,
+    "",
+    `👥 חברים בערוץ: ${members == null ? "לא ידוע" : members.toLocaleString("en-US")}${members == null ? "" : diff}`,
+    `📮 פוסטים היום: ${posts.length}`,
+    ...posts.map((x) => `• ${hhmm(x.at)} · ${esc(x.name)}${x.price ? ` · ₪${x.price}` : ""}`),
+    "",
+    "👁 צפיות לכל פוסט רואים בערוץ עצמו, מתחת לפוסט",
+  ].map((l) => RLM + l).join("\n");
+}
+
+export async function sendDailyStatus(state, { api, chatId, ownerId, now = new Date(), log = console.log }) {
+  const t = israelTime(now);
+  if (!api || !ownerId || t.hour !== 23 || state.statusDay === t.day) return state;
+  const members = await api.getChatMemberCount(chatId).catch((e) => (log(`member count failed (${e.description ?? e.message})`), null));
+  const posts = (state.log ?? []).filter((x) => israelTime(new Date(x.at)).day === t.day);
+  try {
+    await api.sendMessage(ownerId, statusText({ day: t.day, members, prevMembers: state.members ?? null, posts }), { parse_mode: "HTML" });
+  } catch (e) {
+    log(`daily status failed (${e.description ?? e.message}): the owner must press Start in this bot once`);
+    return state;
+  }
+  return { ...state, statusDay: t.day, ...(members == null ? {} : { members }) };
 }

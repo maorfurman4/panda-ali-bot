@@ -61,7 +61,9 @@ test("postDeal: next topic in turn, the AI's pick, remembers what it posted", as
   assert.equal(sent[0][0], -100);
   assert.equal(sent[0][1], "https://ae01.alicdn.com/2.jpg");
   assert.deepEqual(sent[0][2].reply_markup.inline_keyboard, [[{ text: "🛒 לקנייה בעלי אקספרס", url: "https://s.click.aliexpress.com/e/2" }]], "a buy button under the post");
-  assert.deepEqual(state, { topic: 1, posted: ["9", "2"] });
+  const { log: posts, ...rest } = state;
+  assert.deepEqual(rest, { topic: 1, posted: ["9", "2"] });
+  assert.equal(posts.length, 1, "the post is logged for the nightly status");
 });
 
 test("postDeal: skips a topic whose best sellers aren't its item (the AI says none)", async () => {
@@ -265,4 +267,25 @@ test("a deal post shows real stars when the review summary answers", async () =>
   const api = { sendPhoto: async (_c, _p, o) => sent.push(o.caption), sendMessage: async (_c, t) => sent.push(t), sendVideo: async () => {} };
   await postDeal({}, { api, chatId: 1, search: async () => [p], shorten: async (l) => l, pick: async () => ({ i: 0, headline: "x", name: "מטען לרכב" }), collage: async () => null, stars: async (l) => l.map((x) => ({ ...x, avgStars: 4.8, reviewCount: 1200 })), topics: [["car charger", 34]], log: () => {} });
   assert.match(sent[0], /⭐ דירוג: 4\.8 \(1,200 ביקורות\)/);
+});
+
+test("nightly status (owner, 2026-11-04): once after the 23:00 post, members and change, the day's posts; needs the owner id", async () => {
+  const { sendDailyStatus, statusText } = await import("../deals.js");
+  const sent = [];
+  const api = { getChatMemberCount: async () => 1250, sendMessage: async (id, text) => sent.push({ id, text }) };
+  const at23 = new Date("2026-11-04T21:05:00Z"); // 23:05 Israel (winter)
+  const state = { members: 1200, log: [{ at: Date.parse("2026-11-04T05:02:00Z"), name: "אוזניות אלחוטיות", price: "45.90" }, { at: Date.parse("2026-11-03T19:02:00Z"), name: "אתמול" }] };
+  const next = await sendDailyStatus(state, { api, chatId: "-100", ownerId: "7", now: at23, log: () => {} });
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /חברים בערוץ: 1,250 \(\+50 מאתמול\)/);
+  assert.match(sent[0].text, /פוסטים היום: 1/);
+  assert.match(sent[0].text, /07:02 · אוזניות אלחוטיות · ₪45.90/);
+  assert.doesNotMatch(sent[0].text, /אתמול ·/);
+  assert.equal(next.members, 1250);
+  assert.equal((await sendDailyStatus(next, { api, chatId: "-100", ownerId: "7", now: at23, log: () => {} })), next, "once a day");
+  assert.equal(sent.length, 1);
+  const noon = new Date("2026-11-04T10:00:00Z");
+  assert.equal(await sendDailyStatus(state, { api, chatId: "-100", ownerId: "7", now: noon, log: () => {} }), state, "only at 23:00");
+  assert.equal(await sendDailyStatus(state, { api, chatId: "-100", ownerId: null, now: at23, log: () => {} }), state, "no owner id: nothing");
+  assert.match(statusText({ day: "2026-11-04", members: null, prevMembers: null, posts: [] }), /לא ידוע/);
 });

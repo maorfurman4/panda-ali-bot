@@ -6,7 +6,7 @@
 // Usage: npm run deal
 import { readFile, writeFile } from "node:fs/promises";
 import { Api } from "grammy";
-import { runDeals } from "../deals.js";
+import { runDeals, sendDailyStatus } from "../deals.js";
 import { addStars } from "../aliexpress.js";
 
 const file = process.env.DEALS_STATE || "deals-state.json";
@@ -20,5 +20,7 @@ if (token && !chatId) {
   chatId = chat.id;
   console.log(`channel found: ${chat.title} (${chatId}); save this id as the DEALS_CHAT_ID secret`);
 }
-const next = await runDeals(state, { api: token ? new Api(token) : null, chatId, stars: addStars, force: process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
+let next = await runDeals(state, { api: token ? new Api(token) : null, chatId, stars: addStars, force: process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
+// The owner's nightly summary after the last post (DEALS_OWNER_ID = the owner's numeric Telegram id, like ADMIN_USER_ID).
+if (token) next = await sendDailyStatus(next, { api: new Api(token), chatId, ownerId: process.env.DEALS_OWNER_ID });
 await writeFile(file, JSON.stringify(next));

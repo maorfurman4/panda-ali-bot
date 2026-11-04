@@ -36,9 +36,9 @@ test("spam: delete + warning 1/2, delete + warning 2/2, then removal", async () 
   const spam = () => ctx.bot.handleUpdate(textUpdate("ערוץ מבצעים t.me/some_channel", { userId: 9 }));
   await spam();
   assert.deepEqual(methods(ctx.calls), ["deleteMessage", "sendMessage"]);
-  assert.match(ctx.sent()[0].body, /אזהרה 1 מתוך 2/);
+  assert.match(ctx.sent()[0].body, /אזהרה ראשונה מתוך 2/);
   await spam();
-  assert.match(ctx.sent()[1].body, /אזהרה 2 מתוך 2/);
+  assert.match(ctx.sent()[1].body, /אזהרה אחרונה: בפעם הבאה תוצאו/);
   await spam();
   const ban = ctx.calls.find((c) => c.method === "banChatMember");
   assert.equal(ban.payload.user_id, 9);

@@ -86,7 +86,8 @@ export function createModeration({ now = Date.now } = {}) {
     console.log(`chat ${ctx.chat.id}: moderation deleted a message (strike ${count})`);
     if (count <= 2) {
       strikes.set(key, { count, at: now() });
-      return say(ctx, `⚠️ ${name}, ההודעה נמחקה (${reason}). אזהרה ${count} מתוך 2. בפעם הבאה תוצאו מהקבוצה.`);
+      // The first warning said "next time you're out", but the next time is the 2nd warning (owner's review, 2026-11-04).
+      return say(ctx, count === 1 ? `⚠️ ${name}, ההודעה נמחקה (${reason}). זו אזהרה ראשונה מתוך 2.` : `⚠️ ${name}, ההודעה נמחקה (${reason}). זו אזהרה אחרונה: בפעם הבאה תוצאו מהקבוצה.`);
     }
     strikes.delete(key);
     try {
