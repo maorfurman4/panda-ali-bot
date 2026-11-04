@@ -580,7 +580,9 @@ A "Looks like" line, when given, defines the item: a product that doesn't look l
 says the item is NOT, is not the item (for a hair headband, elastic hair ties are left out).
 The request is everyday Hebrew: the item type is what an Israeli means by the word ("מסרק לשיער" covers hair combs AND
 hair brushes, so an anti-static or detangling hair brush is exact; "תחתית לסיר" covers any heat-resistant pad or trivet for pots). An item that does the requested job with an
-extra feature (a massage, anti-static, detangling or foldable comb) is still the item: exact. A head, nozzle, sprayer,
+extra feature (a massage, anti-static, detangling or foldable comb) is still the item: exact. A product made to do the job
+the request names ("מסיר X", "מנקה X", "פותחן X") is the item whatever its form: for "מסיר מדבקות" a sticker remover spray
+or liquid AND a scraper made for removing stickers or labels are exact (scrapers were left out, 2026-11-04). A head, nozzle, sprayer,
 extender or aerator that attaches to the item is an add-on, not the item (a faucet sprayer head is not a faucet).
 Styles and close variants of the item count. When the request names a brand, items that show that brand (in Latin or Hebrew
 letters: "נידו" in a title is NeeDoh) are exact;
@@ -764,7 +766,11 @@ Precision (owner, 2026-11-02: up to 3 questions, each one exact for the category
 - Every option is a whole, meaningful choice on its own: never a lone word cut from the request ("למים" for "מטען מהיר למים").
 - One topic per question, and the question matches its options: never "איזו מתנה ובאיזה תקציב?" with only kinds of
   items as options. The budget, when asked, is its own question whose options are price ranges.
-- Spell every Hebrew label correctly (a typo shows in the card's header).`;
+- Spell every Hebrew label correctly (a typo shows in the card's header).
+- "done" needs a concrete product kind among the answers. A budget or a person alone is not one: after "עד 50 ₪" for
+  "מתנה לילד בן 8" ask which kind, with popular concrete kinds for that person and budget ("מכונית על שלט", "לגו", "משחק
+  קופסה"). keywords_en always names the product kind ("remote control car", "building blocks"), never "gift for ..."
+  ("gift for 8 year old boy" found pencil cases sold 4 times; owner, 2026-11-04).`;
 
 const ADVISOR_SCHEMA = {
   type: "object",
