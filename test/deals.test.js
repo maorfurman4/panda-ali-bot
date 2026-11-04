@@ -129,7 +129,7 @@ function deps({ sale = [], promoEmpty = false } = {}) {
 test("runDeals: posts only at the day's hours and once per hour; a manual run posts at once", async () => {
   const d = deps();
   const state = { posted: [] };
-  assert.equal(await runDeals(state, { ...d.opts, now: at("2026-10-30T08:05:00Z") }), state, "10:00 on a normal day");
+  assert.equal(await runDeals(state, { ...d.opts, now: at("2026-10-30T04:05:00Z") }), state, "06:00, before the first post");
   const next = await runDeals(state, { ...d.opts, now: at("2026-10-30T07:05:00Z") });
   assert.equal(next.slot, "2026-10-30 9");
   assert.equal(await runDeals(next, { ...d.opts, now: at("2026-10-30T07:40:00Z") }), next, "a late duplicate run in the same hour");
@@ -202,13 +202,13 @@ test("upcomingHoliday: by the Hebrew calendar, from 30 days ahead; back to schoo
 
 test("specialFor: the holiday item is the day's second-to-last post, the weekly series its third", () => {
   const holiday = { name: "חנוכה", emoji: "🕎", days: 12, topics: [["hanukkah menorah", null]] };
-  const tue = { hour: 21, wd: 2 };
+  const tue = { hour: 22, wd: 2 }; // hourly from 2026-11-04: second-to-last is 22:00, third is 09:00
   assert.match(specialFor(tue, "normal", holiday).banner, /🕎 לקראת חנוכה · עוד 12 ימים/);
   assert.equal(specialFor({ hour: 22, wd: 2 }, "peak", holiday).key, "holidayTopic", "peak days: 22:00");
   assert.equal(specialFor({ hour: 12, wd: 2 }, "normal", holiday), null, "Tuesday has no series");
-  const sunday = specialFor({ hour: 12, wd: 0 }, "normal", null);
+  const sunday = specialFor({ hour: 9, wd: 0 }, "normal", null);
   assert.deepEqual([sunday.banner, sunday.maxIls], ["💸 מתחת ל-10 ₪", 10]);
-  const wed = specialFor({ hour: 11, wd: 3 }, "sale", null);
+  const wed = specialFor({ hour: 9, wd: 3 }, "sale", null);
   assert.equal(wed.banner, "⚡ גאדג'ט השבוע");
   assert.ok(wed.topics.every(([, c]) => [44, 509, 7, 6, 39].includes(c)));
 });
@@ -217,7 +217,7 @@ test("runDeals: the holiday post walks its own topics with a price floor of its 
   const d = deps();
   const searched = [];
   d.opts.search = async (w, o) => (searched.push([w, o.maxIls]), [item("h1"), item("h2"), item("h3")]);
-  const state = await runDeals({ posted: [] }, { ...d.opts, now: at("2026-11-20T19:05:00Z") }); // Friday 21:00, Hanukkah in 15 days
+  const state = await runDeals({ posted: [] }, { ...d.opts, now: at("2026-11-20T20:05:00Z") }); // Friday 22:00, Hanukkah in 15 days
   assert.equal(searched[0][0], "hanukkah menorah");
   assert.match(d.sent[0], /🕎 לקראת חנוכה · עוד 15 ימים/);
   assert.equal(state.holidayTopic, 0);
@@ -244,7 +244,7 @@ test("postSet: the most sold fitting item of each of the set's 3 topics, one col
 });
 
 test("specialFor: Thursday's third post is the perfect set", () => {
-  assert.deepEqual(specialFor({ hour: 12, wd: 4 }, "normal", null), { set: true });
+  assert.deepEqual(specialFor({ hour: 9, wd: 4 }, "normal", null), { set: true });
   assert.equal(specialFor({ hour: 15, wd: 4 }, "normal", null), null);
 });
 

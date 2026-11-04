@@ -958,8 +958,17 @@ export function createBot({
   // "pin messages" right in the group.
   bot.command("pin_welcome", async (ctx) => {
     if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId) || !groupId) return;
+    const extra = { parse_mode: "HTML", link_preview_options: { is_disabled: true } };
     try {
-      const msg = await ctx.api.sendMessage(groupId, WELCOME_PIN, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+      // Already pinned by the bot: edited in place, no new message or pin (owner, 2026-11-04).
+      const pinned = (await ctx.api.getChat(groupId).catch(() => null))?.pinned_message;
+      if (pinned?.from?.id === ctx.me.id) {
+        await ctx.api.editMessageText(groupId, pinned.message_id, WELCOME_PIN, extra).catch((e) => {
+          if (!/not modified/i.test(e.description ?? e.message)) throw e;
+        });
+        return ctx.reply("✅ הודעת הפתיחה המוצמדת עודכנה.");
+      }
+      const msg = await ctx.api.sendMessage(groupId, WELCOME_PIN, extra);
       await ctx.api.unpinAllChatMessages(groupId);
       await ctx.api.pinChatMessage(groupId, msg.message_id, { disable_notification: true });
       return ctx.reply("✅ הודעת הפתיחה נשלחה לקבוצה והוצמדה. ההצמדות הישנות בוטלו.");

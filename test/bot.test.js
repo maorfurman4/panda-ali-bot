@@ -1587,9 +1587,17 @@ test("/pin_welcome (owner, in private): posts the welcome to the group, clears o
   await ctx.bot.handleUpdate(textUpdate("/pin_welcome", { userId: 8, chat: "private" }));
   assert.equal(ctx.calls.length, 0, "not the owner");
   await ctx.bot.handleUpdate(textUpdate("/pin_welcome", { userId: 7, chat: "private" }));
-  const methods = ctx.calls.map((c) => c.method);
+  const methods = ctx.calls.map((c) => c.method).filter((m) => m !== "getChat");
   assert.deepEqual(methods.slice(0, 3), ["sendMessage", "unpinAllChatMessages", "pinChatMessage"]);
-  assert.equal(String(ctx.calls[0].payload.chat_id), "-100555");
-  assert.match(ctx.calls[0].payload.text, /ברוכים הבאים לפנדה אקספרס/);
-  assert.doesNotMatch(ctx.calls[0].payload.text, /קישורי שותפים/);
+  const post = ctx.calls.find((c) => c.method === "sendMessage");
+  assert.equal(String(post.payload.chat_id), "-100555");
+  assert.match(post.payload.text, /ברוכים הבאים לפנדה אקספרס/);
+  assert.match(post.payload.text, /דיל חם כל שעה/);
+  assert.doesNotMatch(post.payload.text, /קישורי שותפים/);
+  // Already pinned by the bot: edited in place, nothing new sent or pinned.
+  const again = setup({ adminId: "7", groupId: "-100555", chatInfo: { id: -100555, type: "supergroup", pinned_message: { message_id: 55, date: 0, chat: { id: -100555, type: "supergroup" }, from: { id: 42, is_bot: true, first_name: "bot" } } } });
+  await again.bot.handleUpdate(textUpdate("/pin_welcome", { userId: 7, chat: "private" }));
+  const m2 = again.calls.map((c) => c.method);
+  assert.ok(m2.includes("editMessageText") && !m2.includes("pinChatMessage"), m2.join(","));
+  assert.equal(again.calls.find((c) => c.method === "editMessageText").payload.message_id, 55);
 });

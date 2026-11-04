@@ -18,7 +18,7 @@ export const BOT_INFO = {
 // understand defaults to "AI unavailable" (null), i.e. the raw query is searched.
 // Network-free defaults: no collage (single photo URL) and no relevance filtering.
 // admins: user ids returned by getChatAdministrators.
-export function setup({ failMethods = [], admins = [], understand = async () => null, collage = async () => null, hash = async () => null, shorten = async (p) => p, relevant = async (_r, p) => ({ exact: p, partial: [] }), look = async () => null, advise = async () => null, explain = async () => null, title = async () => null, stars = async () => null, ...opts } = {}) {
+export function setup({ failMethods = [], admins = [], chatInfo = null, understand = async () => null, collage = async () => null, hash = async () => null, shorten = async (p) => p, relevant = async (_r, p) => ({ exact: p, partial: [] }), look = async () => null, advise = async () => null, explain = async () => null, title = async () => null, stars = async () => null, ...opts } = {}) {
   const calls = [];
   const bot = createBot({ token: "123:TEST", botInfo: BOT_INFO, understand, collage, hash, shorten, relevant, look, advise, explain, title, stars, doubleTapMs: 0, adminId: "7", groupId: null, privateChat: true, ...opts }); // tests may use any group and private chats
   bot.api.config.use(async (_prev, method, payload) => {
@@ -27,7 +27,9 @@ export function setup({ failMethods = [], admins = [], understand = async () => 
     const isSend = method === "sendMessage" || method === "sendPhoto";
     const result = isSend
       ? { message_id: 999, date: 0, chat: { id: payload.chat_id, type: "supergroup" } }
-      : method === "getChatAdministrators"
+      : method === "getChat" && chatInfo
+        ? chatInfo
+        : method === "getChatAdministrators"
         ? admins.map((id) => ({ status: "administrator", user: { id, is_bot: false, first_name: "A" } }))
         : true;
     return { ok: true, result };

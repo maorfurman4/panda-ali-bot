@@ -34,7 +34,10 @@ const KEEP_POSTED = 500; // product ids remembered so a deal isn't posted twice
 
 // Posting hours (Israel time) by kind of day (owner: more posts on sale days, the most on the big shopping days).
 // 07:00 is the first post and 23:00 the last of every day (owner, 2026-10-30/31).
-export const SCHEDULE = { normal: [7, 9, 12, 15, 18, 21, 23], sale: [7, 9, 11, 13, 15, 17, 19, 21, 23], peak: [7, 9, 10, 11, 12, 14, 16, 18, 19, 20, 21, 22, 23] };
+// Every hour, 07:00-23:00, on every kind of day (owner, 2026-11-04: a deal every hour; every half hour would flood the
+// channel and use up the strong products). Sale and peak days keep their banners and sale lists.
+const HOURLY = Array.from({ length: 17 }, (_, i) => 7 + i);
+export const SCHEDULE = { normal: HOURLY, sale: HOURLY, peak: HOURLY };
 // The big shopping days (MM-DD). shortcut: Black Friday and Cyber Monday move every year (these are 2026); update each autumn.
 export const PEAK_DAYS = { "11-11": "11.11", "11-27": "בלאק פריידיי", "11-30": "סייבר מאנדיי", "12-12": "12.12" };
 
