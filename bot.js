@@ -62,6 +62,7 @@ import {
   offTheme,
   specialKind,
   fakeLuxury,
+  fakeCapacity,
   singleForSet,
   modelKey,
   sameModel,
@@ -402,7 +403,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Only one that sold at least twice the best proven exact one: a 37,295-sold car holder ("near") led "מעמד לטלפון" over
   // 34,784-sold desk stands without this limit.
   const bestExact = Math.max(0, ...exactProven.map((p) => Number(p.lastest_volume)));
-  const strongNear = style ? [] : near.filter((p) => proven(p) && Number(p.lastest_volume) >= 2 * bestExact);
+  // Family 1 (2026-11-04): every proven "near" now ranks with them; the car holders that needed the limit are moved to
+  // close by carCharger since 2026-11-02, and a strong "near" earbud or speaker sat after weak exact ones.
+  const strongNear = style ? [] : near.filter(proven);
   const short = Math.max(0, limit - exact.length - near.length - partial.length);
   const tiers = [style ? exactProven : rankProducts([...exactProven, ...strongNear]), lead, near.filter((p) => proven(p) && !strongNear.includes(p)), partial.filter(proven), exactSold.slice(lead.length), near.filter((p) => !proven(p)), exact.filter((p) => !sold(p)), partial.filter((p) => !proven(p)), rankProducts(brandFill).slice(0, short).map((p) => ({ ...p, brandFill: true }))];
   // "הכי זול": the matches cheapest first (exact before partial); the quality and suspicious-price filters still apply.
@@ -412,6 +415,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Few results: the same model from another seller is still a choice, usually at another price (Ruckus R350 at ₪1,179
   // and ₪1,859; the competitor showed both, 2026-10-29). The photo check below still drops identical listings.
   if (ranked.length < limit) ranked = ranked.concat(all.filter((p) => !ranked.includes(p)).slice(0, limit - ranked.length));
+  // Fake capacity (a ₪20 "2TB"): after every real one; fakeMoved marks one that would have been on the card, so it says why.
+  const fake = (p) => fakeCapacity(p.product_title, p.target_sale_price ?? p.sale_price);
+  const top = new Set(ranked.slice(0, limit));
+  ranked = [...ranked.filter((p) => !fake(p)), ...ranked.filter(fake).map((p) => ({ ...p, fakeCap: true, ...(top.has(p) ? { fakeMoved: true } : {}) }))];
   // Photo check on the candidates that can still be shown (2× the need, so removed repeats get refilled).
   let shown = hash ? await dedupeByPhoto(ranked.slice(0, (limit + extra) * 2), hash) : [...ranked];
   // Always 4 when there are 4 (owner): with few matches the same model from another seller, dropped as a photo repeat, comes
@@ -521,7 +528,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // their first photos, showed the same second photo in one card (owner's test, 2026-11-02). Checked again only then.
   if (hash && (banners.size || shown.some((p) => p.colorPick))) shown = await dedupeByPhoto(shown, hash);
   shown = sellerFirst(shown, limit); // one moved up when the photo check dropped the leader
-  return shown.slice(0, limit + extra);
+  // A fake that would have led was moved down: every returned product carries it, so the card (and "עוד") can say why.
+  const out = shown.slice(0, limit + extra);
+  return ranked.some((p) => p.fakeMoved) ? out.map((p) => ({ ...p, fakesSkipped: true })) : out;
 }
 
 // The card's final order, once names and stars are in (the bot and the search-quality check share it).
@@ -830,7 +839,7 @@ export function createBot({
     const closest = style ? shown.every((p) => p.offColor) : !shown.some((p) => p.match !== "partial");
     const weak = shown.length < GROUP_RESULTS || Math.max(0, ...shown.map((p) => Number(p.lastest_volume) || 0)) < WEAK_SOLD;
     if (weak) stats.remember("weak", `${header} (${shown.map((p) => soldText(p.lastest_volume) ?? 0).join(" / ")})`);
-    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2, weak });
+    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2, weak, fakes: shown.some((p) => p.fakesSkipped) });
     const keyboard = [
       [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
       [{ text: MORE_LABEL, callback_data: `m:${id}` }], // nothing left -> the press answers "אין עוד תוצאות"

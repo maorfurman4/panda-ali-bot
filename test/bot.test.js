@@ -942,7 +942,15 @@ test("a proven 'near' item is ranked with the exact ones by sales, not after all
   const close = [...items.slice(0, 14), product(98, { lastest_volume: "2000" })];
   const relevant2 = async (_r, p) => ({ exact: p.filter((x) => !x.promotion_link.endsWith("_p98")), near: p.filter((x) => x.promotion_link.endsWith("_p98")), partial: [] });
   const out = await pickProducts({ search: async () => close, relevant: relevant2, live: true }, { keywords: "phone stand", context: "מעמד לטלפון", limit: 4, extra: 8 });
-  assert.notEqual(out[0].promotion_link.slice(-4), "_p98", "under twice the best exact one's sales: it waits behind them");
+  assert.equal(out[0].promotion_link.slice(-4), "_p98", "any proven near ranks by sales with the exact ones (family 1, 2026-11-04); car holders for a desk stand are moved to close by code");
+});
+
+test("fake capacity (a ₪18 '2TB' flash drive) goes after the real ones and is marked for the card note", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const items = [product(1, { product_title: "Lenovo דיסק און קי 2TB USB 3.0", target_sale_price: "18", lastest_volume: "9000" }), ...Array.from({ length: 5 }, (_, i) => product(i + 2, { product_title: `SanDisk דיסק און קי ${64 * (i + 1)}GB`, target_sale_price: "40", lastest_volume: String(3000 - i * 100) }))];
+  const out = await pickProducts({ search: async () => items, relevant: async (_r, p) => ({ exact: p, partial: [] }), live: true }, { keywords: "usb flash drive", context: "דיסק און קי", limit: 4, extra: 8 });
+  assert.ok(!out.slice(0, 4).some((p) => /2TB/.test(p.product_title)), "the fake is not on the card");
+  assert.ok(out.find((p) => /2TB/.test(p.product_title))?.fakeMoved, "marked: it would have led the card");
 });
 
 test("one AI call judges both the main and the broader search (no second check)", async () => {

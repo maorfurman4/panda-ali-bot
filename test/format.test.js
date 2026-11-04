@@ -20,6 +20,10 @@ import {
   esc,
   RLM,
   HELP,
+  fakeCapacity,
+  FAKE_SKIPPED_NOTE,
+  FAKE_SHOWN_NOTE,
+  CLONE_NOTE,
 } from "../format.js";
 
 test("parses evaluate_rate strings safely", () => {
@@ -503,4 +507,27 @@ test("family 6: big items AliExpress hardly ships get buttons for what does ship
   const p = (sold) => ({ product_title: "x", target_sale_price: "10", target_sale_price_currency: "ILS", lastest_volume: String(sold), promotion_link: "https://s.click.aliexpress.com/e/_x" });
   assert.ok(formatCard([p(20), p(5)], { query: "מפזר חום", weak: true }).caption.includes(WEAK_NOTE));
   assert.ok(!formatCard([p(2000)], { query: "אוזניות" }).caption.includes(WEAK_NOTE));
+});
+
+test("fakeCapacity: storage, power banks and chargers whose capacity the price rules out; a multi-size listing by its smallest", () => {
+  assert.equal(fakeCapacity("Lenovo דיסק און קי 2TB 1TB 512GB USB 3.0", 18), true);
+  assert.equal(fakeCapacity("SanDisk כרטיס זיכרון micro sd 64GB 128GB 256GB 1TB", 30), false, "a real listing shows its smallest size's price");
+  assert.equal(fakeCapacity("SanDisk Extreme כרטיס זיכרון 1TB", 250), false);
+  assert.equal(fakeCapacity("דיסק און קי חדש בנפח 2 טרה-בייט USB 3.0", 12.69), true, "Hebrew units");
+  assert.equal(fakeCapacity("SanDisk דיסק און קי 64GB", 30), false);
+  assert.equal(fakeCapacity("סוללה ניידת 50000mAh מטען מהיר", 25), true);
+  assert.equal(fakeCapacity("Baseus סוללה ניידת 20000mAh 65W", 90), false);
+  assert.equal(fakeCapacity("סוללה ניידת 10,000mAh", 30), false);
+  assert.equal(fakeCapacity("מטען לרכב 350W USB C", 6), true);
+  assert.equal(fakeCapacity("Ugreen מטען 100W GaN", 120), false);
+  assert.equal(fakeCapacity("מכונת תספורת 1200mAh", 40), false, "mAh on something that isn't a power bank");
+});
+
+test("card notes: fakes skipped or shown, and the look-alike note for Apple earbuds (not for an AirPods case)", () => {
+  const p = { product_title: "x", target_sale_price: "40", target_sale_price_currency: "ILS", lastest_volume: "900", promotion_link: "https://s.click.aliexpress.com/e/_a" };
+  assert.ok(formatCard([p], { query: "דיסק און קי", fakes: true }).caption.includes(FAKE_SKIPPED_NOTE));
+  assert.ok(formatCard([{ ...p, fakeCap: true }], { query: "דיסק און קי", fakes: true }).caption.includes(FAKE_SHOWN_NOTE));
+  assert.ok(!formatCard([p], { query: "דיסק און קי" }).caption.includes("⚠️"));
+  assert.ok(formatCard([p], { query: "איירפודס פרו 2" }).caption.includes(CLONE_NOTE));
+  assert.ok(!formatCard([p], { query: "כיסוי לאיירפודס" }).caption.includes(CLONE_NOTE));
 });

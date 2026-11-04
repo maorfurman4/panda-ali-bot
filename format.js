@@ -294,6 +294,28 @@ export const singleForSet = (title, request = "") => SET_REQUEST.test(request) &
 
 export const fakeLuxury = (title, request = "") => LUXURY.test(title ?? "") && !LUXURY.test(request);
 
+// Capacity the price rules out: a ₪20 "2TB" flash drive, a ₪25 "50,000mAh" power bank, a ₪6 "350W" car charger sell a lot
+// but hold far less (owner, 2026-11-04: moved after the real ones, and the card says why). A title listing several sizes is
+// judged by its smallest (a real "SanDisk 64GB 128GB 1TB" listing shows the 64GB price).
+// shortcut: fixed ₪-per-unit lines from AliExpress prices in 2026-11; raise them if real items get caught.
+const STORAGE = /דיסק\s?און\s?קי|disk\s?on\s?key|זיכרון\s?נייד|כונן|כרטיס\s?זיכרון|כרטיס\s?SD|micro\s?sd|\bTF\b|\bSSD\b|flash\s?drive|pen\s?drive|usb\s?stick|memory\s?card/i;
+const POWER_BANK = /סוללה\s?ניידת|סוללת\s?גיבוי|מטען\s?נייד|power\s?bank|powerbank/i;
+const smallest = (title, re) => Math.min(...[...title.matchAll(re)].map((m) => Number(m[1].replace(",", "")) * (m[2] && /tb/i.test(m[2]) ? 1024 : 1)));
+export function fakeCapacity(title = "", price) {
+  const n = Number(price);
+  if (!(n > 0)) return false;
+  const t = title ?? "";
+  // Hebrew titles write "2 טרה-בייט" / "512 ג'יגה" too (a ₪12.69 "2 טרה" drive, 2026-11-04).
+  const size = /(\d+(?:\.\d+)?)\s*-?\s*(GB|TB|טרה|ג['׳]?יגה|גיגה)(?![a-z])/gi;
+  if (STORAGE.test(t) && t.search(size) >= 0) return smallest(t.replace(/טרה/g, "TB"), size) / n > 8; // over 8GB per ₪: 1TB under ₪128
+  if (POWER_BANK.test(t) && /\d\s*mAh/i.test(t)) return smallest(t, /(\d{1,3}(?:,\d{3})|\d{4,6})\s*(mAh)/gi) / n > 800; // 20,000mAh under ₪25
+  if (/מטען|charger/i.test(t) && !POWER_BANK.test(t) && /\d{2,3}\s*W\b/i.test(t)) {
+    const w = smallest(t, /(\d{2,3})\s*(W)\b/gi);
+    return (n < 30 && w > 65) || (n < 100 && w > 150);
+  }
+  return false;
+}
+
 // Items mostly sold as their cover: for "כרית נוי" a cushion cover IS the item (45x45 covers were dropped, 2026-11-01).
 const SOLD_AS_COVER = /^(?:כיסוי|כיסויי|ציפית|ציפיות)\s+ל?(כרית|כריות|שמיכ|פוך|דובה)/;
 export function isPartFor(title, request = "") {
@@ -438,6 +460,14 @@ export function bigItem(text = "") {
 }
 // A weak card (its best product sold under WEAK_SOLD times, or fewer than 4): the shopper is told it is AliExpress, not the bot.
 export const WEAK_SOLD = 50;
+// Fakes moved down (fakeCapacity): the card says why the cheap big ones aren't first, or warns when one is still shown.
+export const FAKE_SKIPPED_NOTE = "⚠️ דילגתי על מוצרים זולים שמבטיחים נפח או הספק לא אמיתיים (כמו 2TB ב-20 ₪): הם נמכרים הרבה אבל מאכזבים. כאן מוצרים אמינים";
+export const FAKE_SHOWN_NOTE = "⚠️ חלק מהמוצרים כאן זולים מדי לנפח או להספק שהם מבטיחים: הנפח האמיתי כנראה קטן יותר";
+// AliExpress has no genuine Apple earbuds or watches: a search for them gets the popular look-alikes, and the card says so
+// (owner, 2026-11-04: many shoppers want exactly these). "כיסוי לאיירפודס" is an accessory, not a look-alike search.
+const CLONE = /(?:^|\s)(?:איירפודס|אירפודס|airpods|אפל\s?ווטש|שעון\s?(?:של\s)?אפל|apple\s?watch)/i;
+export const wantsClone = (text = "") => CLONE.test(text) && !namesModel(text);
+export const CLONE_NOTE = "ℹ️ בעלי אקספרס אין מוצרים מקוריים של אפל: אלה דגמים דומים שנמכרים הרבה. כדאי לקרוא ביקורות לפני קנייה";
 export const WEAK_NOTE = "ℹ️ בעלי אקספרס יש מעט מוצרים נמכרים מהסוג הזה לישראל: כדאי לבדוק דירוג וביקורות לפני קנייה";
 export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
@@ -458,9 +488,10 @@ function withBadges(p, [rating, sold]) {
   return rating ? [[rating, ...badges].join(" · ")] : [badges.join(" · ")];
 }
 
-function buildCard(products, query, demo, reasons, closest, rare, weak) {
+function buildCard(products, query, demo, reasons, closest, rare, weak, fakes) {
   const fill = !closest && products.some((p) => p.brandFill);
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
+  const fake = products.some((p) => p.fakeCap) ? FAKE_SHOWN_NOTE : fakes ? FAKE_SKIPPED_NOTE : null;
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(wantsClone(query) ? [CLONE_NOTE] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
@@ -488,10 +519,10 @@ function buildCard(products, query, demo, reasons, closest, rare, weak) {
 }
 
 // Result card for up to 5 products; drops trailing products until the caption fits Telegram's limit.
-export function formatCard(products, { query, demo = false, reasons = null, closest = false, rare = false, weak = false }) {
+export function formatCard(products, { query, demo = false, reasons = null, closest = false, rare = false, weak = false, fakes = false }) {
   let n = Math.min(products.length, MEDALS.length);
   let card;
-  do card = buildCard(products.slice(0, n--), query, demo, reasons, closest, rare, weak);
+  do card = buildCard(products.slice(0, n--), query, demo, reasons, closest, rare, weak, fakes);
   while (n > 0 && parsedLength(card.caption) > CAPTION_MAX);
   return card;
 }
