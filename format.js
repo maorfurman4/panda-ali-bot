@@ -463,11 +463,6 @@ export const WEAK_SOLD = 50;
 // Fakes moved down (fakeCapacity): the card says why the cheap big ones aren't first, or warns when one is still shown.
 export const FAKE_SKIPPED_NOTE = "⚠️ דילגתי על מוצרים זולים שמבטיחים נפח או הספק לא אמיתיים (כמו 2TB ב-20 ₪): הם נמכרים הרבה אבל מאכזבים. כאן מוצרים אמינים";
 export const FAKE_SHOWN_NOTE = "⚠️ חלק מהמוצרים כאן זולים מדי לנפח או להספק שהם מבטיחים: הנפח האמיתי כנראה קטן יותר";
-// AliExpress has no genuine Apple earbuds or watches: a search for them gets the popular look-alikes, and the card says so
-// (owner, 2026-11-04: many shoppers want exactly these). "כיסוי לאיירפודס" is an accessory, not a look-alike search.
-const CLONE = /(?:^|\s)(?:איירפודס|אירפודס|airpods|אפל\s?ווטש|שעון\s?(?:של\s)?אפל|apple\s?watch)/i;
-export const wantsClone = (text = "") => CLONE.test(text) && !namesModel(text);
-export const CLONE_NOTE = "ℹ️ בעלי אקספרס אין מוצרים מקוריים של אפל: אלה דגמים דומים שנמכרים הרבה. כדאי לקרוא ביקורות לפני קנייה";
 export const WEAK_NOTE = "ℹ️ בעלי אקספרס יש מעט מוצרים נמכרים מהסוג הזה לישראל: כדאי לבדוק דירוג וביקורות לפני קנייה";
 export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
@@ -491,7 +486,7 @@ function withBadges(p, [rating, sold]) {
 function buildCard(products, query, demo, reasons, closest, rare, weak, fakes) {
   const fill = !closest && products.some((p) => p.brandFill);
   const fake = products.some((p) => p.fakeCap) ? FAKE_SHOWN_NOTE : fakes ? FAKE_SKIPPED_NOTE : null;
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(wantsClone(query) ? [CLONE_NOTE] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);

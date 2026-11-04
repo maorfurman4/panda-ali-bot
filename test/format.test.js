@@ -23,7 +23,6 @@ import {
   fakeCapacity,
   FAKE_SKIPPED_NOTE,
   FAKE_SHOWN_NOTE,
-  CLONE_NOTE,
 } from "../format.js";
 
 test("parses evaluate_rate strings safely", () => {
@@ -523,11 +522,9 @@ test("fakeCapacity: storage, power banks and chargers whose capacity the price r
   assert.equal(fakeCapacity("מכונת תספורת 1200mAh", 40), false, "mAh on something that isn't a power bank");
 });
 
-test("card notes: fakes skipped or shown, and the look-alike note for Apple earbuds (not for an AirPods case)", () => {
+test("card notes: fakes skipped or shown", () => {
   const p = { product_title: "x", target_sale_price: "40", target_sale_price_currency: "ILS", lastest_volume: "900", promotion_link: "https://s.click.aliexpress.com/e/_a" };
   assert.ok(formatCard([p], { query: "דיסק און קי", fakes: true }).caption.includes(FAKE_SKIPPED_NOTE));
   assert.ok(formatCard([{ ...p, fakeCap: true }], { query: "דיסק און קי", fakes: true }).caption.includes(FAKE_SHOWN_NOTE));
   assert.ok(!formatCard([p], { query: "דיסק און קי" }).caption.includes("⚠️"));
-  assert.ok(formatCard([p], { query: "איירפודס פרו 2" }).caption.includes(CLONE_NOTE));
-  assert.ok(!formatCard([p], { query: "כיסוי לאיירפודס" }).caption.includes(CLONE_NOTE));
 });
