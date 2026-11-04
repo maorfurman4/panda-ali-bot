@@ -313,7 +313,7 @@ export function fakeCapacity(title = "", price) {
   if (POWER_BANK.test(t) && /\d\s*mAh/i.test(t)) return smallest(t, /(\d{1,3}(?:,\d{3})|\d{4,6})\s*(mAh)/gi) / n > 800; // 20,000mAh under ₪25
   // A cable says "מטען" too ("כבל ... מטען מהיר"): a real ₪10 Baseus 100W cable was moved down (owner's test, 2026-11-04).
   // The item is whichever word comes first; a charger "כולל כבל" is still a charger.
-  const cable = t.search(/כבל|cable|\b(?:to|עד)\s+(?:usb|type|lightning)/i), charger = t.search(/מטען|charger/i);
+  const cable = t.search(/כבל|cable|(?:^|\s)(?:to|עד)\s+(?:usb|type|lightning)/i), charger = t.search(/מטען|charger/i);
   if (charger >= 0 && !(cable >= 0 && cable < charger) && !POWER_BANK.test(t) && /\d{2,3}\s*W\b/i.test(t)) {
     const w = smallest(t, /(\d{2,3})\s*(W)\b/gi);
     return (n < 30 && w > 65) || (n < 100 && w > 150);
