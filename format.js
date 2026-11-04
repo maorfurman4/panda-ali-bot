@@ -316,7 +316,8 @@ export function fakeCapacity(title = "", price) {
   const cable = t.search(/כבל|cable|(?:^|\s)(?:to|עד)\s+(?:usb|type|lightning)/i), charger = t.search(/מטען|charger/i);
   if (charger >= 0 && !(cable >= 0 && cable < charger) && !POWER_BANK.test(t) && /\d{2,3}\s*W\b/i.test(t)) {
     const w = smallest(t, /(\d{2,3})\s*(W)\b/gi);
-    return (n < 30 && w > 65) || (n < 100 && w > 150);
+    // Under ₪1 per 4W: a ₪4.26 "65W" led "מטען מהיר" (a real 65W GaN costs ₪40+; owner's test, 2026-11-04).
+    return w >= 40 && n < w / 4;
   }
   return false;
 }
@@ -466,8 +467,16 @@ export function bigItem(text = "") {
 // A weak card (its best product sold under WEAK_SOLD times, or fewer than 4): the shopper is told it is AliExpress, not the bot.
 export const WEAK_SOLD = 50;
 // Fakes moved down (fakeCapacity): the card says why the cheap big ones aren't first, or warns when one is still shown.
-export const FAKE_SKIPPED_NOTE = "⚠️ דילגתי על מוצרים זולים שמבטיחים נפח או הספק לא אמיתיים (כמו 2TB ב-20 ₪): הם נמכרים הרבה אבל מאכזבים. כאן מוצרים אמינים";
+// The example matches the kind skipped ("2TB" on a charger card read oddly; owner's test, 2026-11-04).
+export const fakeExample = (title = "") => (STORAGE.test(title) ? "2TB ב-20 ₪" : POWER_BANK.test(title) ? "50,000mAh ב-25 ₪" : "240W ב-8 ₪");
+export const fakeSkippedNote = (example = "2TB ב-20 ₪") => `⚠️ דילגתי על מוצרים זולים שמבטיחים נפח או הספק לא אמיתיים (כמו ${example}): הם נמכרים הרבה אבל מאכזבים. כאן מוצרים אמינים`;
+export const FAKE_SKIPPED_NOTE = fakeSkippedNote();
 export const FAKE_SHOWN_NOTE = "⚠️ חלק מהמוצרים כאן זולים מדי לנפח או להספק שהם מבטיחים: הנפח האמיתי כנראה קטן יותר";
+// A listing sold in several sizes ("SanDisk 32GB ... 1TB" at the 32GB price, owner's test 2026-11-04): AliExpress shows the
+// smallest one's price, so the card says prices change with the size (owner: general wording, buyers know this).
+const SIZE = /(\d+(?:[.,]\d+)?)\s*-?\s*(GB|TB|mAh|W|ml|מ"ל|ליטר|L|cm|ס"מ|מ'|מטר|m|mm|מ"מ|inch|אינץ')(?![a-zא-ת])/gi;
+export const manySizes = (title = "") => new Set([...(title ?? "").matchAll(SIZE)].map((m) => `${m[1]}${m[2].toLowerCase()}`)).size >= 3;
+export const SIZES_NOTE = "💡 המחיר עשוי להשתנות לפי הנפח או הגודל שבוחרים בדף המוצר";
 export const WEAK_NOTE = "ℹ️ בעלי אקספרס יש מעט מוצרים נמכרים מהסוג הזה לישראל: כדאי לבדוק דירוג וביקורות לפני קנייה";
 export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
@@ -490,8 +499,9 @@ function withBadges(p, [rating, sold]) {
 
 function buildCard(products, query, demo, reasons, closest, rare, weak, fakes) {
   const fill = !closest && products.some((p) => p.brandFill);
-  const fake = products.some((p) => p.fakeCap) ? FAKE_SHOWN_NOTE : fakes ? FAKE_SKIPPED_NOTE : null;
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
+  const fake = products.some((p) => p.fakeCap) ? FAKE_SHOWN_NOTE : fakes ? fakeSkippedNote(typeof fakes === "string" ? fakes : undefined) : null;
+  const sizes = products.some((p) => manySizes(p.product_title)) ? SIZES_NOTE : null;
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(sizes ? [sizes] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
@@ -519,12 +529,21 @@ function buildCard(products, query, demo, reasons, closest, rare, weak, fakes) {
 }
 
 // Result card for up to 5 products; drops trailing products until the caption fits Telegram's limit.
+// Too long (the advisor's 💡 lines pushed the 4th product out while the collage still showed it, owner's test 2026-11-04):
+// the 💡 lines, then the names, are shortened first. count = the products in the caption, so the collage shows the same.
 export function formatCard(products, { query, demo = false, reasons = null, closest = false, rare = false, weak = false, fakes = false }) {
-  let n = Math.min(products.length, MEDALS.length);
+  const short = (list, max) => list?.map((r) => (r && r.length > max ? `${r.slice(0, max - 1).trim()}…` : r)) ?? null;
+  const named = (max) => products.map((p) => (p.short_he && p.short_he.length > max ? { ...p, short_he: `${p.short_he.slice(0, max - 1).trim()}…` } : p));
+  const n0 = Math.min(products.length, MEDALS.length);
+  for (const [list, why] of [[products, reasons], [products, short(reasons, 45)], [named(28), short(reasons, 30)], [named(28), null]]) {
+    const card = buildCard(list.slice(0, n0), query, demo, why, closest, rare, weak, fakes);
+    if (parsedLength(card.caption) <= CAPTION_MAX) return { ...card, count: n0 };
+  }
+  let n = n0 - 1;
   let card;
-  do card = buildCard(products.slice(0, n--), query, demo, reasons, closest, rare, weak, fakes);
-  while (n > 0 && parsedLength(card.caption) > CAPTION_MAX);
-  return card;
+  do card = buildCard(named(28).slice(0, n), query, demo, null, closest, rare, weak, fakes);
+  while (n-- > 1 && parsedLength(card.caption) > CAPTION_MAX);
+  return { ...card, count: n + 1 };
 }
 
 // Price range from the AI: applies only to ILS prices; other currencies ignore it.

@@ -21,6 +21,8 @@ import {
   RLM,
   HELP,
   fakeCapacity,
+  manySizes,
+  SIZES_NOTE,
   FAKE_SKIPPED_NOTE,
   FAKE_SHOWN_NOTE,
 } from "../format.js";
@@ -533,4 +535,20 @@ test("card notes: fakes skipped or shown", () => {
   assert.ok(formatCard([p], { query: "דיסק און קי", fakes: true }).caption.includes(FAKE_SKIPPED_NOTE));
   assert.ok(formatCard([{ ...p, fakeCap: true }], { query: "דיסק און קי", fakes: true }).caption.includes(FAKE_SHOWN_NOTE));
   assert.ok(!formatCard([p], { query: "דיסק און קי" }).caption.includes("⚠️"));
+});
+
+test("stage A (2026-11-04): a ₪4 '65W' charger is fake, a ₪14 30W isn't; sizes note; a long card shortens 💡 lines before dropping a product", () => {
+  assert.equal(fakeCapacity("מטען USB C GaN 65W עם 2 יציאות", 4.26), true);
+  assert.equal(fakeCapacity("מטען Essager Mini 30W סוג C", 13.79), false);
+  assert.equal(fakeCapacity("מטען מהיר 20W USB-C", 5), false, "under 40W is left alone");
+  assert.equal(manySizes("דיסק און קי SanDisk Ultra Dual Drive Luxe בנפחים של 32GB 64GB 128GB 256GB 1TB"), true);
+  assert.equal(manySizes("SanDisk Extreme כרטיס זיכרון 1TB"), false);
+  assert.equal(manySizes("שמלת ערב שחורה מידות S M L XL"), false, "clothes sizes are not counted");
+  const p = (i) => ({ product_title: `x${i}`, short_he: "שם מוצר ארוך מאוד שמתאר בדיוק את המכונית ואת השלט שלה", target_sale_price: "60", target_sale_price_currency: "ILS", lastest_volume: "900", promotion_link: `https://s.click.aliexpress.com/e/_${"a".repeat(8)}${i}` });
+  const products = [1, 2, 3, 4].map(p);
+  const reasons = products.map(() => "מתאימה לילד בן 8 שאוהב מהירות, עם שלט נוח, סוללה נטענת וסיבוב של 360 מעלות לפעלולים בבית ובחוץ");
+  const card = formatCard(products, { query: "מתנה לילד בן 8 · 50-100₪ · מכונית על שלט", reasons });
+  assert.equal(card.count, 4, "all 4 stay");
+  assert.equal((card.caption.match(/💡/g) ?? []).length, 4);
+  assert.ok(formatCard([{ ...p(1), product_title: "SanDisk 32GB 64GB 128GB 1TB" }], { query: "דיסק און קי" }).caption.includes(SIZES_NOTE));
 });

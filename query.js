@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
 import { stats } from "./stats.js";
-import { isPartFor, forWhom, namesModel } from "./format.js";
+import { isPartFor, forWhom, namesModel, manySizes } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
 // USD per 1M tokens [input, output], for the owner's daily cost line (unknown models are priced as gpt-5.4).
@@ -119,6 +119,8 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
   -> "Galaxy Buds"; Apple -> "AirPods").
 - Fixed installs need their real kind: LED strip for a ceiling, cove or room ("פס לד לתקרה/לגבס") -> "12V LED strip with power
   supply" or "220V LED strip" (USB 5V strips are for TVs and desks).
+- "מתלה מגבות" -> "towel rack", terms like "towel bar", "towel ring", "over door towel rack"; never plain hooks or clips
+  ("towel hook" filled the card with multi-purpose hooks, 2026-11-04) unless the shopper asks for a hook ("וו למגבת").
 - Jewish and Israeli items: AliExpress sellers rarely write "Shabbat", so search what the item is: "מנורת לילה לשבת"/"מנורת
   שבת" -> keywords "night lamp", terms ["rotating cover night lamp", "plug in night light"] (the Shabbat lamp has a
   mechanical shade you turn to dim it; an always-on lamp works too; never a motion or touch sensor);
@@ -559,14 +561,19 @@ propagation (a plant-growing glass vase or avocado kit for "אגרטל"), made o
 phone holder for "מחזיק לטלפון לרכב"), sport-specific (cycling glasses for "משקפי שמש"), or one culture's traditional
 garment (a keffiyeh for "צעיף").
 For Shabbat use ("לשבת", "שאפשר להשתמש בשבת"), anything that switches on by motion, sound, touch or an app is not
-Shabbat-friendly: leave it out (a motion-sensor night light for "מנורת לילה לשבת").
+Shabbat-friendly: leave it out (a motion-sensor night light for "מנורת לילה לשבת"). A plain night light that stays on
+(plug-in, USB, bedside, or dimmed by a knob or rotating shade) is exact for "מנורת לילה לשבת", even without the word Shabbat.
+In Hebrew titles "מטען נייד", "בנק כוח" and "סוללת גיבוי" are a power bank (a portable battery), not a wall charger.
+For a towel rack or holder ("מתלה מגבות") a bar, ring, rail, over-door rack or a hook made for towels is exact; a
+general-purpose hook, adhesive hook or clip is partial (owner's test, 2026-11-04).
 A number the shopper named is a feature: a product that states another number contradicts it (a 2-person tent for
 "ל-4 אנשים"). But a higher capability that includes the asked one meets it: an 8K or 4K@120Hz cable is exact for
 "4K 60Hz" (it does 4K 60Hz too). A product that names the asked resolution or wattage without the asked refresh rate or
 port count ("4K" alone for "4K 60Hz", one port for "3 יציאות") can't be confirmed: partial. A detail sellers rarely write, like a baby's age in months, is met when nothing contradicts it (a plain baby
 pacifier is exact for "בן חצי שנה"; a newborn-only 0-3 month one is not). A beach sun shelter, emergency or survival tent,
 or screen gazebo is not a camping tent. For a child under 3, a toy with small loose parts (beads, magnets, small balls)
-is partial. A USB 5V LED strip is for a TV or desk: partial for a ceiling, cove or room. "Works with Google/Alexa" means it works without extra gear: a Zigbee bulb that needs a hub is partial.
+is partial. A USB 5V LED strip is for a TV or desk: partial for a ceiling, cove or room; a 12V, 24V or 220V strip (by the
+meter or on a reel, with or without a power supply) is exact for them, even without the word ceiling. "Works with Google/Alexa" means it works without extra gear: a Zigbee bulb that needs a hub is partial.
 A sticker, decal or print of the item is not the item (acrylic mirror stickers are not a wall mirror).
 When an item is mostly sold as its cover (decorative pillows as cushion covers, duvets as duvet covers), the cover is the
 item: exact, not an accessory. A plain white insert or filler (the inner pillow) is partial. A bed pillowcase (a satin or silk pillowcase for sleep and hair, a standard 50x70 bed
@@ -900,6 +907,8 @@ export function honestName(name, p) {
   }
   const maxW = price < 30 ? 65 : price < 100 ? 150 : Infinity;
   if (/מטען/.test(t)) t = t.replace(/\s*‏?\b(\d{2,})\s*W\b/gi, (m, w) => (Number(w) > maxW ? "" : m));
+  // Sold in several sizes at the smallest one's price: the name doesn't promise the size ("SanDisk 1TB" at the 32GB price).
+  if (manySizes(p?.product_title)) t = t.replace(/\s*‏?\b\d+(?:[.,]\d+)?\s*(?:GB|TB|mAh)\b/gi, "").replace(/\s*-\s*$/, "");
   return t.replace(/\s+/g, " ").trim();
 }
 

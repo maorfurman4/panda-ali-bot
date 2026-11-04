@@ -37,8 +37,9 @@ async function loadTile(url, fetch) {
     const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!res.ok) return null;
     return await sharp(Buffer.from(await res.arrayBuffer()))
-      .resize(TILE, TILE, { fit: "contain", background: "#ffffff" })
-      .flatten({ background: "#ffffff" })
+      // Light gray, not white: a white item on a see-through photo looked like an empty tile (owner's test, 2026-11-04).
+      .resize(TILE, TILE, { fit: "contain", background: "#f2f2f2" })
+      .flatten({ background: "#f2f2f2" })
       .png()
       .toBuffer();
   } catch {

@@ -1573,3 +1573,11 @@ test("family 6: 'מכונת כביסה' gets a question with buttons for what sh
   stats.count("search");
   assert.match(stats.digest(), /כרטיס חלש[\s\S]*מפזר חום/);
 });
+
+test("stage A (2026-11-04): a fake from a known brand's official store never takes the brand slot", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const items = [product(1, { product_title: "Lenovo דיסק און קי 1TB", shop_name: "Lenovo Official Store", target_sale_price: "20.82", lastest_volume: "9000" }), ...Array.from({ length: 6 }, (_, i) => product(i + 2, { product_title: `דיסק און קי ${64 * (i + 1)}GB`, target_sale_price: "45", lastest_volume: String(3000 - i * 100) }))];
+  const out = await pickProducts({ search: async () => items, relevant: async (_r, p) => ({ exact: p, partial: [] }), live: true }, { keywords: "usb flash drive 1TB", context: "דיסק און קי 1TB", limit: 4, extra: 8 });
+  assert.ok(!out.slice(0, 4).some((p) => /Lenovo/.test(p.product_title)), "the fake stays at the end");
+  assert.equal(out[0].fakesSkipped, "2TB ב-20 ₪", "the note's example matches the kind skipped");
+});

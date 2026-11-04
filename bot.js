@@ -63,6 +63,7 @@ import {
   specialKind,
   fakeLuxury,
   fakeCapacity,
+  fakeExample,
   singleForSet,
   modelKey,
   sameModel,
@@ -426,7 +427,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   if (shown.length < limit) shown = shown.concat(ranked.filter((p) => !shown.includes(p)).slice(0, limit - shown.length));
   // A card without a trusted-brand item gets the best one from further down, second: 🥇 best seller, 🏷️ brand, 🥈, 🥉.
   // Before the photo check, so the brand item is looked at too. Style searches keep their own mix (✨).
-  const strongBrand = (p) => p.brandTag && p.match === "exact" && Number(p.lastest_volume) >= BRAND_MIN_SOLD && !(rate(p) < TRUSTED_FEEDBACK);
+  const strongBrand = (p) => !p.fakeCap && p.brandTag && p.match === "exact" && Number(p.lastest_volume) >= BRAND_MIN_SOLD && !(rate(p) < TRUSTED_FEEDBACK);
   // The brand item must sell at least BRAND_SHARE of the product it pushes out of the card: a 430-sold Homefish towel rail
   // took 2nd place over 15,000-sold rails (owner's comparison, 2026-11-03); a 15,000-sold Baseus charger next to 40,000-sold
   // ones still gets the slot.
@@ -530,7 +531,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   shown = sellerFirst(shown, limit); // one moved up when the photo check dropped the leader
   // A fake that would have led was moved down: every returned product carries it, so the card (and "עוד") can say why.
   const out = shown.slice(0, limit + extra);
-  return ranked.some((p) => p.fakeMoved) ? out.map((p) => ({ ...p, fakesSkipped: true })) : out;
+  const moved = ranked.find((p) => p.fakeMoved);
+  return moved ? out.map((p) => ({ ...p, fakesSkipped: fakeExample(moved.product_title) })) : out;
 }
 
 // The card's final order, once names and stars are in (the bot and the search-quality check share it).
@@ -837,9 +839,13 @@ export function createBot({
     // e.g. a brand AliExpress doesn't carry. Style items: "close" is usually another cut of the same thing (a maxi for an
     // evening dress), so the note is only for a card that is all another color.
     const closest = style ? shown.every((p) => p.offColor) : !shown.some((p) => p.match !== "partial");
-    const weak = shown.length < GROUP_RESULTS || Math.max(0, ...shown.map((p) => Number(p.lastest_volume) || 0)) < WEAK_SOLD;
+    // Half the card barely sold counts too (Tesla mats sold 7 and 4 under a 1,640-sold one, juicers 17-76; owner's test,
+    // 2026-11-04); style cards often sell little and have their own order.
+    const few = shown.filter((p) => (Number(p.lastest_volume) || 0) < WEAK_SOLD).length;
+    const weak = shown.length < GROUP_RESULTS || Math.max(0, ...shown.map((p) => Number(p.lastest_volume) || 0)) < WEAK_SOLD || (!style && few * 2 >= shown.length);
     if (weak) stats.remember("weak", `${header} (${shown.map((p) => soldText(p.lastest_volume) ?? 0).join(" / ")})`);
-    const { caption } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2, weak, fakes: shown.some((p) => p.fakesSkipped) });
+    const { caption, count } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2, weak, fakes: shown.find((p) => p.fakesSkipped)?.fakesSkipped ?? false });
+    if (count < shown.length) cards.get(id)?.rest.unshift(...shown.slice(count)), (shown = shown.slice(0, count)); // the collage shows what the caption lists; the rest waits for "עוד"
     const keyboard = [
       [{ text: GOOD_LABEL, callback_data: `f:${id}:u` }, { text: BAD_LABEL, callback_data: `f:${id}:d` }],
       [{ text: MORE_LABEL, callback_data: `m:${id}` }], // nothing left -> the press answers "אין עוד תוצאות"

@@ -49,12 +49,13 @@ export function createStats({ now = Date.now, notify = null } = {}) {
       }
     },
     // The day's summary for the owner: counts since the previous digest and the 🐼 searches in that time.
+    // ">=": an item saved in the same millisecond the stats started was dropped (a flaky test, 2026-11-04).
     digest() {
       const t = now(), since = lastDigest.at, prev = lastDigest.counters;
       const d = (k) => (counters[k] ?? 0) - (prev[k] ?? 0);
-      const bad = (lists.thumbsDown ?? []).filter((x) => x.at > since).map((x) => x.text);
-      const none = (lists.noResults ?? []).filter((x) => x.at > since).map((x) => x.text);
-      const weak = (lists.weak ?? []).filter((x) => x.at > since).map((x) => x.text);
+      const bad = (lists.thumbsDown ?? []).filter((x) => x.at >= since).map((x) => x.text);
+      const none = (lists.noResults ?? []).filter((x) => x.at >= since).map((x) => x.text);
+      const weak = (lists.weak ?? []).filter((x) => x.at >= since).map((x) => x.text);
       lastDigest = { at: t, counters: { ...counters } };
       if (!d("search")) return null;
       return [
