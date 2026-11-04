@@ -274,6 +274,8 @@ const SPECIAL_KINDS = [
   /\bdiy\b|עשה זאת בעצמך/i,
   /disposable|חד[ -]?פעמי|למסיבה|לקישוט חתונה/i,
   /whisk(?:e)?y|ויסקי|כוסות שוט|shot glass/i,
+  // A vertical mouse is an ergonomic special kind: it led "עכבר אלחוטי" (owner's test, 2026-11-04).
+  /(?:עכבר|mouse)[^,]{0,25}?(?:אנכי|vertical)|vertical\s+mouse/i,
   /measuring|כוס מדידה|כלי מדידה/i,
   /personali[sz]ed|custom photo|your (?:own )?photo|(?:תמונה|פוסטר|הדפס|קנבס|כרית|ציפית|ספל)[^,]{0,20}בהתאמה אישית/i,
 ];
@@ -309,7 +311,10 @@ export function fakeCapacity(title = "", price) {
   const size = /(\d+(?:\.\d+)?)\s*-?\s*(GB|TB|טרה|ג['׳]?יגה|גיגה)(?![a-z])/gi;
   if (STORAGE.test(t) && t.search(size) >= 0) return smallest(t.replace(/טרה/g, "TB"), size) / n > 8; // over 8GB per ₪: 1TB under ₪128
   if (POWER_BANK.test(t) && /\d\s*mAh/i.test(t)) return smallest(t, /(\d{1,3}(?:,\d{3})|\d{4,6})\s*(mAh)/gi) / n > 800; // 20,000mAh under ₪25
-  if (/מטען|charger/i.test(t) && !POWER_BANK.test(t) && /\d{2,3}\s*W\b/i.test(t)) {
+  // A cable says "מטען" too ("כבל ... מטען מהיר"): a real ₪10 Baseus 100W cable was moved down (owner's test, 2026-11-04).
+  // The item is whichever word comes first; a charger "כולל כבל" is still a charger.
+  const cable = t.search(/כבל|cable|\b(?:to|עד)\s+(?:usb|type|lightning)/i), charger = t.search(/מטען|charger/i);
+  if (charger >= 0 && !(cable >= 0 && cable < charger) && !POWER_BANK.test(t) && /\d{2,3}\s*W\b/i.test(t)) {
     const w = smallest(t, /(\d{2,3})\s*(W)\b/gi);
     return (n < 30 && w > 65) || (n < 100 && w > 150);
   }

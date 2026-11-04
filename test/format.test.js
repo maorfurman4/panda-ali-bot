@@ -331,6 +331,9 @@ test("modelKey and varied: one model once, at most 2 alike per card (the third w
 test("specialKind: gaming, shower, hydroponic, keffiyeh, Tesla-only are special unless asked", async () => {
   const { specialKind } = await import("../format.js");
   assert.equal(specialKind("עכבר גיימינג אלחוטי ATTACK SHARK X8", "עכבר אלחוטי wireless mouse"), true);
+  assert.equal(specialKind("עכבר אנכי של HOMEFISH ארגונומי 2.4GHz", "עכבר אלחוטי wireless mouse"), true, "a vertical mouse for a plain mouse");
+  assert.equal(specialKind("עכבר אנכי של HOMEFISH ארגונומי 2.4GHz", "עכבר אנכי vertical mouse"), false);
+  assert.equal(specialKind("עכבר אלחוטי נטען, עיצוב ארגונומי", "עכבר אלחוטי wireless mouse"), false, "ergonomic alone is a plain mouse");
   assert.equal(specialKind("עכבר גיימינג אלחוטי", "עכבר גיימינג"), false);
   assert.equal(specialKind("רמקול למקלחת עמיד במים", "רמקול בלוטוס"), true);
   assert.equal(specialKind("UGREEN עכבר אלחוטי ארגונומי שקט", "עכבר אלחוטי"), false);
@@ -519,6 +522,9 @@ test("fakeCapacity: storage, power banks and chargers whose capacity the price r
   assert.equal(fakeCapacity("סוללה ניידת 10,000mAh", 30), false);
   assert.equal(fakeCapacity("מטען לרכב 350W USB C", 6), true);
   assert.equal(fakeCapacity("Ugreen מטען 100W GaN", 120), false);
+  assert.equal(fakeCapacity("כבל Baseus USB Type C ל-USB C 100W PD טעינה מהירה כבל מטען", 10.09), false, "a cable is not a charger");
+  assert.equal(fakeCapacity("Ugreen 100w usb סוג c עד USB עבור macbook pd מטען מהיר USB", 13.79), false, "'C to USB' is a cable");
+  assert.equal(fakeCapacity("מטען קיר מהיר עם 4 יציאות, הספק 120W, כולל כבל נתונים", 6.79), true, "a charger with a cable is a charger");
   assert.equal(fakeCapacity("מכונת תספורת 1200mAh", 40), false, "mAh on something that isn't a power bank");
 });
 
