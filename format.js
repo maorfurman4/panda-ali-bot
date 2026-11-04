@@ -424,7 +424,6 @@ const SMALL_KIND = /מיני|נייד|קטן|לרכב|מתנפח|מתקפל|לב
 const BIG_ITEMS = [
   { re: /^(?:מכונת|מכונות)\s+כביסה/, he: "מכונות כביסה", alts: [["מכונת כביסה ניידת", "portable washing machine"], ["אביזרים למכונת כביסה", "washing machine accessories"]] },
   { re: /^(?:מייבש|מייבשי)\s+כביסה/, he: "מייבשי כביסה", alts: [["מתקן ייבוש כביסה", "clothes drying rack"], ["חבל כביסה מתקפל", "retractable clothesline"]] },
-  { re: /^(?:מקרר|מקררים)(?:\s|$)/, he: "מקררים", alts: [["מקרר נייד קטן", "portable mini fridge"], ["מארגנים למקרר", "refrigerator organizer bins"]] },
   { re: /^(?:מדיח|מדיחי)(?:\s|$)/, he: "מדיחי כלים", alts: [["מתקן ייבוש כלים", "dish drying rack"], ["אביזרים למדיח", "dishwasher accessories"]] },
   { re: /^(?:ספה|ספות)(?:\s|$)/, he: "ספות", alts: [["ספה מתנפחת", "inflatable sofa"], ["כיסוי לספה", "sofa cover"]] },
   { re: /^(?:מיטה|מיטות)(?:\s|$)/, he: "מיטות", alts: [["מזרון מתנפח", "inflatable air mattress"], ["מצעים", "bed sheet set"]] },
