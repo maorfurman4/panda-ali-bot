@@ -425,6 +425,9 @@ test("style: validateIntent keeps style only when true; the pick asks for pretty
   const body = api.requests[0].body;
   assert.deepEqual(body.text.format.schema.required, ["exact", "partial", "brand", "banner", "pretty", "plain", "same"]);
   assert.match(body.instructions, /pretty = up to 2 products/);
+  assert.match(body.instructions, /clean, classic and elegant/, "the owner's taste, 2026-11-05");
+  assert.match(body.instructions, /on a model/);
+  assert.match(body.instructions, /busy/);
   const plainApi = openai({ exact: [0], partial: [] });
   const plainOut = await createRelevanceFilter({ fetch: plainApi.fetch, env: ENV })({ he: "מטען", en: "charger" }, items);
   assert.equal(plainOut.pretty, undefined);

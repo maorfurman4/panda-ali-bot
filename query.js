@@ -641,9 +641,11 @@ const RELEVANCE_SCHEMA = {
 // Style items (bags, clothes, jewelry, decor): the same photo look also names the prettiest and the plain-looking ones.
 const styleNote = (n) => `
 Shoppers choose this item by its looks, so also judge the photos as a stylish Israeli shopper would:
-- pretty = up to ${n} products, best first, that look the most attractive: well made, current, nicely photographed, the one
-  she would want to own.
-- plain = products that look cheap, dated, flimsy or badly made, childish when the request isn't for kids, made for
+- pretty = up to ${n} products, best first, that look the most attractive: clean, classic and elegant (for clothes: one
+  or two colors and a good cut), well made, current, nicely photographed (worn on a model is a plus), the one she would
+  want to own.
+- plain = products that look cheap, dated, messy or busy (loud prints, heavy decoration, too many colors or details when
+  the request names no such style), flimsy or badly made, childish when the request isn't for kids, made for
   the other gender (a thick men's chain for "לאישה"), themed for a holiday the request doesn't name, or a narrow look
   for a general request (one loud color like a pink satin set, a very particular theme) when it names no color or style:
   a general request gets versatile looks that fit most homes or outfits.
