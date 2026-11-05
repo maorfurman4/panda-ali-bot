@@ -611,3 +611,14 @@ test("trimLooks: a 'not …' kind that the bot searches for is removed; other ex
   assert.equal(trimLooks("a flexible light strip; not a rigid lamp, tube light or cable", ["LED strip light"]), "a flexible light strip; not a rigid lamp, tube light or cable");
   assert.equal(trimLooks("a towel bar; not a hook", ["towel bar", "towel hook"]), "a towel bar");
 });
+
+test("slang (free wording check 2026-11-05): the measured sellers' wordings reach the reading; whole words only", async () => {
+  const { slangHints } = await import("../query.js");
+  assert.match(slangHints("חפש לי מגהץ").join(" "), /steam iron/);
+  assert.match(slangHints("קולבים לארון").join(" "), /non slip hangers/);
+  assert.match(slangHints("שטיח לסלון").join(" "), /living room rug/);
+  assert.equal(slangHints("שטיחונים לטסלה").some((h) => /living room rug/.test(h)), false, "שטיח is not שטיחונים");
+  assert.match(slangHints("שטיח לאמבטיה").join(" "), /bathroom rug/);
+  assert.match(slangHints("צמיד כושר").join(" "), /activity tracker/);
+  assert.equal(slangHints("מאווררים").length, 0, "whole words only");
+});

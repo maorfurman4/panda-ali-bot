@@ -1,0 +1,176 @@
+סיר לחץ: literal "pressure cooker" 6/30 · best "pressure cooker" 6/30
+מכונת קפה: literal "coffee machine" 16/16 · best "espresso machine" 17/17
+מסחטת מיצים: literal "juicer" 14/17 · best "juicer" 14/17
+מטחנת קפה: literal "coffee grinder" 28/30 · best "manual coffee grinder" 32/32
+טוסטר: literal "toaster" 7/12 · best "toaster" 7/12
+קומקום: literal "kettle" 14/15 · best "electric kettle" 20/41
+מחבת: literal "pan" 7/8 · best "frying pan non stick" 14/35
+סיר טיגון באוויר: literal "air fryer" 12/14 · best "air fryer oven" 13/13
+קרש חיתוך: literal "cutting board" 11/15 · best "chopping board" 16/24
+סכין שף: literal "chef knife" 26/33 · best "chef knife" 26/33
+בקבוק מים: literal "water bottle" 28/28 · best "sports water bottle" 37/40  <<< GAIN
+קופסאות אוכל: literal "food containers" 16/25 · best "food storage containers" 17/26
+כוס תרמית: literal "thermal cup" 19/20 · best "travel mug" 28/31  <<< GAIN
+מארגן למקרר: literal "fridge organizer" 12/12 · best "refrigerator storage box" 13/19
+מתקן לסכו"ם: literal "cutlery holder" 6/24 · best "utensil holder" 12/26
+מסננת: literal "strainer" 20/27 · best "kitchen colander" 24/27
+מיקסר: literal "mixer" 13/14 · best "mixer" 13/14
+מטרפה: literal "whisk" 12/13 · best "egg whisk" 14/15
+בלנדר: literal "blender" 7/8 · best "blender" 7/8
+משקל מטבח: literal "kitchen scale" 22/23 · best "digital kitchen scale" 32/33  <<< GAIN
+מרסס שמן: literal "oil sprayer" 31/35 · best "oil spray bottle" 36/38
+מצית לגז: literal "gas lighter" 5/6 · best "gas lighter" 5/6
+תבנית אפייה: literal "baking pan" 8/9 · best "cake mold" 29/30  <<< GAIN
+מכשיר ואקום: literal "vacuum sealer" 37/37 · best "food vacuum sealer" 39/39
+מוט וילון: literal "curtain rod" 17/18 · best "curtain rod" 17/18
+סיר בישול איטי: literal "slow cooker" 0/7 · best "slow cooker" 0/7
+מארגן מגירות: literal "drawer organizer" 21/24 · best "drawer organizer" 21/24
+וילון: literal "curtain" 13/17 · best "curtain" 13/17
+וו לקיר: literal "wall hook" 13/13 · best "heavy duty wall hooks" 19/19
+קולבים: literal "hanger" 0/0 · best "velvet hangers" 3/5
+מתלה בגדים: literal "clothes rack" 18/20 · best "clothes rack" 18/20
+סל כביסה: literal "laundry basket" 36/39 · best "foldable laundry basket" 39/48
+מראה: literal "mirror" 17/18 · best "mirror" 17/18
+מדף: literal "shelf" 6/10 · best "wall shelf" 16/22  <<< GAIN
+כרית: literal "pillow" 23/28 · best "memory foam pillow" 42/42  <<< GAIN
+שטיח: literal "rug" 11/18 · best "living room rug" 27/46  <<< GAIN
+מגן מזרן: literal "mattress protector" 17/29 · best "mattress protector" 17/29
+שמיכה: literal "blanket" 16/19 · best "fleece blanket" 19/33
+מצעים: literal "bed sheets" 8/11 · best "bed sheets" 8/11
+פח אשפה: literal "trash can" 29/32 · best "trash can" 29/32
+מכשיר אדים: literal "humidifier" 13/13 · best "humidifier" 13/13
+מפיץ ריח: literal "diffuser" 10/12 · best "essential oil diffuser" 19/25  <<< GAIN
+מטהר אוויר: literal "air purifier" 6/9 · best "air purifier" 6/9
+שקיות זבל: literal "garbage bags" 29/36 · best "garbage bags" 29/36
+תנור חימום: literal "heater" 9/9 · best "heater" 9/9
+שואב אבק: literal "vacuum cleaner" 13/16 · best "handheld vacuum" 20/29
+מאוורר: literal "fan" 16/22 · best "desk fan" 40/45  <<< GAIN
+מגב לחלונות: literal "window cleaner" 18/20 · best "window cleaner" 18/20
+מברשת לאסלה: literal "toilet brush" 33/37 · best "toilet brush" 33/37
+מתקן לנייר טואלט: literal "toilet paper holder" 25/35 · best "toilet paper holder" 25/35
+מתקן סבון: literal "soap dispenser" 21/21 · best "automatic soap dispenser" 24/25
+שטיח לאמבטיה: literal "bath mat" 11/22 · best "bathroom rug" 30/43  <<< GAIN
+וילון מקלחת: literal "shower curtain" 20/22 · best "shower curtain" 20/22
+ראש מקלחת: literal "shower head" 33/40 · best "high pressure shower head" 37/45
+נורה חכמה: literal "smart bulb" 26/34 · best "wifi smart bulb" 32/38
+מנורת שולחן: literal "desk lamp" 37/39 · best "table lamp" 39/39
+שקע חכם: literal "smart plug" 24/24 · best "wifi smart plug" 26/27
+מנעול חכם: literal "smart lock" 27/27 · best "smart lock" 27/27
+פעמון לדלת: literal "doorbell" 31/33 · best "wireless doorbell" 40/42  <<< GAIN
+מצלמת אבטחה: literal "security camera" 20/31 · best "outdoor security camera" 32/36  <<< GAIN
+גלאי עשן: literal "smoke detector" 13/21 · best "smoke detector" 13/21
+כיסא אוכל לתינוק: literal "high chair" 19/24 · best "high chair" 19/24
+מגהץ: literal "iron" 1/1 · best "steam iron" 15/29  <<< GAIN
+מגהץ אדים: literal "garment steamer" 14/39 · best "garment steamer" 14/39
+מנשא לתינוק: literal "baby carrier" 11/11 · best "baby carrier" 11/11
+בקבוק לתינוק: literal "baby bottle" 25/26 · best "feeding bottle" 29/29
+מוניטור לתינוק: literal "baby monitor" 13/14 · best "baby camera" 23/25  <<< GAIN
+צעצוע לתינוק: literal "baby toys" 25/26 · best "montessori toys" 37/40  <<< GAIN
+בובה: literal "doll" 15/15 · best "fashion doll" 20/20
+לגו: literal "lego" 16/17 · best "building block set" 22/25
+רחפן: literal "drone" 3/4 · best "drone with camera" 7/11
+פאזל: literal "puzzle" 14/14 · best "jigsaw puzzle" 33/36  <<< GAIN
+קלמר: literal "pencil case" 10/11 · best "pencil pouch" 16/17
+קורקינט: literal "scooter" 2/2 · best "electric scooter" 10/12  <<< GAIN
+אופניים לילדים: literal "bike" 15/16 · best "balance bike" 21/28
+תיק לבית ספר: literal "school bag" 16/16 · best "school backpack" 30/31  <<< GAIN
+מגן פינות: literal "corner protector" 18/18 · best "corner protector" 18/18
+סינר לתינוק: literal "baby bib" 2/2 · best "baby bib" 2/2
+ערכת יצירה: literal "craft kit" 30/32 · best "diy craft kit" 33/35
+מכונת גילוח: literal "shaver" 12/13 · best "rotary shaver" 21/28  <<< GAIN
+מכונת תספורת: literal "hair clipper" 14/19 · best "cordless hair clipper" 17/24
+מייבש שיער: literal "hair dryer" 13/19 · best "high speed hair dryer" 17/43
+מחליק שיער: literal "hair straightener" 11/18 · best "straightening brush" 12/20
+מסלסל שיער: literal "curling iron" 4/6 · best "hair curler" 5/5
+מברשת שיניים חשמלית: literal "electric toothbrush" 32/35 · best "sonic toothbrush" 37/43
+מכשיר עיסוי: literal "massager" 13/16 · best "neck massager" 20/28
+משקל אדם: literal "bathroom scale" 12/27 · best "smart scale" 15/21
+מכשיר להסרת שיער: literal "hair removal" 6/7 · best "ipl hair removal" 10/34
+מברשות איפור: literal "makeup brushes" 38/40 · best "makeup brush set" 42/47
+ערכת מניקור: literal "manicure set" 36/40 · best "nail kit" 43/45
+מנורת לק ג'ל: literal "nail lamp" 27/30 · best "gel nail lamp" 33/37
+מראת איפור: literal "makeup mirror" 24/25 · best "vanity mirror" 34/38  <<< GAIN
+תיק צד: literal "crossbody bag" 39/48 · best "shoulder bag women" 42/46
+תיק גב: literal "backpack" 17/21 · best "laptop backpack" 37/40  <<< GAIN
+ארנק: literal "wallet" 13/17 · best "men wallet" 29/32  <<< GAIN
+תיק איפור: literal "makeup bag" 34/36 · best "travel makeup bag" 44/45  <<< GAIN
+כובע: literal "hat" 29/31 · best "baseball cap" 44/47  <<< GAIN
+משקפי שמש: literal "sunglasses" 40/45 · best "retro sunglasses" 44/48
+חגורה: literal "belt" 9/10 · best "leather belt men" 36/39  <<< GAIN
+שעון יד: literal "watch" 17/22 · best "watch" 17/22
+נעלי בית: literal "slippers" 16/20 · best "cotton slippers" 18/18
+גרביים: literal "socks" 37/38 · best "men socks" 43/45
+מזוודה: literal "suitcase" 5/5 · best "suitcase" 5/5
+מעיל: literal "jacket" 12/17 · best "winter jacket" 22/25  <<< GAIN
+פיג'מה: literal "pajamas" 27/33 · best "pajama set" 30/36
+בגד ים: literal "swimsuit" 25/28 · best "women swimsuit" 27/32
+תחתונים: literal "underwear" 15/18 · best "men boxers" 33/41  <<< GAIN
+חזייה: literal "bra" 20/23 · best "wireless bra" 30/38  <<< GAIN
+עגילים: literal "earrings" 11/13 · best "stud earrings" 33/40  <<< GAIN
+קפוצ'ון: literal "hoodie" 13/14 · best "men hoodie" 18/20
+שמלה: literal "dress" 5/7 · best "summer dress" 15/22  <<< GAIN
+שרשרת: literal "necklace" 15/15 · best "women necklace" 28/37  <<< GAIN
+מעמד לטלפון: literal "phone stand" 16/18 · best "phone holder desk" 19/20
+טבעת: literal "ring" 19/21 · best "adjustable ring" 21/21
+מגן מסך: literal "screen protector" 32/42 · best "screen protector" 32/42
+צמיד: literal "bracelet" 6/6 · best "men bracelet" 19/21  <<< GAIN
+מקלדת: literal "keyboard" 18/19 · best "wireless keyboard" 35/37  <<< GAIN
+מחזיק טלפון לרכב: literal "car phone holder" 23/32 · best "dashboard phone holder" 30/38
+רמקול: literal "speaker" 17/23 · best "bluetooth speaker" 18/22
+אוזניות: literal "headphones" 18/23 · best "bluetooth earphones" 44/47  <<< GAIN
+כרטיס זיכרון: literal "memory card" 31/42 · best "memory card" 31/42
+מפצל USB: literal "usb hub" 18/18 · best "usb hub" 18/18
+מטען אלחוטי: literal "wireless charger" 11/16 · best "3 in 1 wireless charger" 17/23
+מצלמת רשת: literal "webcam" 15/16 · best "usb webcam" 26/45  <<< GAIN
+מגדיל טווח: literal "wifi extender" 14/24 · best "wifi extender" 14/24
+נתב: literal "router" 9/10 · best "wifi router" 12/17
+כונן חיצוני: literal "external hard drive" 29/30 · best "external ssd" 36/36
+סטרימר: literal "tv box" 7/9 · best "android tv box" 10/18
+משטח לעכבר: literal "mouse pad" 32/40 · best "large mouse pad" 38/43
+שעון חכם: literal "smart watch" 18/26 · best "fitness tracker watch" 22/36
+מעמד למחשב נייד: literal "laptop stand" 20/24 · best "adjustable laptop stand" 23/25
+שלט אוניברסלי: literal "universal remote" 26/36 · best "universal remote" 26/36
+מחזיק כוס לרכב: literal "car cup holder" 19/24 · best "car cup holder" 19/24
+מגן שמש לרכב: literal "car sun shade" 18/22 · best "car sun shade" 18/22
+מארגן לרכב: literal "car organizer" 13/14 · best "back seat organizer" 22/25  <<< GAIN
+צמיד כושר: literal "fitness tracker" 4/4 · best "fitness tracker" 4/4
+מצלמת דרך: literal "dash cam" 27/32 · best "car dvr" 29/35
+שואב אבק לרכב: literal "car vacuum" 11/15 · best "handheld car vacuum" 24/34  <<< GAIN
+משאבת אוויר לרכב: literal "tire inflator" 48/48 · best "tire inflator" 48/48
+מטען לרכב: literal "car charger" 30/37 · best "usb car charger" 35/41
+כיסוי למושב: literal "car seat cover" 27/27 · best "car seat cover" 27/27
+ריח לרכב: literal "car air freshener" 23/35 · best "car air freshener" 23/35
+מקדחה: literal "drill" 17/17 · best "cordless drill" 24/24
+מתנע לרכב: literal "jump starter" 20/23 · best "battery booster" 21/25
+מלחם: literal "soldering iron" 5/5 · best "soldering kit" 22/22  <<< GAIN
+סט מברגים: literal "screwdriver set" 33/38 · best "precision screwdriver set" 40/48
+ארגז כלים: literal "tool set" 37/40 · best "tool set" 37/40
+מולטימטר: literal "multimeter" 29/30 · best "digital multimeter" 45/47  <<< GAIN
+פנס: literal "flashlight" 33/38 · best "rechargeable flashlight" 41/44  <<< GAIN
+מטר מדידה: literal "tape measure" 41/42 · best "tape measure" 41/42
+פנס ראש: literal "headlamp" 35/47 · best "head torch" 44/46  <<< GAIN
+סולם: literal "ladder" 18/18 · best "ladder" 18/18
+אקדח דבק חם: literal "glue gun" 28/29 · best "hot glue gun" 42/45  <<< GAIN
+דבק: literal "glue" 23/24 · best "strong glue" 40/43  <<< GAIN
+צינור השקיה: literal "garden hose" 25/27 · best "garden hose" 25/27
+מזרן יוגה: literal "yoga mat" 7/11 · best "yoga mat" 7/11
+גומיות התנגדות: literal "resistance bands" 33/33 · best "resistance bands" 33/33
+משקולות: literal "dumbbells" 16/16 · best "dumbbells" 16/16
+חבל קפיצה: literal "jump rope" 39/40 · best "skipping rope" 44/47
+אוהל: literal "tent" 14/14 · best "tent" 14/14
+ערסל: literal "hammock" 16/18 · best "hammock" 16/18
+צידנית: literal "cooler bag" 33/35 · best "insulated cooler bag" 38/41
+כיסא מתקפל: literal "folding chair" 38/41 · best "camping chair" 39/41
+תאורה סולארית: literal "solar lights" 32/42 · best "solar garden lights" 35/42
+קולר לכלב: literal "dog collar" 23/24 · best "adjustable dog collar" 24/24
+רצועה לכלב: literal "dog leash" 30/32 · best "retractable dog leash" 40/47  <<< GAIN
+מיטה לכלב: literal "dog bed" 13/17 · best "dog bed" 13/17
+מזרקה לחתול: literal "pet water fountain" 10/10 · best "cat water fountain" 16/16
+ארגז חול לחתול: literal "cat litter box" 9/11 · best "cat litter box" 9/11
+בלונים: literal "balloons" 32/35 · best "birthday balloons" 41/41  <<< GAIN
+קישוטים ליום הולדת: literal "birthday decorations" 3/3 · best "happy birthday banner" 25/30  <<< GAIN
+צעצוע לחתול: literal "cat toy" 26/27 · best "interactive cat toy" 39/40  <<< GAIN
+אלבום תמונות: literal "photo album" 19/19 · best "photo album" 19/19
+מסגרת לתמונה: literal "photo frame" 29/30 · best "photo frame" 29/30
+נרות: literal "candles" 17/18 · best "led candles" 22/25
+מחזיק מפתחות: literal "keychain" 19/20 · best "cute keychain" 29/29  <<< GAIN
