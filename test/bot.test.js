@@ -1710,3 +1710,19 @@ test("a named color: the item is searched without it too, and a best seller pict
   assert.equal(collaged[0], "https://ae01.alicdn.com/kf/black8.jpg", "the 9,000-sold dress leads, in black");
   assert.ok(!collaged.some((u) => /img9|black9/.test(u)), "no black photo: stays out");
 });
+
+test("a named color: a color-free best seller the judges kept on its first photo shows only if the picker sees the color", async () => {
+  const gallery = (n) => ({ string: [`https://ae01.alicdn.com/kf/img${n}.jpg`, `https://ae01.alicdn.com/kf/navy${n}.jpg`] });
+  const small = Array.from({ length: 5 }, (_, i) => product(i + 1, { lastest_volume: String(40 - i), product_title: `מעיל נייבי ${i + 1}`, product_small_image_urls: gallery(i + 1) }));
+  const big = [product(8, { lastest_volume: "9000", product_title: "ג'קט פאפר 15 צבעים", product_small_image_urls: gallery(8) }), product(9, { lastest_volume: "7000", product_title: "מעיל ארוך", product_small_image_urls: gallery(9) })];
+  const search = async (q) => (q === "coat women" ? big : small);
+  const understand = async () => intent({ corrected_he: "מעיל נייבי", keywords_en: "navy coat women" });
+  const opts = [];
+  const pickPhoto = async (_r, p, o) => (opts.push(o), p.map((x) => (x.promotion_link.endsWith("9") ? x.product_small_image_urls.string[1] : null)));
+  let collaged;
+  const ctx = setup({ search, live: true, understand, pickPhoto, collage: async (urls) => ((collaged = urls), null) }); // the judges keep all
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מעיל נייבי"));
+  assert.deepEqual(opts, [{ withMain: true }], "the first photo is looked at too");
+  assert.ok(!collaged.includes("https://ae01.alicdn.com/kf/img8.jpg"), "kept by the judges, but no navy photo: out");
+  assert.equal(collaged[0], "https://ae01.alicdn.com/kf/navy9.jpg");
+});

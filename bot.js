@@ -382,11 +382,19 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     for (const p of out.brand ?? []) known.add(keyOf(p));
     // The color-free search's best sellers the judges left out (their first photo shows another variant): the photo picker
     // looks for the asked color among their other photos; one it finds is an exact match shown in that color.
+    // Only one the picker sees in the asked color is shown: the judges let a pink "15 colors" puffer into a navy coat card
+    // on its first photo (owner's test, 2026-11-05). Those the judges kept (the right kind) are looked at first.
     if (plain && pickPhoto) {
-      const judged = new Set([...exact, ...partial, ...near].map(keyOf));
-      const left = inTurn(plainLists).filter((p) => pool.includes(p) && !judged.has(keyOf(p)) && !offColor(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 1)
-        .sort((a, b) => (Number(b.lastest_volume) || 0) - (Number(a.lastest_volume) || 0)).slice(0, COLOR_POOL_PICK);
-      const urls = left.length ? await pickPhoto({ he: context, en: keywords }, left).catch(() => []) : [];
+      const colorKeys = new Set([...mainLists, ...otherLists].flat().map(keyOf));
+      const plainOnly = (p) => pool.includes(p) && !colorKeys.has(keyOf(p));
+      const kept = new Set([...exact, ...partial, ...near].filter(plainOnly).map(keyOf));
+      exact = exact.filter((p) => !plainOnly(p));
+      partial = partial.filter((p) => !plainOnly(p));
+      near = near.filter((p) => !plainOnly(p));
+      const bySales = (a, b) => (Number(b.lastest_volume) || 0) - (Number(a.lastest_volume) || 0);
+      const candidates = inTurn(plainLists).filter((p) => plainOnly(p) && !offColor(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 0);
+      const left = [...candidates.filter((p) => kept.has(keyOf(p))).sort(bySales), ...candidates.filter((p) => !kept.has(keyOf(p))).sort(bySales)].slice(0, COLOR_POOL_PICK);
+      const urls = left.length ? await pickPhoto({ he: context, en: keywords }, left, { withMain: true }).catch(() => []) : [];
       colorPooled = left.length > 0;
       exact = exact.concat(left.flatMap((p, i) => (urls[i] ? [{ ...p, product_main_image_url: urls[i], colorPick: true }] : [])));
     }
