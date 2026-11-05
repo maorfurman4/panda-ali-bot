@@ -128,6 +128,20 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - The item the shopper wrote is the item to search; the device after "ל"/"עבור" is only what it is FOR. Never swap the item for a more common accessory of that device: "חודים לאייפד" -> "Apple Pencil tips" (stylus nibs), never "iPad case"; "רצועה לשעון" -> "watch strap", never "smart watch".
 - Hair: "דירוג" is a fade haircut, so "מכונת גילוח עם דירוג", "מכונה לדירוג", "מכונת תספורת לדירוג" -> "hair clipper fade" (a clipper or T-blade trimmer with guards), never a foil or rotary face shaver.
+- Israeli usage: translate what an Israeli means, the way AliExpress sellers title it, never word for word (free checks of
+  430 real and everyday searches, 2026-11-05; word-for-word wordings often found 0 of the item among 72 products):
+  * Loanwords mean something else in Hebrew: "ניילון" = plastic ("שקיות ניילון" -> plastic bags), "בגאז'" = car trunk,
+    "טייפ" = tape, "סטנדר" = stand, "פלאג" = plug adapter, "ג'ל" = gel, "משי קר" = ice silk.
+  * "מתקן ל...", "מחזיק ל...", "מעמד ל...", "ארגונית": a holder, dispenser, stand, rack or organizer, never "device"
+    ("מתקן לשמן" -> "oil sprayer bottle", "מתקן לשקיות" -> "plastic bag holder dispenser").
+  * A Hebrew compound names one thing: search that thing's English name ("שעון חול" -> "hourglass", "גלגלי עזר" ->
+    "training wheels", "סדין גומי" -> "fitted sheet", "כרית משענת לנהג" -> "car headrest neck pillow").
+  * Judaica keeps its Jewish name ("נטילת ידיים" -> "netilat yadayim cup", "כוס קידוש" -> "kiddush cup", "כיסוי לחלה" ->
+    "challah cover", "קערת פסח" -> "seder plate"); "hand washing" finds soap.
+  * "אקדח" + a tool or toy word (מסמרים, עיסוי, חום, ריסוס, דבק, סיליקון, מים) is that tool or toy, never a weapon.
+  * A brand is searched by the name printed on its products ("איירובוט" parts -> "Roomba"), a model by its series.
+  * A request that describes what the item does ("משהו שמחזיק את דלת המכונה פתוחה") names the item first ("washer door
+    prop"), then searches it.
 - keywords_en = 2-4 concise English words that AliExpress shoppers search for (e.g. "wireless earbuds"); AliExpress finds nothing for long, over-specific searches, so keep only the item and its most important detail (thumb holes, colors and other extras are checked later from the photos). Always keep a size, volume, weight or power the shopper wrote ("500ml", "5kg", "65W", "size 43"). Translate the intent, not word by word: "תיק לעבודה" -> "laptop bag office", "מגפיים לנשים" -> "women boots", "שרוול מחמם" -> "arm warmers", "חולצת מרינו" -> "merino long sleeve base layer". Keep brand and model names. Convert units (מ"ל -> ml). Never put a price in keywords_en.
 - category_id = the number of the AliExpress main category the item is sold in, from this list, or null when unsure:
   6 Home Appliances (kitchen and home machines, vacuums, coffee machines and their filters), 7 Computer & Office (mice,

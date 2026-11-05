@@ -1601,3 +1601,20 @@ test("/pin_welcome (owner, in private): posts the welcome to the group, clears o
   assert.ok(m2.includes("editMessageText") && !m2.includes("pinChatMessage"), m2.join(","));
   assert.equal(again.calls.find((c) => c.method === "editMessageText").payload.message_id, 55);
 });
+
+test("a reply to your own search refines it; thanks, questions and replies to others stay conversation (owner, 2026-11-05)", async () => {
+  const withReply = (text, replied, opts = {}) => {
+    const u = textUpdate(text, opts);
+    u.message.reply_to_message = { message_id: 1, date: 0, chat: u.message.chat, from: { id: replied.from, is_bot: false, first_name: "R" }, text: replied.text };
+    return u;
+  };
+  const spy = searchSpy();
+  const ctx = setup({ search: spy.search, understand: async (q) => intent({ corrected_he: q, keywords_en: q }) });
+  await ctx.bot.handleUpdate(withReply("לתליה על הקיר", { from: 7, text: "חפש לי מתקן לכוסות חד פעמי" }));
+  assert.equal(spy.queries[0], "מתקן לכוסות חד פעמי לתליה על הקיר");
+  const quiet = setup({ search: async () => assert.fail("no search"), understand: async () => assert.fail("no AI") });
+  await quiet.bot.handleUpdate(withReply("תודה רבה!", { from: 7, text: "חפש לי מתקן לכוסות" }));
+  await quiet.bot.handleUpdate(withReply("זה טוב?", { from: 7, text: "חפש לי מתקן לכוסות" }));
+  await quiet.bot.handleUpdate(withReply("לתליה על הקיר", { from: 8, text: "חפש לי מתקן לכוסות" }));
+  assert.equal(quiet.sent().length, 0);
+});

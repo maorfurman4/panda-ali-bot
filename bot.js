@@ -152,6 +152,9 @@ const HELP_WORDS = /^(?:עזרה|הסבר|הוראות|מדריך|איך (?:זה
 const LINKISH = /https?:\/\/|www\.|t\.me\/|(?:^|\s)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|il|co|io|me|app|ly|ru|cn|info|biz|us)(?:\/\S*)?(?=\s|$)/i;
 // Backup for the AI's "not_allowed" when the AI is unavailable: the most obvious Hebrew/English words only.
 const BLOCKED_WORDS = /סכין קפיצית|אגרופן|טייזר|ויברטור|דילדו|סיגרי(?:ה|ות) אלקטרוני|וייפ|מצלמ(?:ה|ת) (?:נסתרת|ריגול)|switchblade|brass knuckles|taser|vibrator|dildo|\bvape\b|hidden camera|spy cam/i;
+// A short reply that refines your own search; thanks, laughs and questions aren't refinements.
+const REFINE_MAX = 60;
+const NOT_REFINE = /^(?:תודה|תודה רבה|תנקס|אחלה|מעולה|מושלם|יופי|וואו|סבבה|אוקיי|אוקי|ok|לא|כן|חח+|ח+|👍|🙏|❤️|😂)[\s!.?]*$|\?$/i;
 const isBlocked = (intent, text) => intent?.status === "not_allowed" || BLOCKED_WORDS.test(text); // the list wins even if the AI says ok ("וייפ")
 
 export const isSoftRequest = (text) => text.length <= SOFT_MAX_LENGTH && SOFT.test(text.replace(BIDI_MARKS, ""));
@@ -1073,10 +1076,15 @@ export function createBot({
     if (HELP_WORDS.test(text.replace(BIDI_MARKS, "").trim())) return sendHelp(ctx); // "עזרה", "איך זה עובד?"…
     const query = parseTrigger(text, username);
     if (query !== null) return runSearch(ctx, query);
+    // A reply to your own search adds to it ("חפש לי מתקן לכוסות חד פעמי" + "לתליה על הקיר"): the two are searched
+    // together (owner, 2026-11-05, seen in another deals bot). Thanks and chatter stay conversation.
+    const own = ctx.msg.reply_to_message;
+    const before = own && own.from?.id === ctx.from?.id && typeof own.text === "string" ? (parseTrigger(own.text, username) ?? (isPrivate ? own.text : null)) : null;
+    if (before && text.length <= REFINE_MAX && !NOT_REFINE.test(text.trim())) return runSearch(ctx, `${before} ${text.trim()}`);
     if (isPrivate) return runSearch(ctx, text);
     if (isSoftRequest(text)) return runSoftSearch(ctx, text);
     if (startsWithSearchVerb(text)) return runSoftSearch(ctx, text, { warn: false }); // "חפש מטען": searched if the AI sees a product
-    // Replies are conversation (a reply with "חפש לי" or a natural request was already handled above); shared links are deals.
+    // Other replies are conversation (a reply with "חפש לי" or a natural request was already handled above); shared links are deals.
     if (ctx.msg.reply_to_message || LINKISH.test(text) || text.length > SOFT_MAX_LENGTH) return;
     return guideOrWarn(ctx);
   });
