@@ -487,7 +487,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     return next.filter((p) => right.has(keyOf(p))).slice(0, limit - have.length);
   };
   const styleable = shown.filter((p) => p.match === "exact" && !(rate(p) < STYLE_MIN_FEEDBACK));
-  const floor = styleFloor(styleable);
+  // A named color keeps 100: the look drops every other color, so a higher floor left "שמלה שחורה" with 3 dresses and the
+  // weak-results note (owner's test, 2026-11-05).
+  const floor = namedColor ? STYLE_MIN_SOLD : styleFloor(styleable);
   const styled = style && !cheapest && live && look ? rankProducts(styleable.filter((p) => Number(p.lastest_volume) >= floor)) : [];
   if (styled.length >= limit) {
     // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
