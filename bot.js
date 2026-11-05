@@ -607,7 +607,21 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
 }
 
 // The card's final order, once names and stars are in (the bot and the search-quality check share it).
+// A color search: in each card the medals (🥇🥈🥉) go to the right-color best sellers in sales order, ✨ and 🏷️ keep their
+// places (owner, 2026-11-05: a 1,100-sold Choice dress was 🥇 over 2,500 and 2,400 sold ones, by the Choice boost).
+export function medalsBySales(found, limit) {
+  const medal = (p) => !p.pretty && !p.brandSlot && !p.offColor && !p.titleOff;
+  const out = [...found];
+  for (let start = 0; start < out.length; start += limit) {
+    const at = out.slice(start, start + limit).map((p, i) => (medal(p) ? start + i : -1)).filter((i) => i >= 0);
+    const sorted = at.map((i) => out[i]).sort((a, b) => (Number(b.lastest_volume) || 0) - (Number(a.lastest_volume) || 0));
+    at.forEach((i, k) => (out[i] = sorted[k]));
+  }
+  return out;
+}
+
 export function orderCard(found, { context, style = false, cheapest = false, limit }) {
+  const byColor = !cheapest && namesLook(context);
   // Same model in another color or listing gets the same name or model (KZ EDX Pro X, Lenovo LP40 Pro twice): with
   // enough results, keep the first. With few results a second seller of the same model stays (see pickProducts).
   const key = (name) => modelKey(name, context, { plainNames: style });
@@ -640,7 +654,7 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
     const proven = (p) => Number(p.lastest_volume) >= PROVEN_SALES && !(parseFloat(p.evaluate_rate) < TRUSTED_FEEDBACK);
     const lead = found.slice(0, limit).findIndex(proven);
     if (lead > 0 && !proven(found[0])) found.unshift(...found.splice(lead, 1));
-    return found;
+    return byColor ? medalsBySales(found, limit) : found;
   }
   // Only what the photo look saw can rise into the card: the review order pulled unseen ones up (a polka-dot green dress
   // titled "black", a steel faucet for "שחור", 2026-11-01). "הכי זול" stays cheapest first.
@@ -652,7 +666,8 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   found = found.map((p, i) => (p.brandSlot && found.findIndex((q, j) => q.brandSlot && Math.floor(j / limit) === Math.floor(i / limit)) !== i ? { ...p, brandSlot: false } : p));
   const b = found.findIndex((p) => p.brandSlot);
   if (b > 1 && b < limit) found.splice(1, 0, ...found.splice(b, 1));
-  return sellerFirst(found, limit, { strip: !style && !cheapest && counted });
+  found = sellerFirst(found, limit, { strip: !style && !cheapest && counted });
+  return byColor ? medalsBySales(found, limit) : found;
 }
 
 // Live checks for /status: one fresh AI call and one AliExpress search.

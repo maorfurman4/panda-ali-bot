@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, styleFloor, withoutColor } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, styleFloor, withoutColor, medalsBySales, orderCard } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -1736,4 +1736,16 @@ test("a named color: the color-free best sellers never take the judges' places, 
   await ctx.bot.handleUpdate(textUpdate("חפש לי סוודר בורדו"));
   assert.ok(!judged.includes("8"));
   assert.equal(new Set(judged).size, 5, "every listing pictured in the color is judged, as before");
+});
+
+test("medalsBySales: in each card the medals go by sales; ✨ and another color keep their places", () => {
+  const p = (id, sold, extra = {}) => ({ id, lastest_volume: String(sold), ...extra });
+  const out = medalsBySales([p("a", 1100), p("b", 100, { pretty: true }), p("c", 2500), p("d", 2400), p("e", 9000), p("f", 50, { offColor: true })], 4);
+  assert.deepEqual(out.map((x) => x.id), ["c", "b", "d", "a", "e", "f"]);
+});
+
+test("orderCard: a color search puts its best seller first", () => {
+  const p = (n, sold, choice) => product(n, { lastest_volume: String(sold), evaluate_rate: "95.0%", ...(choice ? { product_title: `כוס ${n} Choice` } : { product_title: `כוס ${n}` }) });
+  const found = [p(1, 1100), p(2, 2900), p(3, 600), p(4, 2000)];
+  assert.equal(orderCard(found, { context: "כוס תרמית שחורה", limit: 4 })[0].lastest_volume, "2900");
 });
