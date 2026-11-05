@@ -1726,3 +1726,14 @@ test("a named color: a color-free best seller the judges kept on its first photo
   assert.ok(!collaged.includes("https://ae01.alicdn.com/kf/img8.jpg"), "kept by the judges, but no navy photo: out");
   assert.equal(collaged[0], "https://ae01.alicdn.com/kf/navy9.jpg");
 });
+
+test("a named color: the color-free best sellers never take the judges' places, so a color search only gains", async () => {
+  const small = Array.from({ length: 5 }, (_, i) => product(i + 1, { lastest_volume: String(40 - i), product_title: `סוודר בורדו ${i + 1}` }));
+  const big = [product(8, { lastest_volume: "9000", product_title: "סוודר לנשים", product_small_image_urls: { string: ["https://ae01.alicdn.com/kf/img8.jpg"] } })];
+  const judged = [];
+  const relevant = async (_r, p) => (judged.push(...p.map((x) => x.promotion_link.slice(-1))), { exact: p, partial: [] });
+  const ctx = setup({ search: async (q) => (q === "sweater women" ? big : small), live: true, relevant, understand: async () => intent({ corrected_he: "סוודר בורדו", keywords_en: "burgundy sweater women" }), pickPhoto: async (_r, p) => p.map(() => null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי סוודר בורדו"));
+  assert.ok(!judged.includes("8"));
+  assert.equal(new Set(judged).size, 5, "every listing pictured in the color is judged, as before");
+});
