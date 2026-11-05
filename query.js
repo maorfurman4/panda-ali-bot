@@ -495,9 +495,14 @@ const RELEVANCE_MODEL = "gpt-5.4";
 // Colors and patterns can only be checked on the photo.
 // Final letters: "לבן"/"חום" don't match "לבנה"/"חומה", so those are listed. "לבנות"/"לבנים" alone can mean for
 // girls/boys (the AI asks which); "בצבע לבן" counts through "צבע".
-const VISUAL_WORDS = /אפור|שחור|לבן|לבנה(?![\u05D0-\u05EA])|חומה|חומים|חומות|אדום|כחול|ירוק|צהוב|ורוד|סגול|חום|בז'|כתום|זהב|כסוף|כסף|שקוף|תכלת|בורדו|קרם|פרחוני|מנוקד|פסים|משובץ|הדפס|צבע|אגוז|אלון|walnut|oak|gr[ae]y|black|white|red|blue|green|yellow|pink|purple|brown|beige|orange|gold|silver|clear|floral|striped|plaid|color/i;
+// English words are whole words: "blue" was inside "bluetooth", "red" inside "wired"/"credit", so those searches sent
+// photos for nothing (2026-11-05). Hebrew ones also cover the feminine/plural forms (אדומה, כתומה, שקופה, זהובה) and
+// the Israeli fashion colors; "זית"/"חרדל"/"שמנת"/"פודרה" are foods or makeup too, so they count only through "צבע".
+const VISUAL_WORDS = /אפור|שחור|לבן|לבנה(?![\u05D0-\u05EA])|חומה|חומים|חומות|אדו[םמ]|כחול|ירוק|צהוב|ורוד|סגול|חום|בז'|כתו[םמ]|זהב|זהוב|כסוף|כסופ|כסף|שקו[ףפ]|תכלת|בורדו|קרם|ניוד|נייבי|חאקי|טורקיז|פוקסיה|לילך|פרחוני|מנוקד|פסים|משובץ|הדפס|צבע|אגוז|אלון|\b(?:walnut|oak|gr[ae]y|black|white|red|blue|green|yellow|pink|purple|brown|beige|orange|gold|silver|clear|floral|striped|plaid|navy|khaki|nude|burgundy|turquoise|colou?r(?:ed|ful|s)?)\b/i;
+// Not a color: heat (מד/אקדח חום), money (מחזיק/שטר כסף), skin cream (קרם לחות, or the request starting with קרם).
+const NOT_LOOK = /רעש\s+לבן|white\s+noise|(?:מד|אקדח|מגן|בידוד|עמיד\s+ל|מפזר|משאבת|נגד)\s*חום|(?:מחזיק|שטרי?|שטרות|קופ[הת]|תיבת|ספירת)\s+(?:ל|של\s+)?כסף|^\s*קרם\S*|קרם\s+(?:ל\S*|נגד|הגנה|לחות|פנים|ידיים|גוף|עיניים|לילה|יום|רגליים|שיער|גילוח)/gi;
 // A color or pattern: the card puts the right look before reviews. "רעש לבן" / white noise isn't white (2026-11-02).
-export const namesLook = (text) => VISUAL_WORDS.test((text ?? "").replace(/רעש\s+לבן|white\s+noise/gi, ""));
+export const namesLook = (text) => VISUAL_WORDS.test((text ?? "").replace(NOT_LOOK, ""));
 
 const RELEVANCE_SYSTEM = `You check AliExpress search results for an Israeli shopper.
 You get the request (Hebrew, with English search keywords) and numbered products: a title (often machine-translated Hebrew)

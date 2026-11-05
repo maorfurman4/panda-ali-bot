@@ -68,7 +68,7 @@
  "שידה": "chest of drawers / dresser",
  "פוף": "pouf / bean bag",
  "כפכפים": "slides / flip-flops",
- "טרנינג": "tracksuit / sweatpants",
+ "טרנינג": "alone, usually sweatpants: \"men sweatpants\" / \"women sweatpants\" (\"men tracksuit\" 40 of 72 real vs 63); \"חליפת טרנינג\" is the full set",
  "גופייה": "tank top",
  "טייץ": "leggings",
  "בגד גוף": "baby bodysuit / onesie",
@@ -201,5 +201,17 @@
  "לואי ויטון": "a Louis Vuitton bag: AliExpress has no originals; when the item itself is asked for, search look-alikes in that style, \"designer handbag women luxury\", brand null (owner: look-alikes are fine, 2026-11-04)",
  "טבעת אורה": "an Oura ring: AliExpress has no originals; when the item itself is asked for, search look-alikes in that style, \"health smart ring\", brand null; a cover or charger FOR it is that accessory, searched as written (owner: look-alikes are fine, 2026-11-04)",
  "מזוודה לעלייה למטוס": "a cabin-size trolley suitcase; sellers title it \"cabin luggage 20 inch\" or \"trolley suitcase 20 inch\" (\"carry on suitcase\" found mostly luggage straps; few suitcases ship to Israel, so they sell little)",
- "מייבש שיער": "a hair dryer when the dryer itself is asked for; sellers title it \"professional hair dryer\" or \"high speed hair dryer\" (\"hair dryer\" alone also brought wall holders: 52 of the judges' 72 vs 29). \"מחזיק/מעמד למייבש שיער\" is a holder, searched as written"
+ "מייבש שיער": "a hair dryer when the dryer itself is asked for; sellers title it \"professional hair dryer\" or \"high speed hair dryer\" (\"hair dryer\" alone also brought wall holders: 52 of the judges' 72 vs 29). \"מחזיק/מעמד למייבש שיער\" is a holder, searched as written",
+ "ג'ינס": "jeans themselves: sellers title them \"men denim jeans\" / \"women denim jeans\" (\"men jeans\" brought jeans belts and waist extenders: 20 of the judges' 72 real vs 63). Something for jeans (\"חגורה לג'ינס\") is searched as written",
+ "שמלה": "a woman's dress with no occasion: sellers title it \"women casual dress\" (\"dress\" alone: 13 of 72 real vs 28); with an occasion keep it (\"casual summer dress women\", \"evening dress\"); for a girl \"girls casual dress\"",
+ "שמלת קיץ": "\"casual summer dress women\" (\"summer dress\" also brought lingerie: 29 of 72 real vs 50)",
+ "חולצת טי": "a T-shirt: sellers title it \"men basic t shirt\" / \"women t shirt\" (\"men t shirt\" 44 of 72 real vs 64)",
+ "מכנסיים קצרים": "shorts as clothing: \"men casual shorts\" / \"women casual shorts\" (\"men shorts\" brought boxer underwear: 14 of 72 real vs 36)",
+ "מכנסיים לנשים": "\"women trousers\" (\"women pants\" also brought pajama pants: 29 of 72 real vs 58)",
+ "עניבה": "a necktie: \"men necktie\" (\"tie\" found nothing)",
+ "כובע צמר": "a knitted winter hat: \"winter beanie hat\" (\"wool hat\" 42 of 72 real vs 66)",
+ "גלביה": "a long loose robe dress: \"kaftan dress\" (\"galabiya\" found nothing)",
+ "שלושת רבעי": "3/4-length pants: for women \"capri pants women\" (\"three quarter pants\" brought men's sports shorts); for men \"men 3/4 shorts\"",
+ "נעלי ריצה": "\"lightweight running shoes\" with the gender (\"men running shoes\" also brought insoles: 53 of 72 real vs 72)",
+ "חליפת טרנינג": "a matching sweatshirt-and-sweatpants set: \"tracksuit set\" with the gender"
 }
