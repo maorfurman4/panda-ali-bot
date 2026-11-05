@@ -17,6 +17,7 @@ import {
   rankProducts,
   strength,
   offColor,
+  babyOnly,
   inColors,
   trustedFirst,
   sameReviews,
@@ -428,6 +429,11 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   partial = [...partial.map((p) => (wrongColor(p) ? { ...p, offColor: true, titleOff: true } : p)), ...[...exact, ...near].filter(wrongColor).map((p) => ({ ...p, offColor: true, titleOff: true }))];
   exact = exact.filter((p) => !wrongColor(p));
   near = near.filter((p) => !wrongColor(p));
+  // A baby item for a child's request is close, never a real match (style searches too).
+  const baby = (p) => babyOnly(p.product_title, context);
+  partial = [...partial, ...[...exact, ...near].filter(baby).map((p) => ({ ...p, titleOff: true }))];
+  exact = exact.filter((p) => !baby(p));
+  near = near.filter((p) => !baby(p));
   const special = exact.filter((p) => specialKind(p.product_title, `${context} ${keywords}`) || singleForSet(p.product_title, context));
   if (special.length) (exact = exact.filter((p) => !special.includes(p))), (partial = [...special, ...partial]);
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for

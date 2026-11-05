@@ -114,6 +114,13 @@ export function colorAlsoLine(request = "") {
   const w = COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1];
   return w ? `🎨 מגיע גם ב${w}, בוחרים בדף המוצר` : null;
 }
+// A request for a child (ילדה, בנות, kids) and a title for a baby only: "שמלה לילדה" showed three baby dresses, the judges
+// let them in (owner's test, 2026-11-05). A title naming a child too ("לתינוקות ולילדות") is for both and stays.
+const CHILD = /(?<![א-ת])[ולהבמשכ]{0,2}(?:ילדה|ילדות|ילד|ילדים|בנות|בנים|נער|נערה|נוער)(?![א-ת])|\b(?:kids?|girls?|boys?|children)\b/i;
+const BABY = /תינוק|פעוט|יילוד|\b(?:baby|babies|newborn|infant|toddler)\b/i;
+// In a title "baby girl" is a baby, so only the Hebrew child words or "kids"/"children" make it for a child too.
+const CHILD_TITLE = /(?<![א-ת])[ולהבמשכ]{0,2}(?:ילדה|ילדות|ילד|ילדים|בנות|בנים|נוער)(?![א-ת])|\b(?:kids?|children)\b/i;
+export const babyOnly = (title = "", request = "") => CHILD.test(request) && !BABY.test(request) && BABY.test(title) && !CHILD_TITLE.test(title);
 export function offColor(title, request) {
   const asked = named(request);
   if (!asked.length) return false;

@@ -589,3 +589,13 @@ test("colorAlsoLine: the asked color in the shopper's word; none without a color
   assert.equal(colorAlsoLine("תיק לעבודה לבנות"), null, "for women, not white");
   assert.equal(colorAlsoLine("שמלה"), null);
 });
+
+test("babyOnly: a baby-only title for a child's request; a title for both, or a baby request, is fine", async () => {
+  const { babyOnly } = await import("../format.js");
+  assert.equal(babyOnly("שמלת פרחים לתינוקת קיץ", "שמלה לילדה"), true);
+  assert.equal(babyOnly("Newborn baby girl dress", "שמלה לילדה"), true);
+  assert.equal(babyOnly("שמלה לתינוקות ולילדות 1-6 שנים", "שמלה לילדה"), false);
+  assert.equal(babyOnly("שמלת נסיכה לילדות", "שמלה לילדה"), false);
+  assert.equal(babyOnly("שמלת פרחים לתינוקת", "שמלה לתינוקת"), false);
+  assert.equal(babyOnly("שמלת פרחים לתינוקת", "שמלה"), false, "no child named: unchanged");
+});
