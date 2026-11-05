@@ -84,6 +84,14 @@ const PHOTO_SPARE = 2; // the photo check sees the products to show plus this ma
 // the asked color's photo), so the photo check sees more of them, and only what it saw can be shown.
 const COLOR_PHOTO_SPARE = 8;
 const COLOR_PICK_MAX = 4; // multi-color listings whose other photos are looked at for the asked color (≈5 photos each)
+// A named color is a variant, not a kind: big sellers list one sweater in ten colors and name none in the title, so a search
+// with the color found only small sellers (free check, 2026-11-05, the middle of the 16 best: burgundy sweater 5 sold vs 1,630
+// for "women sweater"; black travel mug 1 vs 2,057; pink earbuds 6 vs 18,410). The item is also searched without the color,
+// and the best sellers the judges left out get a look at their other photos for the asked color (one call, ≈0.45¢).
+// Materials and patterns (cashmere, leather, linen, floral) stay: they are the item, not a variant.
+const COLOR_EN = /\b(?:black|white|red|blue|navy|green|yellow|pink|purple|brown|beige|khaki|nude|gr[ae]y|orange|burgundy|turquoise|wine)\b/gi;
+export const withoutColor = (keywords = "") => keywords.replace(COLOR_EN, " ").replace(/\s+/g, " ").trim();
+const COLOR_POOL_PICK = 6;
 // Titles only on gpt-5.4: ~$0.008 per 48. Non-style searches get 72: the three readings' words make up to ~17 lists, and
 // at 48 they pushed out sellers each single reading had (8,298 shavers, 16,652 car chargers; simulated 2026-11-02).
 // Style searches stay at 48, as approved (with 72 a blue gown got into "שמלת ערב שחורה ארוכה", 2026-11-02).
@@ -308,14 +316,16 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const brandWords = new Set(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`));
   const shortModel = brandModel(brandOnly, keywords);
   const wordings = live ? [...new Set([shortModel, alt, ...terms, ...brandWords].filter((t) => t && t !== keywords))] : [];
+  const plain = live && namesLook(context) && withoutColor(keywords) !== keywords && withoutColor(keywords) ? withoutColor(keywords) : null;
   // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
   // no second ask, which would only wait 1.2 s.
-  const [main, wide, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [brandWords.has(t) ? { askAgain: false } : {}]))]);
+  const [main, wide, wideColor, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), plain ? fetchLists(plain, LISTS) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [brandWords.has(t) ? { askAgain: false } : {}]))]);
   // The search fails only when every list failed: with AliExpress slow, the main words timed out at 10 s while other
   // wordings had come back, and the shopper got "תקלה בחיבור" (owner, 2026-11-03).
   if (main.status === "rejected" && (!broader || wide.status === "rejected") && reworded.every((r) => r.status === "rejected")) throw main.reason;
   if (main.status === "rejected") console.error(`main search failed, using the other wordings: ${main.reason.message}`);
   const mainLists = main.status === "fulfilled" ? main.value : [];
+  const plainLists = wideColor.status === "fulfilled" ? wideColor.value : [];
   const otherLists = [...reworded, wide].flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   const first = inTurn(mainLists);
   // Self-check: the main words' top titles share nothing with the Hebrew request, so the reading was likely word for word
@@ -336,6 +346,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   let partial = [];
   const known = new Set(); // well-known brands, as the title check names them
   let near = []; // one judge said exact, the other close
+  let colorPooled = false; // the color-free best sellers already had their photo look (one picker call per search)
   if (live) {
     // Every list (the main words' best sellers, page 2, relevance order and category lists; each other wording; the broader
     // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
@@ -345,8 +356,15 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // out of the pool ("מעמד טלפון לרכב של Baseus": 8 Baseus holders came back, none reached the AI, 2026-11-02).
     const named = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
     const brandFirst = (l) => (typeof brandOnly === "string" ? [...l.filter(named), ...l.filter((p) => !named(p))] : l);
-    const lists = [...mainLists, ...otherLists].map(brandFirst);
-    const pool = style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf); // style searches as approved
+    const lists = [...mainLists, ...plainLists, ...otherLists].map(brandFirst);
+    // The color-free best sellers take at most half the pool: they outsell every pink earbud, and filled 69 of 72 places
+    // (free check, 2026-11-05), so the listings pictured in the asked color kept the other half.
+    const colorFirst = () => {
+      const own = strongPool([...mainLists, ...otherLists].map(brandFirst), poolSize / 2, keyOf);
+      const seenKeys = new Set(own.map(keyOf));
+      return own.concat(strongPool(plainLists, poolSize, keyOf).filter((p) => !seenKeys.has(keyOf(p)))).slice(0, poolSize);
+    };
+    const pool = style ? inTurn(lists, poolSize) : plainLists.length ? colorFirst() : strongPool(lists, poolSize, keyOf); // style searches as approved
     // steady: the same verdict every time (temperature 0), on non-style searches only.
     const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();
@@ -362,6 +380,16 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
     near = out.near ?? [];
     for (const p of out.brand ?? []) known.add(keyOf(p));
+    // The color-free search's best sellers the judges left out (their first photo shows another variant): the photo picker
+    // looks for the asked color among their other photos; one it finds is an exact match shown in that color.
+    if (plain && pickPhoto) {
+      const judged = new Set([...exact, ...partial, ...near].map(keyOf));
+      const left = inTurn(plainLists).filter((p) => pool.includes(p) && !judged.has(keyOf(p)) && !offColor(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 1)
+        .sort((a, b) => (Number(b.lastest_volume) || 0) - (Number(a.lastest_volume) || 0)).slice(0, COLOR_POOL_PICK);
+      const urls = left.length ? await pickPhoto({ he: context, en: keywords }, left).catch(() => []) : [];
+      colorPooled = left.length > 0;
+      exact = exact.concat(left.flatMap((p, i) => (urls[i] ? [{ ...p, product_main_image_url: urls[i], colorPick: true }] : [])));
+    }
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
     // Also when the matches barely sell (the best under WEAK_SOLD): often the words, not the supply (slow juicers only for
@@ -547,7 +575,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // in the asked color takes the card's place, with a note to pick that color on the product page (a 1,554-sold gown,
   // light blue on its 1st photo and black on its 6th, sat in a black dress card; owner, 2026-11-02). The photo shows the
   // requested item in the asked color, so it counts as an exact match and moves ahead of the other-color ones.
-  if (namedColor && live && pickPhoto && (otherColor.size || dropped.size)) {
+  if (namedColor && live && pickPhoto && !colorPooled && (otherColor.size || dropped.size)) {
     const isShown = (p) => shown.some((s) => keyOf(s) === keyOf(p));
     const back = [...dropped.values()].filter((p) => !isShown(p));
     const multi = [...shown.slice(0, limit + extra).filter((p) => otherColor.has(keyOf(p)) && inColors(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 1), ...back].slice(0, COLOR_PICK_MAX);

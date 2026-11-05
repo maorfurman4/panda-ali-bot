@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, styleFloor } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, styleFloor, withoutColor } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -1682,4 +1682,31 @@ test("a named color: a failing photo pick leaves the card as the photo look left
   await ctx.bot.handleUpdate(textUpdate("חפש לי שמלה שחורה"));
   assert.ok(!collaged.includes("https://ae01.alicdn.com/kf/img1.jpg"));
   assert.equal(collaged.length, 4);
+});
+
+test("withoutColor: a color is a variant, so the item is searched without it; materials and 'clear' stay", () => {
+  assert.equal(withoutColor("burgundy sweater women"), "sweater women");
+  assert.equal(withoutColor("black travel mug"), "travel mug");
+  assert.equal(withoutColor("pink wireless earbuds"), "wireless earbuds");
+  assert.equal(withoutColor("iphone 16 clear case"), "iphone 16 clear case");
+  assert.equal(withoutColor("cashmere sweater women"), "cashmere sweater women");
+});
+
+test("a named color: the item is searched without it too, and a best seller pictured in another color comes back in the asked one", async () => {
+  const gallery = (n) => ({ string: [`https://ae01.alicdn.com/kf/img${n}.jpg`, `https://ae01.alicdn.com/kf/red${n}.jpg`, `https://ae01.alicdn.com/kf/black${n}.jpg`] });
+  const small = Array.from({ length: 5 }, (_, i) => product(i + 1, { lastest_volume: String(40 - i), product_title: `שמלה שחורה ${i + 1}`, product_small_image_urls: gallery(i + 1) }));
+  const big = [product(8, { lastest_volume: "9000", product_title: "שמלה ארוכה לנשים", product_small_image_urls: gallery(8) }), product(9, { lastest_volume: "7000", product_title: "שמלה קצרה לנשים", product_small_image_urls: gallery(9) })];
+  const queries = [];
+  const search = async (q) => (queries.push(q), q === "dress women" ? big : small);
+  const understand = async () => intent({ corrected_he: "שמלה שחורה", keywords_en: "black dress women" });
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => /שחורה/.test(x.product_title)), partial: [] }); // 8 and 9 pictured red
+  const asked = [];
+  const pickPhoto = async (_r, p) => (asked.push(p.map((x) => x.promotion_link.slice(-1))), p.map((x) => (x.promotion_link.endsWith("8") ? x.product_small_image_urls.string[2] : null)));
+  let collaged;
+  const ctx = setup({ search, live: true, understand, relevant, pickPhoto, collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שמלה שחורה"));
+  assert.ok(queries.includes("dress women"), "searched without the color");
+  assert.deepEqual(asked, [["8", "9"]], "one photo look, best sellers first");
+  assert.equal(collaged[0], "https://ae01.alicdn.com/kf/black8.jpg", "the 9,000-sold dress leads, in black");
+  assert.ok(!collaged.some((u) => /img9|black9/.test(u)), "no black photo: stays out");
 });
