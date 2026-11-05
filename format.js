@@ -498,7 +498,7 @@ export const SIZES_NOTE = "💡 המחיר עשוי להשתנות לפי הנפ
 // the brand ("כיסוי לאיירפודס", "קישוטים לקרוקס") is an accessory and gets no note.
 const LOOKALIKE = /(?<![א-ת])(?:של\s+|[ו]?)(איירפודס|אייר פודס|אירפודס|airpods|אפל ווטש|שעון אפל|apple watch|איירטאג|אייר טאג|airtag|אפל פנסיל|apple pencil|לולולמון|לולו למון|lululemon|קרוקס|crocs|ריי באן|רייבן|ray-?ban|רולקס|rolex|לגו|lego|תרגאן|theragun|אוואלה|owala|ugg|סקימס|skims|מייבש שיער (?:של )?דייסון|dyson hair dryer|לואי ויטון|louis vuitton|טבעת אורה|oura)(?![א-ת])/i;
 export const lookalikeBrand = (text = "") => LOOKALIKE.test(text);
-export const LOOKALIKE_NOTE = "ℹ️ את המותג המקורי כמעט אין בעלי אקספרס: אלה דגמים בסגנון דומה";
+export const LOOKALIKE_NOTE = "ℹ️ את המותג המקורי כמעט אין בעלי אקספרס, אז אלה דגמים בסגנון דומה";
 export const WEAK_NOTE = "ℹ️ בעלי אקספרס יש מעט מוצרים נמכרים מהסוג הזה לישראל: כדאי לבדוק דירוג וביקורות לפני קנייה";
 export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
