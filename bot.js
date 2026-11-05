@@ -471,6 +471,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Fails open: no answer, or every one rejected (an odd verdict), keeps the list as it was.
   const banners = new Set(); // products whose main photo is an ad banner (the photo look says so)
   const otherColor = new Set(); // products the photo look saw as only close (often another color)
+  // A named color: real matches the photo look dropped, maybe for showing another color variant on their first photo
+  // (clothes come in many colors; owner, 2026-11-05). Their other photos get a look for the asked color below.
+  const dropped = new Map();
+  const dropIn = (head, keep) => { if (namedColor) for (const p of head) if (!keep(p) && p.match === "exact" && !offColor(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 1) dropped.set(keyOf(p), p); };
   const namedColor = namesLook(context);
   const lookRequest = { he: context, en: keywords, looks, terms: wordings, steady: !style };
   // A named color with fewer than 4 confirmed: the photo look checks the next candidates too, and those it sees in the right
@@ -495,6 +499,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     // The same item from another listing (one POEDAGAR watch twice, 2026-11-01) is dropped like a photo that isn't the item.
     const kept = head.filter((p) => ok.has(keyOf(p)) && !same.has(keyOf(p)));
+    if (seen) dropIn(head, (p) => ok.has(keyOf(p)) || same.has(keyOf(p)));
     if (kept.length) {
       const byKey = new Map(kept.map((p) => [keyOf(p), p]));
       const pretty = (seen.pretty ?? []).map((p) => byKey.get(keyOf(p))).filter((p) => p && !plain.has(keyOf(p)));
@@ -530,6 +535,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       // A fill item of another brand (a brand search with few items of the brand) stays: the photo look drops it for "not
       // Aruba", though both title judges called it the same kind of item (the AP22 card came out with 1 product, 2026-11-03).
       const kept = head.filter((p) => ok.has(keyOf(p)) || p.brandFill);
+      dropIn(head, (p) => ok.has(keyOf(p)) || p.brandFill);
       const rest = shown.slice(head.length);
       if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))).map((p) => ({ ...p, looked: true })), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", offColor: true, looked: true })), ...(namedColor ? [] : rest)];
       if (namedColor && shown.length < limit) shown = shown.concat((await moreInColor(rest, shown)).map((p) => ({ ...p, looked: true })));
@@ -539,10 +545,18 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // in the asked color takes the card's place, with a note to pick that color on the product page (a 1,554-sold gown,
   // light blue on its 1st photo and black on its 6th, sat in a black dress card; owner, 2026-11-02). The photo shows the
   // requested item in the asked color, so it counts as an exact match and moves ahead of the other-color ones.
-  if (namedColor && live && pickPhoto && otherColor.size) {
-    const multi = shown.slice(0, limit + extra).filter((p) => otherColor.has(keyOf(p)) && inColors(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 1).slice(0, COLOR_PICK_MAX);
+  if (namedColor && live && pickPhoto && (otherColor.size || dropped.size)) {
+    const isShown = (p) => shown.some((s) => keyOf(s) === keyOf(p));
+    const back = [...dropped.values()].filter((p) => !isShown(p));
+    const multi = [...shown.slice(0, limit + extra).filter((p) => otherColor.has(keyOf(p)) && inColors(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 1), ...back].slice(0, COLOR_PICK_MAX);
     const urls = multi.length ? await pickPhoto({ he: context, en: keywords }, multi).catch(() => []) : [];
     const picked = new Map(multi.map((p, i) => [keyOf(p), urls[i]]).filter(([, u]) => u));
+    // A dropped one seen in the asked color comes back; one with no such photo comes back only when its title names the
+    // asked color among others, after the right-color ones, with a line saying it comes in that color too.
+    shown = [...shown, ...back.filter((p) => picked.has(keyOf(p))).map((p) => ({ ...p, looked: true }))];
+    const also = back.filter((p) => !picked.has(keyOf(p)) && inColors(p.product_title, context)).map((p) => ({ ...p, match: "partial", offColor: true, looked: true }));
+    for (const p of also) otherColor.add(keyOf(p));
+    shown = [...shown, ...also];
     if (picked.size) {
       shown = shown.map((p) => (picked.has(keyOf(p)) ? { ...p, product_main_image_url: picked.get(keyOf(p)), match: "exact", offColor: false, titleOff: false, colorPick: true } : p));
       const off = (p) => otherColor.has(keyOf(p)) && !p.colorPick;
@@ -552,6 +566,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       shown = [...(style ? right : right.sort((a, b) => place.get(keyOf(a)) - place.get(keyOf(b)))), ...shown.filter(off)];
     }
   }
+  if (namedColor) shown = shown.map((p) => (p.offColor && !p.colorPick && inColors(p.product_title, context) ? { ...p, colorAlso: true } : p));
   // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
   shown = shown.map((p) => { const next = p.product_small_image_urls?.string?.[1]; return banners.has(keyOf(p)) && /^https:\/\//.test(next ?? "") ? { ...p, product_main_image_url: next } : p; });
   // A swapped photo (ad banner, asked color) can match another listing's: two listings of one ring light, banners on

@@ -580,3 +580,12 @@ test("look-alike brands (2026-11-05): the card says the original isn't on AliExp
   assert.ok(formatCard([p], { query: "איירפודס פרו" }).caption.includes(LOOKALIKE_NOTE));
   assert.ok(!formatCard([p], { query: "כיסוי לאיירפודס" }).caption.includes(LOOKALIKE_NOTE));
 });
+
+test("colorAlsoLine: the asked color in the shopper's word; none without a color", async () => {
+  const { colorAlsoLine } = await import("../format.js");
+  assert.equal(colorAlsoLine("שמלה שחורה"), "🎨 מגיע גם בשחור, בוחרים בדף המוצר");
+  assert.equal(colorAlsoLine("חולצה ניוד"), "🎨 מגיע גם בניוד, בוחרים בדף המוצר");
+  assert.equal(colorAlsoLine("נעליים אדומות"), "🎨 מגיע גם באדום, בוחרים בדף המוצר");
+  assert.equal(colorAlsoLine("תיק לעבודה לבנות"), null, "for women, not white");
+  assert.equal(colorAlsoLine("שמלה"), null);
+});

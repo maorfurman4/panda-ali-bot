@@ -80,9 +80,9 @@ export function trustedFirst(products, { bySales = false, look = false } = {}) {
 // exact, 2026-11-01). Main colors only: gold and silver are often a trim or a metal, and a title listing the asked color
 // among others (black/white/red variants) keeps it.
 const COLORS = {
-  black: /שחור|\bblack\b/i, white: /לבן|לבנ|\bwhite\b/i, red: /אדום|אדומ|בורדו|\bred\b|burgundy/i, blue: /כחול|\bblue\b|\bnavy\b/i,
-  green: /ירוק|\bgreen\b/i, yellow: /צהוב|\byellow\b/i, pink: /ורוד|\bpink\b/i, purple: /סגול|\bpurple\b/i,
-  brown: /חומה|חומים|חומות|\bbrown\b|\bcoffee\b/i, beige: /בז'|\bbeige\b|\bkhaki\b/i, gray: /אפור|\bgr[ae]y\b/i, orange: /כתום|\borange\b/i,
+  black: /שחור|\bblack\b/i, white: /לבן|לבנ|\bwhite\b/i, red: /אדום|אדומ|בורדו|\bred\b|burgundy/i, blue: /כחול|נייבי|טורקיז|\bblue\b|\bnavy\b|turquoise/i,
+  green: /ירוק|\bgreen\b/i, yellow: /צהוב|\byellow\b/i, pink: /ורוד|פוקסיה|\bpink\b|fuchsia/i, purple: /סגול|לילך|\bpurple\b|lilac/i,
+  brown: /חומה|חומים|חומות|\bbrown\b|\bcoffee\b/i, beige: /בז'|ניוד|חאקי|\bbeige\b|\bkhaki\b|\bnude\b/i, gray: /אפור|\bgr[ae]y\b/i, orange: /כתו[םמ]|\borange\b/i,
 };
 // "רעש לבן" (white noise) names no color: a white noise machine search got the color note (owner's test, 2026-11-02).
 const NOT_A_COLOR = /רעש\s+לבן|white\s+noise/gi;
@@ -106,6 +106,14 @@ const named = (text) => {
 };
 // A listing in several colors, the asked one among them ("כחול, ירוק, שחור, צהוב…" for "שחורה", 2026-11-02).
 export const inColors = (title, request) => named(request).some((c) => named(title).includes(c)) && named(title).length > 1;
+// The asked color in the shopper's own word, for a listing shown in another color whose title says it comes in that one
+// too (owner, 2026-11-05: "show it in red and write it comes in black too").
+const COLOR_WORDS = [[/שחור/, "שחור"], [/לבן|לבנה/, "לבן"], [/אדו[םמ]/, "אדום"], [/בורדו/, "בורדו"], [/נייבי/, "נייבי"], [/טורקיז/, "טורקיז"], [/תכלת/, "תכלת"], [/כחול/, "כחול"], [/ירוק/, "ירוק"], [/צהוב/, "צהוב"], [/פוקסיה/, "פוקסיה"], [/ורוד/, "ורוד"], [/לילך/, "לילך"], [/סגול/, "סגול"], [/ניוד/, "ניוד"], [/חאקי/, "חאקי"], [/בז'/, "בז'"], [/חום|חומ/, "חום"], [/אפור/, "אפור"], [/כתו[םמ]/, "כתום"]];
+export function colorAlsoLine(request = "") {
+  const t = request.replace(NOT_A_COLOR, "");
+  const w = COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1];
+  return w ? `🎨 מגיע גם ב${w}, בוחרים בדף המוצר` : null;
+}
 export function offColor(title, request) {
   const asked = named(request);
   if (!asked.length) return false;
@@ -533,6 +541,7 @@ function buildCard(products, query, demo, reasons, closest, rare, weak, fakes) {
         // A ✨ or 🏷️ pick isn't ranked by sales, so it has no medal; the medals count the best sellers only (🥇 ✨ 🥈 ✨).
         `${p.pretty ? "✨" : p.brandSlot ? "🏷️" : MEDALS[products.slice(0, i).filter((q) => !q.pretty && !q.brandSlot).length]} <b>${esc(p.short_he || shortTitle(p.product_title) || "מוצר")}</b>`,
         p.pretty && "✨ מהיפים ביותר בחיפוש",
+        p.colorAlso && colorAlsoLine(query),
         reasons?.[i] && `💡 ${esc(reasons[i])}`,
         [priceLine(p, { from: true }), p.overBudget && OVER_BUDGET_NOTE].filter(Boolean).join(" · "),
         discountLine(p),
