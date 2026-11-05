@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, styleFloor } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -1638,4 +1638,12 @@ test("self-check: titles that share nothing with the Hebrew request get a second
   let reads = 0;
   await pickProducts({ search: async () => cups, relevant, live: true }, { keywords: "kiddush cup", context: "כוס קידוש", limit: 4, reread: async () => (reads++, null) });
   assert.equal(reads, 0, "matching titles: no second reading");
+});
+
+test("styleFloor: a fifth of the top seller, but the look still gets 16 to choose from; weak searches keep 100", () => {
+  const of = (...n) => n.map((v) => ({ lastest_volume: String(v) }));
+  assert.equal(styleFloor(of(34000, ...Array(20).fill(9000), 500, 300)), 6800, "strong: 500 and 300 drop out");
+  assert.equal(styleFloor(of(10000, ...Array(10).fill(3000), ...Array(10).fill(400))), 400, "never fewer than 16");
+  assert.equal(styleFloor(of(1200, 300, 150)), 100, "few items: today's 100");
+  assert.equal(styleFloor([]), 100);
 });

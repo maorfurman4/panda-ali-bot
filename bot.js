@@ -102,6 +102,14 @@ const STYLE_MIN_SOLD = 100;
 const DECENT_REVIEWS = 10;
 const STRONG_REVIEWS = 20; // a style item with 100+ sold and 20+ reviews (4.5+) leads its card even if the AI called it "close"
 const STYLE_MIN_FEEDBACK = 90;
+// The floor rises with the search: items selling under a fifth of its top seller drop out while the look still gets
+// STYLE_PHOTOS to choose from (owner: as many sales in the card as possible, 2026-11-05). Free check on 32 fashion
+// searches: sandals (top 34,403) and men's shorts lose their 100-500-sold items; weak searches keep 100.
+const STYLE_TOP_SHARE = 0.2;
+export function styleFloor(products) {
+  const sales = products.map((p) => Number(p.lastest_volume) || 0).sort((a, b) => b - a);
+  return Math.max(STYLE_MIN_SOLD, Math.min(STYLE_TOP_SHARE * (sales[0] ?? 0), sales[STYLE_PHOTOS - 1] ?? 0));
+}
 // Each card holds one item of a trusted brand when there is one: an official brand store, or a well-known brand the title
 // check names (Baseus, Ugreen, Anker…), with ≥100 sold and ≥92% feedback (owner request, 2026-11-01).
 const BRAND_MIN_SOLD = 100;
@@ -474,7 +482,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const right = new Set((seen?.exact ?? []).map(keyOf)); // the right color only: "close" is often another color
     return next.filter((p) => right.has(keyOf(p))).slice(0, limit - have.length);
   };
-  const styled = style && !cheapest && live && look ? rankProducts(shown.filter((p) => p.match === "exact" && Number(p.lastest_volume) >= STYLE_MIN_SOLD && !(rate(p) < STYLE_MIN_FEEDBACK))) : [];
+  const styleable = shown.filter((p) => p.match === "exact" && !(rate(p) < STYLE_MIN_FEEDBACK));
+  const floor = styleFloor(styleable);
+  const styled = style && !cheapest && live && look ? rankProducts(styleable.filter((p) => Number(p.lastest_volume) >= floor)) : [];
   if (styled.length >= limit) {
     // Style items: 🥇 best seller, ✨ prettiest, 🥈 next seller, ✨ next prettiest… Plain-looking ones go last, never out.
     // As it was at 17:30 (owner, 2026-11-01: tonight's review order and color tags made the dress cards worse).
