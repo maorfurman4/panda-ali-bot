@@ -565,3 +565,9 @@ test("bigItem: an accessory named after the machine is searched, not answered wi
   assert.ok(bigItem("ספה לסלון"), "סלון is not an accessory");
   assert.ok(bigItem("מכונת כביסה פתח קדמי"));
 });
+
+test("namesModel: Chinese car makes from the owner's feed (BYD, Atto 3, Seagull, MG) and 'ל-' with a hyphen (2026-11-05)", async () => {
+  const { namesModel } = await import("../format.js");
+  for (const t of ["כיסוי מפתח ל-BYD", "שטיחונים לאטו 3", "מגן מסך לסיגל", "מחזיק טלפון ל-MG ZS", "כיסוי ל-iPhone 15", "כיסוי הגה לצ'רי טיגו 8"]) assert.equal(namesModel(t), true, t);
+  for (const t of ["בובת דולפין", "דולפין מתנפח", "יואן סיני"]) assert.equal(namesModel(t), false, t);
+});
