@@ -632,3 +632,13 @@ test("slang hints of short words describe the word alone, never a longer request
   assert.match(slangHints("חפש לי נטילת ידיים").join(" "), /netilat yadayim cup/);
   assert.deepEqual(slangHints("אוזניות אלחוטיות"), [], "an untouched search gets nothing new");
 });
+
+test("slang from real group searches (2026-11-05): tool 'guns' are not weapons; Israeli words get sellers' wording", async () => {
+  const { slangHints } = await import("../query.js");
+  assert.match(slangHints("חפש לי מסמרים לאקדח מסמרים").join(" "), /not a weapon/);
+  assert.match(slangHints("אקדח עיסוי לשרירים").join(" "), /massage gun/);
+  assert.match(slangHints("חולצת פולו לגברים משי קר").join(" "), /ice silk/);
+  assert.match(slangHints("חלקי חילוף לאיירובוט 966").join(" "), /Roomba/);
+  assert.match(slangHints("חפש לי ערדליים").join(" "), /rain boots/);
+  assert.match(slangHints("טייפ לכדורגל").join(" "), /sock tape/);
+});
