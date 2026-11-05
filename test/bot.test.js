@@ -1618,3 +1618,24 @@ test("a reply to your own search refines it; thanks, questions and replies to ot
   await quiet.bot.handleUpdate(withReply("לתליה על הקיר", { from: 8, text: "חפש לי מתקן לכוסות" }));
   assert.equal(quiet.sent().length, 0);
 });
+
+test("self-check: titles that share nothing with the Hebrew request get a second reading, kept only if it matches better (2026-11-05)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const { titleShare } = await import("../format.js");
+  assert.equal(titleShare("נטילת ידיים", [{ product_title: "סבון ידיים נוזלי" }, { product_title: "כוס נטילת ידיים מקרמיקה" }]), 1, "ידיים is in both");
+  assert.equal(titleShare("כוס קידוש", [{ product_title: "גביע יין מכסף" }]), 0);
+  assert.equal(titleShare("כיפה סרוגה", [{ product_title: "כיפה סרוגה לילד" }]), 1, "כיפה keeps its כ");
+  assert.equal(titleShare("wireless earbuds", [{ product_title: "x" }]), 1, "an English request never alarms");
+  const soap = Array.from({ length: 8 }, (_, i) => product(i + 1, { product_title: `סבון נייר נייד ${i}` }));
+  const cups = Array.from({ length: 8 }, (_, i) => product(i + 20, { product_title: `כוס קידוש מכסף ${i}` }));
+  const asked = [];
+  const search = async (q) => (asked.push(q), q === "kiddush cup" ? cups : soap);
+  const relevant = async (_r, p) => ({ exact: p, partial: [] });
+  const out = await pickProducts({ search, relevant, live: true }, { keywords: "sanctification cup", context: "כוס קידוש", limit: 4, reread: async () => ({ keywords: "kiddush cup" }) });
+  assert.ok(out.length && out.every((p) => /קידוש/.test(p.product_title)), "switched to the matching reading");
+  const stay = await pickProducts({ search: async () => soap, relevant, live: true }, { keywords: "sanctification cup", context: "כוס קידוש", limit: 4, reread: async () => ({ keywords: "silver goblet" }) });
+  assert.ok(stay.every((p) => /סבון/.test(p.product_title)), "a reading that matches no better is not taken");
+  let reads = 0;
+  await pickProducts({ search: async () => cups, relevant, live: true }, { keywords: "kiddush cup", context: "כוס קידוש", limit: 4, reread: async () => (reads++, null) });
+  assert.equal(reads, 0, "matching titles: no second reading");
+});

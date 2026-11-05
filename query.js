@@ -58,6 +58,10 @@ export function trimLooks(looks, words) {
 const RETRY_NOTE = `
 The shopper explicitly asked the bot to search for this, so it names a product: the words may be Israeli trade slang, a
 brand you don't know, or a misspelling. Give the most likely product; not_product only if no product reading makes sense.`;
+const wrongNote = (words) => `
+A first reading searched "${words}" and AliExpress came back with products whose titles share nothing with the request:
+it was probably word for word or another meaning. Read the request again the way an Israeli means it and give the name
+AliExpress sellers use for that item (a Jewish item by its Jewish name, a holder as a holder, a brand by the name on it).`;
 const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebrew, sometimes mixed with English) into an AliExpress search.
 - Fix typos and slang, including two adjacent letters swapped ("מבטח" -> "מטבח", "אוזנוית" -> "אוזניות", "פניצטה" ->
   "פינצטה": a word one swap away from a product is that product, never not_product; the shopper got "לא הבנתי", 2026-11-02). corrected_he = the fixed request in short Hebrew (e.g. "אושניות" -> "אוזניות"), keeping every feature the shopper named, negations too ("קשת לשיער לא גומייה" keeps "לא גומייה"), always in Hebrew even when the shopper wrote another language ("auriculares" -> "אוזניות", "чехол для айфона" -> "כיסוי לאייפון"); brand and model names stay as written.
@@ -435,12 +439,13 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI query understanding failed (${reason}); searching the raw query`);
 
   // retry: a second look at an explicit search the first answer called "not a product" (slang, an unknown brand, a typo).
-  return async function understand(query, { retry = false } = {}) {
+  // wrong: the words a first reading searched, whose AliExpress titles shared nothing with the request (the self-check).
+  return async function understand(query, { retry = false, wrong = null } = {}) {
     const text = query.normalize("NFC").replace(/\s+/g, " ").trim();
     // English goes through the AI too (≈0.05¢): skipping it lost the look description, the other wording and the Hebrew
     // header ("advent calendar gift box" found 3 weak partial matches, 2026-10-31).
 
-    const key = (retry ? "retry:" : "") + text.toLowerCase();
+    const key = (retry ? "retry:" : "") + (wrong ? `wrong:${wrong}:` : "") + text.toLowerCase();
     const who = forWhom(text);
     const hints = [...slangHints(text), ...(who ? [`"לבנות"/"לבנים" here means for ${who}, not the color white (a singular item can't be "לבנות" white)`] : [])];
     const hit = cache.get(key);
@@ -449,7 +454,7 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
 
     try {
       // All three failing gets one more try: a timeout or an odd answer happened in 2 of 66 searches (2026-10-25).
-      const ask = async (temperature) => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()) + (retry ? RETRY_NOTE : ""), content: hints.length ? `${text}\n\nNote: ${hints.join("; ")}` : text, name: "search_intent", schema: SCHEMA, onUsage, ...(temperature === undefined ? {} : { temperature }) }));
+      const ask = async (temperature) => validateIntent(await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: SYSTEM + seasonNote(now()) + (retry ? RETRY_NOTE : "") + (wrong ? wrongNote(wrong) : ""), content: hints.length ? `${text}\n\nNote: ${hints.join("; ")}` : text, name: "search_intent", schema: SCHEMA, onUsage, ...(temperature === undefined ? {} : { temperature }) }));
       // Three readings at once (≈0.05¢ each, parallel): each picks other English words, and each found a top seller the
       // others missed (Kemei 10,011 only via "men grooming set", Lenovo 28,938 only via "wireless earbuds", 2026-11-02).
       // The first good reading decides everything; the others only add their words, on non-style searches (style ones

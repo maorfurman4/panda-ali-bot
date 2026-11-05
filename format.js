@@ -294,6 +294,21 @@ const SET_REQUEST = /(?:^|\s)(?:סט|סטים|ערכה|ערכת|ערכות)(?:\s
 const SET_TITLE = /סט|ערכ|מארז|חלקים|יחידות|ב-?\s?1|\b\d+\s*(?:in|ב)\s*1\b|\bset\b|\bkit\b|\bpcs\b|\d+\s*(?:pcs|יח)/i;
 export const singleForSet = (title, request = "") => SET_REQUEST.test(request) && !SET_TITLE.test(title ?? "");
 
+// Self-check (owner: understand every term, not word by word, 2026-11-05): AliExpress titles come in Hebrew, so a wrong
+// reading shows as top products whose titles share no word with the Hebrew request ("נטילת ידיים" read as "hand washing":
+// soap). Free check on 2026-11-05: under 0.2 caught 9 of 20 wrong readings and 1 of 25 everyday searches.
+const SELF_STOP = new Set("חפש תחפש מצא תמצא לי של עם את על בשביל עבור גם כולל איכותי איכותית איכותיים מעוצב מעוצבת חדש חדשה זול זולה הכי טוב טובה יפה גדול גדולה קטן קטנה שיכול להכיל או וגם".split(" "));
+const unsuffix = (w) => (w.length > 4 ? w.replace(/(יות|ים|ות|ית)$/, "") : w).replace(/(?<=..[א-ת])[הת]$/, "");
+// Both the word and the word without a one-letter prefix (ו/ל/ה/ב from 4 letters, מ/ש/כ from 5), suffixes trimmed.
+const roots = (w) => { const c = w.replace(/["'׳״]/g, ""); const bare = c.length >= 5 || (c.length >= 4 && /^[ולהב]/.test(c)) ? c.replace(/^[ולהבמשכ]/, "") : c; return [...new Set([unsuffix(c), unsuffix(bare)])].filter((r) => r.length >= 3); };
+export function titleShare(request = "", products = [], top = 30) {
+  const ws = request.split(/[\s,.\-/]+/).filter((w) => /^[א-ת"'׳״]{2,}$/.test(w) && !SELF_STOP.has(w)).map(roots);
+  const list = products.slice(0, top);
+  if (!ws.length || !list.length) return 1; // nothing to compare (an English request, no products): never alarms
+  return list.filter((p) => ws.some((rs) => rs.some((r) => (p.product_title ?? "").includes(r)))).length / list.length;
+}
+export const SELF_CHECK = 0.2;
+
 export const fakeLuxury = (title, request = "") => LUXURY.test(title ?? "") && !LUXURY.test(request);
 
 // Capacity the price rules out: a ₪20 "2TB" flash drive, a ₪25 "50,000mAh" power bank, a ₪6 "350W" car charger sell a lot

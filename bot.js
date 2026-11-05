@@ -64,6 +64,8 @@ import {
   specialKind,
   fakeLuxury,
   fakeCapacity,
+  titleShare,
+  SELF_CHECK,
   fakeExample,
   singleForSet,
   modelKey,
@@ -258,7 +260,7 @@ export async function checkOptions(search, options, { minIls = null, maxIls = nu
   return (kept.length >= 2 ? kept : ranked.slice(0, 2)).map((x) => x.o);
 }
 
-export async function pickProducts({ search, relevant, look = null, live, hash = null, pickPhoto = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0 }) {
+export async function pickProducts({ search, relevant, look = null, live, hash = null, pickPhoto = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0, reread = null }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -308,6 +310,19 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const mainLists = main.status === "fulfilled" ? main.value : [];
   const otherLists = [...reworded, wide].flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   const first = inTurn(mainLists);
+  // Self-check: the main words' top titles share nothing with the Hebrew request, so the reading was likely word for word
+  // ("נטילת ידיים" -> soap). One more reading (≈0.15¢, before the judges), kept only if its titles match better.
+  if (live && reread && titleShare(context, first) < SELF_CHECK) {
+    const share = titleShare(context, first);
+    const n = await reread(keywords).catch(() => null);
+    if (n?.keywords && n.keywords !== keywords) {
+      const probe = inTurn(await fetchLists(n.keywords, [{}]).catch(() => [[]]));
+      console.log(`self-check: "${context}" read as "${keywords}" matched ${share.toFixed(2)}; "${n.keywords}" ${titleShare(context, probe).toFixed(2)}`);
+      if (titleShare(context, probe) > share) {
+        return pickProducts({ search, relevant, look, live, hash, pickPhoto }, { keywords: n.keywords, fallback: n.fallback ?? fallback, alt: n.alt ?? null, terms: n.terms ?? [], category, looks: n.looks ?? looks, context, maxPriceIls, minPriceIls, brandOnly, cheapest, style, brands, limit, extra });
+      }
+    }
+  }
   const more = inTurn(otherLists, Infinity, new Set(first.map(keyOf)));
   let exact = first.length >= limit ? first : first.concat(more); // demo mode (no AI): the broader search only tops up
   let partial = [];
@@ -804,7 +819,9 @@ export function createBot({
         found = hit.found;
         stats.count("cached");
       } else {
-        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES });
+        // The self-check's second reading tells the AI what the first one searched (cached like any reading).
+        const reread = (words) => understand(rawHeader, { wrong: words }).then((i) => (i?.status === "ok" ? { keywords: i.keywords_en, alt: i.alt_en ?? null, terms: i.terms_en ?? [], fallback: i.fallback_en, looks: i.looks_like ?? null } : null));
+        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
