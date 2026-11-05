@@ -37,7 +37,7 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - tools, security, motorcycle, sports, bags, hair
    - baby, school, electronic parts, kitchen, books
 5. ⬜ **Fashion leftovers** (from the owner's Telegram checks, 2026-11-05):
-   - a 1-12 sold product fills the 4th place in rare colors (navy coat, nude dress, burgundy sweater)
+   - (kept by the owner's choice: 4 products with one weak beats 3 good ones, 2026-11-05)
    - some photos aren't in the asked color (a beige stack for burgundy, an orange dress for nude)
    - in color cards the 🥇 isn't always the best seller (photo-confirmed ones go first)
    - the "שמלה" hint for a girl brings baby dresses ("girls dress" is cleaner)
