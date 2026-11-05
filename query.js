@@ -598,7 +598,11 @@ or liquid AND a scraper made for removing stickers or labels are exact (scrapers
 extender or aerator that attaches to the item is an add-on, not the item (a faucet sprayer head is not a faucet).
 Styles and close variants of the item count. When the request names a brand, items that show that brand (in Latin or Hebrew
 letters: "נידו" in a title is NeeDoh) are exact;
-the same item without the brand (or of another brand) is partial, never left out for lacking the brand. Merchandise of a
+the same item without the brand (or of another brand) is partial, never left out for lacking the brand. These brands
+are not sold as originals on AliExpress, so for them a product of the same kind in that style is exact (the shopper wants
+the look-alike, owner 2026-11-04): AirPods (איירפודס), Apple Watch (אפל ווטש), AirTag, Apple Pencil, Lululemon, Crocs
+(קרוקס), Ray-Ban, Rolex, LEGO (לגו), Theragun, Owala, UGG, Skims, a Dyson hair dryer, Louis Vuitton, Oura. A product
+titled with another big brand's name it isn't ("Original SONY" earbuds with no Sony in them) is partial. Merchandise of a
 person or band who shares the brand's name (a "Zara Larsson" T-shirt for "Zara") is not the brand: it counts only as
 the plain item.
 With photos: check every feature the request names against the photo, and leave out a product the photo contradicts:

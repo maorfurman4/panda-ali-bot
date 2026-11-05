@@ -494,6 +494,11 @@ export const FAKE_SHOWN_NOTE = "⚠️ חלק מהמוצרים כאן זולים
 const SIZE = /(\d+(?:[.,]\d+)?)\s*-?\s*(GB|TB|mAh|W|ml|מ"ל|ליטר|L|cm|ס"מ|מ'|מטר|m|mm|מ"מ|inch|אינץ')(?![a-zא-ת])/gi;
 export const manySizes = (title = "") => new Set([...(title ?? "").matchAll(SIZE)].map((m) => `${m[1]}${m[2].toLowerCase()}`)).size >= 3;
 export const SIZES_NOTE = "💡 המחיר עשוי להשתנות לפי הנפח או הגודל שבוחרים בדף המוצר";
+// The 16 brands of the look-alike research (2026-11-05): the card says the original isn't sold on AliExpress. A request FOR
+// the brand ("כיסוי לאיירפודס", "קישוטים לקרוקס") is an accessory and gets no note.
+const LOOKALIKE = /(?<![א-ת])(?:של\s+|[ו]?)(איירפודס|אייר פודס|אירפודס|airpods|אפל ווטש|שעון אפל|apple watch|איירטאג|אייר טאג|airtag|אפל פנסיל|apple pencil|לולולמון|לולו למון|lululemon|קרוקס|crocs|ריי באן|רייבן|ray-?ban|רולקס|rolex|לגו|lego|תרגאן|theragun|אוואלה|owala|ugg|סקימס|skims|מייבש שיער (?:של )?דייסון|dyson hair dryer|לואי ויטון|louis vuitton|טבעת אורה|oura)(?![א-ת])/i;
+export const lookalikeBrand = (text = "") => LOOKALIKE.test(text);
+export const LOOKALIKE_NOTE = "ℹ️ את המותג המקורי כמעט אין בעלי אקספרס: אלה דגמים בסגנון דומה";
 export const WEAK_NOTE = "ℹ️ בעלי אקספרס יש מעט מוצרים נמכרים מהסוג הזה לישראל: כדאי לבדוק דירוג וביקורות לפני קנייה";
 export const RARE_NOTE = "לא מצאתי התאמה מדויקת (ייתכן שעלי אקספרס לא שולחת את זה לישראל), אלה הכי קרובים 👇";
 
@@ -518,7 +523,7 @@ function buildCard(products, query, demo, reasons, closest, rare, weak, fakes) {
   const fill = !closest && products.some((p) => p.brandFill);
   const fake = products.some((p) => p.fakeCap) ? FAKE_SHOWN_NOTE : fakes ? fakeSkippedNote(typeof fakes === "string" ? fakes : undefined) : null;
   const sizes = products.some((p) => manySizes(p.product_title)) ? SIZES_NOTE : null;
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(sizes ? [sizes] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : [])];
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(sizes ? [sizes] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : []), ...(lookalikeBrand(query) ? [LOOKALIKE_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);

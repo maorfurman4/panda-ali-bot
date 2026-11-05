@@ -642,3 +642,10 @@ test("slang from real group searches (2026-11-05): tool 'guns' are not weapons; 
   assert.match(slangHints("חפש לי ערדליים").join(" "), /rain boots/);
   assert.match(slangHints("טייפ לכדורגל").join(" "), /sock tape/);
 });
+
+test("look-alike brands get the sellers' style wording; a case FOR them is searched as written (2026-11-05)", async () => {
+  const { slangHints } = await import("../query.js");
+  assert.match(slangHints("איירפודס פרו").join(" "), /ANC earbuds wireless/);
+  assert.match(slangHints("כיסוי לאיירפודס").join(" "), /accessory, searched as written/);
+  assert.match(slangHints("טייץ לולולמון").join(" "), /high waist yoga leggings/);
+});

@@ -571,3 +571,12 @@ test("namesModel: Chinese car makes from the owner's feed (BYD, Atto 3, Seagull,
   for (const t of ["כיסוי מפתח ל-BYD", "שטיחונים לאטו 3", "מגן מסך לסיגל", "מחזיק טלפון ל-MG ZS", "כיסוי ל-iPhone 15", "כיסוי הגה לצ'רי טיגו 8"]) assert.equal(namesModel(t), true, t);
   for (const t of ["בובת דולפין", "דולפין מתנפח", "יואן סיני"]) assert.equal(namesModel(t), false, t);
 });
+
+test("look-alike brands (2026-11-05): the card says the original isn't on AliExpress; accessories FOR the brand get no note", async () => {
+  const { lookalikeBrand, LOOKALIKE_NOTE } = await import("../format.js");
+  for (const q of ["איירפודס פרו", "שעון של רולקס", "טייץ לולולמון", "קרוקס לילדים", "מייבש שיער של דייסון"]) assert.equal(lookalikeBrand(q), true, q);
+  for (const q of ["כיסוי לאיירפודס", "קישוטים לקרוקס", "חלקים לשואב דייסון", "שעון חכם", "רצועה לאפל ווטש"]) assert.equal(lookalikeBrand(q), false, q);
+  const p = { product_title: "x", target_sale_price: "40", target_sale_price_currency: "ILS", lastest_volume: "900", promotion_link: "https://s.click.aliexpress.com/e/_a" };
+  assert.ok(formatCard([p], { query: "איירפודס פרו" }).caption.includes(LOOKALIKE_NOTE));
+  assert.ok(!formatCard([p], { query: "כיסוי לאיירפודס" }).caption.includes(LOOKALIKE_NOTE));
+});
