@@ -622,3 +622,13 @@ test("slang (free wording check 2026-11-05): the measured sellers' wordings reac
   assert.match(slangHints("צמיד כושר").join(" "), /activity tracker/);
   assert.equal(slangHints("מאווררים").length, 0, "whole words only");
 });
+
+test("slang hints of short words describe the word alone, never a longer request (regression check 2026-11-05)", async () => {
+  const { slangHints } = await import("../query.js");
+  assert.match(slangHints("כלים למנגל").join(" "), /grill tools/);
+  assert.match(slangHints("מגהץ שיער").join(" "), /hair straightener/);
+  assert.match(slangHints("שטיח יוגה").join(" "), /שטיח יוגה/);
+  assert.match(slangHints("מדף למקלחת").join(" "), /searched as written/);
+  assert.match(slangHints("חפש לי נטילת ידיים").join(" "), /netilat yadayim cup/);
+  assert.deepEqual(slangHints("אוזניות אלחוטיות"), [], "an untouched search gets nothing new");
+});
