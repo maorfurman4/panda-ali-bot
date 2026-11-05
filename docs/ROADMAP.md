@@ -15,6 +15,13 @@ Updated 2026-11-05. ✅ done · ⬜ next.
 - ✅ A reply to your own search refines it.
 - ✅ Look-alikes for 16 brands AliExpress doesn't sell as originals (AirPods, Apple Watch, Lululemon, Crocs, Rolex, LEGO...).
 - ✅ Group: one pinned welcome, fixed spam warning. Deals channel: a deal every hour, plus a nightly summary.
+- ✅ AirPods/Apple Watch look and wordings; the 11 untested categories (20 of 22 fine, 2 fixed).
+- ✅ Fashion (family 2), 2026-11-05, design in `docs/superpowers/specs/2026-11-05-fashion-design.md`:
+  - 12 fashion wordings (jeans, shorts, dress, tie, galabiya...)
+  - the style judge's taste: clean, classic, elegant
+  - a sales floor relative to the search (not for color searches)
+  - colors: the item is also searched without the color; best sellers shown only in a photo of the asked color
+  - Israeli colors (ניוד, חאקי, נייבי...); the photo trigger no longer fires on bluetooth/wired/credit
 
 ## Next, in order (all free: AliExpress checks and unit tests; the owner checks in Telegram)
 1. ⬜ **Upload the AirPods/Apple Watch look change.** The owner checks:
@@ -29,7 +36,13 @@ Updated 2026-11-05. ✅ done · ⬜ next.
 4. ⬜ **The 11 untested categories.** 2-3 searches each, free pool check, fix only real failures:
    - tools, security, motorcycle, sports, bags, hair
    - baby, school, electronic parts, kitchen, books
-5. ⬜ **Fashion (family 2).** Women, men, shoes, sportswear, underwear, accessories: colors, sizes, stable results.
+5. ⬜ **Fashion leftovers** (from the owner's Telegram checks, 2026-11-05):
+   - a 1-12 sold product fills the 4th place in rare colors (navy coat, nude dress, burgundy sweater)
+   - some photos aren't in the asked color (a beige stack for burgundy, an orange dress for nude)
+   - in color cards the 🥇 isn't always the best seller (photo-confirmed ones go first)
+   - the "שמלה" hint for a girl brings baby dresses ("girls dress" is cleaner)
+   - a collage of colors as a coat's main photo
+   - when the SKU API is approved: variant colors and prices instead of the photo picker
 6. ⬜ **Small leftovers:**
    - the Shabbat lamp still lets in a monitor light bar
    - a 3-sold set came first for "כלים למנגל"
