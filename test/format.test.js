@@ -553,3 +553,15 @@ test("stage A (2026-11-04): a ₪4 '65W' charger is fake, a ₪14 30W isn't; siz
   assert.equal((card.caption.match(/💡/g) ?? []).length, 4);
   assert.ok(formatCard([{ ...p(1), product_title: "SanDisk 32GB 64GB 128GB 1TB" }], { query: "דיסק און קי" }).caption.includes(SIZES_NOTE));
 });
+
+test("bigItem: an accessory named after the machine is searched, not answered with buttons (washer door prop, 2026-11-05)", async () => {
+  const { bigItem } = await import("../format.js");
+  assert.equal(bigItem("מכונת כביסה מחזיק דלת"), null);
+  assert.equal(bigItem("ספה כרית גב"), null);
+  assert.equal(bigItem("מזגן שלט"), null);
+  assert.ok(bigItem("מכונת כביסה"), "the machine itself still gets the buttons");
+  assert.ok(bigItem("מכונת כביסה 8 קילו"));
+  assert.ok(bigItem("ספה תלת מושבית"));
+  assert.ok(bigItem("ספה לסלון"), "סלון is not an accessory");
+  assert.ok(bigItem("מכונת כביסה פתח קדמי"));
+});

@@ -448,7 +448,8 @@ export const FILL_NOTE = "מצאתי מעט מוצרים של המותג שבי�
 // Big items AliExpress hardly ships to Israel: a search returns only their accessories (fridge glue, washing machine
 // bags, sofa covers; free check, 2026-11-04). The shopper gets buttons for what does ship (owner, 2026-11-04). A request
 // that already asks for the small kind ("מכונת כביסה ניידת") is searched as is.
-const SMALL_KIND = /מיני|נייד|קטן|לרכב|מתנפח|מתקפל|לבובות|צעצוע|כיסוי|מגן|מארגן|אביזר|חלק|מסנן|פילטר/;
+// An accessory named after the machine ("מכונת כביסה מחזיק דלת", the owner's washer door prop, 2026-11-05) is searched too.
+const SMALL_KIND = /מיני|נייד|קטן|לרכב|מתנפח|מתקפל|לבובות|צעצוע|כיסוי|מגן|מארגן|אביזר|חלק|מסנן|פילטר|מחזיק|מעמד|ידית|מגנט|צינור|ברז|רגלי|גומי|אטם|שטיח|כרית|ציפ|סדין|שקית|טבליות|אבקה|ניקוי|מנקה|נוזל|שלט/;
 const BIG_ITEMS = [
   { re: /^(?:מכונת|מכונות)\s+כביסה/, he: "מכונות כביסה", alts: [["מכונת כביסה ניידת", "portable washing machine"], ["אביזרים למכונת כביסה", "washing machine accessories"]] },
   { re: /^(?:מייבש|מייבשי)\s+כביסה/, he: "מייבשי כביסה", alts: [["מתקן ייבוש כביסה", "clothes drying rack"], ["חבל כביסה מתקפל", "retractable clothesline"]] },
