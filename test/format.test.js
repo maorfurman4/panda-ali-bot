@@ -598,4 +598,11 @@ test("babyOnly: a baby-only title for a child's request; a title for both, or a 
   assert.equal(babyOnly("שמלת נסיכה לילדות", "שמלה לילדה"), false);
   assert.equal(babyOnly("שמלת פרחים לתינוקת", "שמלה לתינוקת"), false);
   assert.equal(babyOnly("שמלת פרחים לתינוקת", "שמלה"), false, "no child named: unchanged");
+  // real titles from the free check, 2026-11-05
+  assert.equal(babyOnly("שמלת פרינט פרחונית לתינוקות בנות חדשה לקיץ 2025, שמלת נסיכה נושמת לתינוקות בגילאי 0-3 שנים", "שמלה לילדה"), true);
+  assert.equal(babyOnly("שמלת תינוקת קיץ שמלת רשת דובדבן שמלת ילדה חמודה שמלת חוף תינוקת בגדי תינוקות", "שמלה לילדה"), true);
+  assert.equal(babyOnly("(0-3 שמלת ילדה בת תינוק) קיץ צהוב חדש", "שמלה לילדה"), true);
+  assert.equal(babyOnly("0-24 חודשים שמלת תינוקת עם קצה פרחוני", "שמלה לילדה"), true);
+  assert.equal(babyOnly("שמלת נסיכת מואנה אלזה לילדות תחפושת ילדים תלבושת לפעוטות 2-8 שנים", "שמלה לילדה"), false);
+  assert.equal(babyOnly("2026 בגדי ילדים חדשים קיץ בנות שמלת שרוולים קצרים שמלת נסיכה לילדים בגדי מסיבת יום הולדת לתינוק", "שמלה לילדה"), false);
 });

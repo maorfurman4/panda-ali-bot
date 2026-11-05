@@ -114,13 +114,24 @@ export function colorAlsoLine(request = "") {
   const w = COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1];
   return w ? `🎨 מגיע גם ב${w}, בוחרים בדף המוצר` : null;
 }
-// A request for a child (ילדה, בנות, kids) and a title for a baby only: "שמלה לילדה" showed three baby dresses, the judges
-// let them in (owner's test, 2026-11-05). A title naming a child too ("לתינוקות ולילדות") is for both and stays.
+// A request for a child (ילדה, בנות, kids) and a title for a baby: "שמלה לילדה" showed three baby dresses, the judges let
+// them in (owner's test, 2026-11-05). Machine-translated baby titles name girls too ("לתינוקות בנות", "שמלת ילדה בת
+// תינוק", free check of 30 titles), so an age range decides when there is one (up to 3 years is a baby's), and otherwise
+// the title is a baby's when it names babies more often than children ("תינוק בנות" counts as a baby); a tie stays.
 const CHILD = /(?<![א-ת])[ולהבמשכ]{0,2}(?:ילדה|ילדות|ילד|ילדים|בנות|בנים|נער|נערה|נוער)(?![א-ת])|\b(?:kids?|girls?|boys?|children)\b/i;
 const BABY = /תינוק|פעוט|יילוד|\b(?:baby|babies|newborn|infant|toddler)\b/i;
-// In a title "baby girl" is a baby, so only the Hebrew child words or "kids"/"children" make it for a child too.
-const CHILD_TITLE = /(?<![א-ת])[ולהבמשכ]{0,2}(?:ילדה|ילדות|ילד|ילדים|בנות|בנים|נוער)(?![א-ת])|\b(?:kids?|children)\b/i;
-export const babyOnly = (title = "", request = "") => CHILD.test(request) && !BABY.test(request) && BABY.test(title) && !CHILD_TITLE.test(title);
+const CHILD_WORDS = /(?<![א-ת])[ולהבמשכ]{0,2}(?:ילדה|ילדות|ילד|ילדים|בנות|בנים|נוער)(?![א-ת])|\b(?:kids?|children)\b/gi;
+const BABY_WORDS = /תינוק|פעוט|יילוד|\b(?:baby|babies|newborn|infant|toddler)\b/gi;
+const BABY_GIRL = /תינוק\S*\s+(?:בנות|בנים|ילדה|ילדות|ילד|בת|בן)(?![א-ת])|(?<![א-ת])(?:ילדת|ילדה|בת|בן)\s+תינוק\S*|\bbaby\s+(?:girls?|boys?)\b/gi;
+const AGES = /(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(שנ|חודש|years?|months?|[mM](?![a-z]))/;
+export function babyOnly(title = "", request = "") {
+  if (!CHILD.test(request) || BABY.test(request)) return false;
+  if (/(?<![\d.])0\s*[-–]\s*\d{1,2}(?!\d)/.test(title)) return true; // "0-3", "0-24 חודשים": from birth
+  const age = AGES.exec(title);
+  if (age) return Number(age[2]) / (/^(?:חודש|month|m)/i.test(age[3]) ? 12 : 1) <= 3;
+  const t = title.replace(BABY_GIRL, " תינוק ");
+  return (t.match(BABY_WORDS)?.length ?? 0) > (t.match(CHILD_WORDS)?.length ?? 0);
+}
 export function offColor(title, request) {
   const asked = named(request);
   if (!asked.length) return false;

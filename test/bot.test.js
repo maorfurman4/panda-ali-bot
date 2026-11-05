@@ -1749,3 +1749,16 @@ test("orderCard: a color search puts its best seller first", () => {
   const found = [p(1, 1100), p(2, 2900), p(3, 600), p(4, 2000)];
   assert.equal(orderCard(found, { context: "כוס תרמית שחורה", limit: 4 })[0].lastest_volume, "2900");
 });
+
+test("a child's request: baby-only listings go after the girls' ones, even when they sell more", async () => {
+  const items = [
+    ...Array.from({ length: 3 }, (_, i) => product(i + 1, { lastest_volume: String(2000 - i * 100), product_title: `שמלת פרחים לתינוקת ${i + 1}` })),
+    ...Array.from({ length: 4 }, (_, i) => product(i + 4, { lastest_volume: String(400 - i * 20), product_title: `שמלת קיץ לילדות ${i + 4}` })),
+  ];
+  let collaged;
+  const ctx = setup({ search: async () => items, live: true, understand: async () => intent({ corrected_he: "שמלה לילדה", keywords_en: "girls dress" }), collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שמלה לילדה"));
+  const caption = ctx.sent()[0].caption;
+  assert.ok(!/לתינוקת/.test(caption.split("🥉")[0] ?? ""), "no baby dress among the first three");
+  assert.equal(collaged.length, 4);
+});
