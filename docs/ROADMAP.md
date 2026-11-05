@@ -40,7 +40,9 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - (kept by the owner's choice: 4 products with one weak beats 3 good ones, 2026-11-05)
    - some photos aren't in the asked color (a beige stack for burgundy, an orange dress for nude)
    - in color cards the 🥇 isn't always the best seller (photo-confirmed ones go first)
-   - the "שמלה" hint for a girl brings baby dresses ("girls dress" is cleaner)
+   - ✅ girls' dresses: baby-only titles move down for a child's request; the hint stays "girls casual dress"
+   - evening dresses: few long ones sell well on AliExpress (1 over 1,000 recent sales); short party dresses only if the owner wants them
+   - the API's sales count is recent (likely 30 days), not the site's lifetime "1K+ sold"
    - a collage of colors as a coat's main photo
    - when the SKU API is approved: variant colors and prices instead of the photo picker
 6. ⬜ **Small leftovers:**
