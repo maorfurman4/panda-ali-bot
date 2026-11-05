@@ -645,7 +645,7 @@ test("slang from real group searches (2026-11-05): tool 'guns' are not weapons; 
 
 test("look-alike brands get the sellers' style wording; a case FOR them is searched as written (2026-11-05)", async () => {
   const { slangHints } = await import("../query.js");
-  assert.match(slangHints("איירפודס פרו").join(" "), /Air Pro TWS earbuds.*white in-ear earbuds with short stems/);
+  assert.match(slangHints("איירפודס פרו").join(" "), /Air Pro wireless earphones.*white in-ear earbuds with short stems/);
   assert.match(slangHints("כיסוי לאיירפודס").join(" "), /accessory, searched as written/);
   assert.match(slangHints("טייץ לולולמון").join(" "), /high waist yoga leggings/);
 });
