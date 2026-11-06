@@ -24,16 +24,16 @@ Updated 2026-11-05. ✅ done · ⬜ next.
   - Israeli colors (ניוד, חאקי, נייבי...); the photo trigger no longer fires on bluetooth/wired/credit
 
 ## Next, in order (all free: AliExpress checks and unit tests; the owner checks in Telegram)
-1. ⬜ **Upload the AirPods/Apple Watch look change.** The owner checks:
+1. ✅ **Upload the AirPods/Apple Watch look change.** The owner checks:
    - targets: "איירפודס פרו", "אפל ווטש"
    - control: "כיסוי לאיירפודס"
-2. ⬜ **AirPods wordings.** A free check of more sellers' names for AirPods-style earbuds ("Pro 2", "Air 31", "Pro 5", "Air Pro 6", "i12", "TWS Pro"). The 3-4 that bring the best-selling white-stem earbuds into the 72 go into the slang file.
+2. ✅ **AirPods wordings.** A free check of more sellers' names for AirPods-style earbuds ("Pro 2", "Air 31", "Pro 5", "Air Pro 6", "i12", "TWS Pro"). The 3-4 that bring the best-selling white-stem earbuds into the 72 go into the slang file.
 3. ⬜ **Weekly learning loop.**
    - Once a week the owner forwards the digest, the 🐼 reports and the no-result searches.
    - Each failed search is checked for free: the sellers' wording vs the reading's, in the judges' 72.
    - Only clear wins are added to the slang file: a word, or a brand someone actually asked for.
    - The 130 fixed searches are re-checked, then uploaded.
-4. ⬜ **The 11 untested categories.** 2-3 searches each, free pool check, fix only real failures:
+4. ✅ **The 11 untested categories.** 2-3 searches each, free pool check, fix only real failures:
    - tools, security, motorcycle, sports, bags, hair
    - baby, school, electronic parts, kitchen, books
 5. ✅ **Fashion closed 2026-11-06** (127 items checked for free, `docs/fashion-check-2026-11-06.txt`: 102 fine, 3 wording fixes, the rest weak by nature: flannel/chinos/men's dress shoes/blazers/suits/leather jackets/modest dresses/abaya/kaftan/plus size/evening dresses). Earlier leftovers (from the owner's Telegram checks, 2026-11-05):
@@ -47,12 +47,11 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - ✅ SKU API approved 2026-11-06: color searches use the variants (live; /trace shows the owner how a card was made)
    - ✅ the link opens the asked variant (s.click link keeps skuId and the affiliate parameters; live 2026-11-06)
 6. ✅ **Judaica checked 2026-11-06** (102 items, `docs/judaica-check-2026-11-06.txt`: 25 fine, 8 wording fixes, most real Judaica barely sold on AliExpress).
-7. ⬜ **Small leftovers:**
+7. ✅ **Small leftovers:**
    - ✅ the Shabbat lamp: motion/touch/app/screen lights move down for a Shabbat light request (2026-11-06)
    - "כלים למנגל" (a 3-sold set first): kept by design - a real match leads close ones even with few sales (two tests pin it; changing it would put generic earbuds before "noise cancelling" ones)
    - ✅ the heading "משי ק": a cut AI correction falls back to what was typed (2026-11-06)
 8. ✅ **Final check of all 33 categories, 2026-11-06** (`docs/final-check-2026-11-06.txt`: 165 searches, basic check 94%; the 66 hardest read by hand 79% right and selling, the rest mostly market limits; 5 fixes). Next: the owner's Telegram check of 15, then the weekly learning loop.
-9. ⬜ **Final check of all 33 categories** against the bar above.
 
 ## Rules for every change
 - One change at a time. Free checks before every upload:
