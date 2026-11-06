@@ -1,0 +1,190 @@
+# Final 33-category check, 2026-11-06 (free; judges stubbed, strict title check). 165 searches, 5 per category, hardest first.
+# OK = 4 real items in the pool, 3+ sold 100+; SOLD = real but low sales; MISS = under 4 real; FAKE = impossible capacity in the top 4
+
+OK        [Consumer Electronics] אוזניות עם ביטול רעשים אקטיבי עד 150 שקל ("anc wireless earbuds"): 66 real · top 18458/13479/11340/8843
+OK        [Consumer Electronics] רמקול בלוטות' עמיד במים לים ("waterproof bluetooth speaker"): 56 real · top 28058/26106/7484/4050
+OK        [Consumer Electronics] מקרן נייד לחדר שינה ("portable mini projector"): 45 real · top 3378/2730/1484/1463
+OK        [Consumer Electronics] סוללה ניידת 20000 ("power bank 20000mah"): 51 real · top 15225/14933/14152/8767
+OK        [Consumer Electronics] אוזניות ("wireless earbuds"): 70 real · top 29846/29204/27087/20492
+OK        [Phones & Accessories] כיסוי שקוף לאייפון 16 פרו עם מגסייף ("iphone 16 pro clear magsafe case"): 66 real · top 35640/23668/18123/12640
+OK        [Phones & Accessories] מגן מסך לגלקסי S24 אולטרה ("galaxy s24 ultra screen protector"): 60 real · top 15391/13840/13045/12807
+OK+FAKE   [Phones & Accessories] מטען 65W ("65w gan charger"): 68 real · top 20527/16786/13536/12726
+OK        [Phones & Accessories] מחזיק טלפון לרכב מגנטי ("magnetic car phone holder"): 38 real · top 36270/33012/25683/13873
+OK        [Phones & Accessories] כבל טעינה ("usb c cable"): 60 real · top 165444/165330/108564/98297
+OK        [Computer & Office] מקלדת מכנית אלחוטית עברית ("wireless mechanical keyboard hebrew"): 56 real · top 2883/2249/1857/1855
+OK        [Computer & Office] עכבר ארגונומי אנכי ("vertical ergonomic mouse"): 67 real · top 9058/8901/8707/6708
+OK        [Computer & Office] מעמד למחשב נייד מתכוונן ("adjustable laptop stand"): 42 real · top 9779/9776/8844/4361
+OK        [Computer & Office] מפצל USB-C למקבוק ("usb c hub for macbook"): 45 real · top 30491/25899/23863/14135
+OK        [Computer & Office] משטח לעכבר ("mouse pad"): 55 real · top 8696/7755/6718/6250
+OK        [Home Appliances] שואב אבק רובוטי עם שטיפה ("robot vacuum mop"): 31 real · top 5239/3592/2795/2579
+OK        [Home Appliances] מכונת קפה קפסולות ("capsule coffee machine"): 23 real · top 3034/2993/2489/2449
+OK        [Home Appliances] מאוורר תקרה עם מנורה ("ceiling fan with light"): 70 real · top 15381/12764/12004/10927
+SOLD      [Home Appliances] מסחטת מיצים ("slow juicer"): 34 real · top 87/39/26/24
+OK        [Home Appliances] קומקום חשמלי ("electric kettle"): 50 real · top 2578/2420/2201/1206
+OK        [Home & Garden] מארגן לארון בגדים מתקפל ("foldable closet organizer"): 29 real · top 1769/1279/1123/952
+OK        [Home & Garden] וילון האפלה לחדר שינה ("blackout curtains"): 53 real · top 6516/6489/6259/3831
+OK        [Home & Garden] מצעים זוגיים כותנה ("cotton bed sheets queen"): 41 real · top 498/449/276/237
+SOLD      [Home & Garden] עציץ תלוי למרפסת ("hanging planter balcony"): 32 real · top 251/110/93/63
+OK        [Home & Garden] מגבת אמבטיה ("bath towel"): 38 real · top 14508/12968/12794/10481
+OK        [Home Improvement] ברז נשלף למטבח שחור ("black pull out kitchen faucet"): 39 real · top 🧬1196/🧬1022/🧬1004/🧬726
+OK        [Home Improvement] ראש מקלחת עם מסנן ("filtered shower head"): 59 real · top 11777/11192/10503/10115
+OK        [Home Improvement] ידיות לארונות מטבח זהב ("gold cabinet handles"): 59 real · top 2546/1886/1013/852
+OK        [Home Improvement] מנעול חכם לדלת ("smart door lock"): 47 real · top 3306/3206/3050/2584
+OK        [Home Improvement] מדבקות קיר ("wall stickers"): 23 real · top 12378/8896/5686/5686
+OK        [Tools] מברגה נטענת עם 2 סוללות ("cordless drill 2 batteries"): 41 real · top 2218/2039/1542/978
+OK        [Tools] סט מברגים מדויק לאייפון ("precision screwdriver set"): 69 real · top 25649/15737/15718/11939
+OK        [Tools] מד לחץ אוויר לצמיגים דיגיטלי ("digital tire pressure gauge"): 58 real · top 3643/3135/2862/2552
+OK        [Tools] אקדח דבק חם ("hot glue gun"): 62 real · top 6870/4880/3064/2557
+OK        [Tools] סרט מדידה ("tape measure"): 52 real · top 17750/17750/17734/13785
+OK        [Lights & Lighting] פס לד לתקרה 12V ("12v led strip"): 20 real · top 5726/5689/5397/4584
+OK        [Lights & Lighting] מנורת שולחן לקריאה נטענת ("rechargeable reading desk lamp"): 69 real · top 6196/5874/5591/5048
+OK        [Lights & Lighting] נורות חכמות לוויפי ("smart wifi led bulb"): 63 real · top 6145/3800/2513/1799
+OK        [Lights & Lighting] תאורת גינה סולארית ("solar garden lights"): 63 real · top 19780/14498/11832/8581
+OK        [Lights & Lighting] מנורת לילה לילדים ("kids night light"): 53 real · top 10478/10302/10164/9965
+OK        [Furniture] כיסא גיימינג ארגונומי ("ergonomic gaming chair"): 56 real · top 137/136/109/33
+OK        [Furniture] מדף קיר צף מעץ ("wall shelf"): 32 real · top 31977/9935/9519/9028
+SOLD      [Furniture] שולחן מתקפל למרפסת ("folding balcony table"): 60 real · top 11/10/8/8
+OK        [Furniture] כיסוי לספה ("sofa cover"): 51 real · top 3079/2303/2188/2123
+OK        [Furniture] שרפרף ("stool"): 12 real · top 13289/6810/5290/3621
+OK        [Security & Protection] מצלמת אבטחה חיצונית סולארית ("solar outdoor security camera"): 42 real · top 3982/2562/2241/1307
+OK        [Security & Protection] פעמון דלת חכם עם מצלמה ("video doorbell wifi"): 29 real · top 693/479/351/305
+SOLD      [Security & Protection] כספת קטנה לבית ("small home safe"): 13 real · top 3305/155/21/10
+OK        [Security & Protection] גלאי עשן ("smoke detector"): 43 real · top 4544/4166/2218/2051
+OK        [Security & Protection] מנעול לאופניים ("bike lock"): 33 real · top 5901/5252/4891/4549
+OK        [Automobiles] מצלמת דרך קדמית ואחורית ("front and rear dash cam"): 69 real · top 6729/5800/4966/4377
+OK        [Automobiles] שטיחונים לטסלה מודל Y ("tesla model y floor mats"): 34 real · top 3417/2839/2426/2288
+OK+FAKE   [Automobiles] מטען לרכב מהיר ("fast car charger"): 51 real · top 46813/39542/38323/16488
+OK        [Automobiles] שואב אבק לרכב ("car vacuum cleaner"): 37 real · top 7725/7263/6992/6041
+OK        [Automobiles] מפיץ ריח לרכב ("car air freshener vent"): 45 real · top 2812/2751/2118/1941
+OK        [Motorcycle] קסדה לקטנוע חשמלי ("electric scooter helmet"): 49 real · top 3440/1934/1904/1848
+OK        [Motorcycle] מחזיק טלפון לאופנוע עמיד במים ("waterproof motorcycle phone holder"): 33 real · top 7339/4177/2280/1877
+OK        [Motorcycle] אינטרקום לקסדה ("helmet intercom bluetooth"): 45 real · top 6226/4909/4893/4331
+OK        [Motorcycle] כפפות לאופנוע ("motorcycle gloves"): 66 real · top 16152/15983/12867/9582
+OK        [Motorcycle] כיסוי לקטנוע ("scooter cover"): 30 real · top 7306/7041/5349/4088
+OK        [Sports & Entertainment] רצועות התנגדות עם ידיות ("resistance bands with handles"): 46 real · top 17183/5003/3799/2140
+SOLD      [Sports & Entertainment] משקולות מתכווננות 20 קילו ("adjustable dumbbells 20kg"): 51 real · top 29/7/5/3
+OK        [Sports & Entertainment] מזרן יוגה עבה ("thick yoga mat"): 25 real · top 2161/1701/1203/1054
+OK        [Sports & Entertainment] אוהל ל-4 אנשים ("4 person tent"): 41 real · top 2639/2639/1683/1555
+OK        [Sports & Entertainment] בקבוק מים לספורט ("sports water bottle"): 58 real · top 20723/14493/8417/7480
+OK        [Sports Clothing & Shoes] טייץ ספורט לנשים עם כיס ("women leggings with pockets"): 60 real · top 4324/2753/2622/1859
+OK        [Sports Clothing & Shoes] נעלי ריצה לגברים ("lightweight running shoes"): 57 real · top 17835/14146/13154/9217
+OK        [Sports Clothing & Shoes] חזיית ספורט ("sports bra"): 49 real · top 10340/7784/6980/6075
+OK        [Sports Clothing & Shoes] מכנסי ריצה קצרים לגבר ("men running shorts"): 46 real · top 30459/13904/12393/11733
+OK        [Sports Clothing & Shoes] גרביים לספורט ("sport socks"): 64 real · top 25774/16205/15552/15298
+OK        [Shoes] מגפוני קרסול לנשים שחורים ("women black ankle boots"): 60 real · top 420/318/296/283
+OK        [Shoes] סניקרס לבנים לנשים ("women white sneakers"): 73 real · top 3380/🧬2979/2914/1763
+OK        [Shoes] סנדלים לגברים ("men sandals"): 42 real · top 34403/27651/16056/15922
+OK        [Shoes] כפכפים לנשים ("women slides"): 67 real · top 34403/12600/10870/10854
+OK        [Shoes] נעלי בית ("house slippers"): 45 real · top 7739/5918/5396/5073
+OK        [Women's Clothing] שמלת ערב שחורה ארוכה ("long black evening dress"): 67 real · top 1149/1146/743/489
+OK        [Women's Clothing] סוודר בורדו לנשים ("burgundy sweater women"): 57 real · top 🧬1680/🧬1671/🧬1634/🧬1160
+OK        [Women's Clothing] מעיל לנשים לחורף ("women winter coat"): 51 real · top 2056/1803/1771/1656
+OK        [Women's Clothing] חצאית ("a line skirt women"): 51 real · top 3251/2316/2248/1842
+OK        [Women's Clothing] חולצה לנשים ("women blouse"): 60 real · top 3785/2902/2687/2584
+OK        [Men's Clothing] חולצה מכופתרת לבנה לגבר סלים פיט ("men white slim fit shirt"): 70 real · top 🧬3170/🧬1693/🧬1046/🧬855
+OK        [Men's Clothing] גינס שחור לגבר ("men denim jeans"): 61 real · top 2496/1846/1822/1651
+OK        [Men's Clothing] קפוצון לגבר ("men hoodie"): 26 real · top 2409/2205/2037/1187
+OK        [Men's Clothing] מכנסיים קצרים לגברים ("men casual shorts"): 22 real · top 4353/2052/2015/1710
+OK        [Men's Clothing] חולצת טי לגבר ("men basic t shirt"): 66 real · top 8740/8481/6501/6354
+OK        [Underwear] תחתוני בוקסר לגבר כותנה ("men cotton boxer briefs"): 58 real · top 6599/6070/4741/3337
+OK        [Underwear] גרביונים 70 דניר ("70d tights women"): 60 real · top 662/476/180/155
+OK        [Underwear] חזייה ללא חיתוך ("wireless bra"): 55 real · top 5244/4990/4031/3691
+OK        [Underwear] פיג'מה לנשים ("women pajamas"): 51 real · top 17477/15667/12468/9896
+OK        [Underwear] גרביים לגברים ("men socks"): 66 real · top 30512/30082/24761/23839
+OK        [Apparel Accessories] חגורת עור לגבר עם אבזם אוטומטי ("men leather belt automatic buckle"): 65 real · top 14929/5782/2742/2706
+OK        [Apparel Accessories] משקפי שמש מקוטבים לנשים ("women polarized sunglasses"): 71 real · top 13035/12721/12617/11137
+OK        [Apparel Accessories] כובע מצחייה שחור ("black baseball cap"): 74 real · top 🧬7322/5820/🧬5770/🧬5750
+OK        [Apparel Accessories] צעיף לנשים ("women winter scarf"): 51 real · top 6816/6675/5888/4192
+OK        [Apparel Accessories] כפפות לחורף ("winter gloves"): 57 real · top 21514/15565/7765/7247
+OK        [Jewelry] שרשרת שם בעברית ("hebrew name necklace"): 65 real · top 900/705/634/273
+OK        [Jewelry] שרשרת כסף לנשים ("925 silver necklace women"): 49 real · top 9822/7768/7301/5606
+OK        [Jewelry] צמיד לגבר ("men bracelet"): 44 real · top 12204/12201/10171/9822
+OK        [Jewelry] עגילי זהב לנשים ("gold earrings women"): 60 real · top 5496/4767/4756/4577
+OK        [Jewelry] טבעת ("women ring"): 42 real · top 12563/6264/5838/5689
+OK        [Watches] שעון חכם לילדים עם GPS ("kids smart watch gps"): 58 real · top 3730/1631/1151/683
+OK        [Watches] אפל ווטש ("amoled smart watch"): 61 real · top 8474/5339/5204/4371
+OK        [Watches] שעון לגבר כסוף ("silver men's watch"): 64 real · top 🧬23838/🧬11235/🧬5053/🧬3974
+OK        [Watches] שעון יד לאישה ("women watch"): 29 real · top 23838/14468/12369/11581
+OK        [Watches] רצועה לשעון ("watch strap"): 45 real · top 12600/11280/9985/9000
+OK        [Luggage & Bags] מזוודה לעלייה למטוס 20 אינץ' ("cabin luggage 20 inch"): 53 real · top 217/207/172/140
+OK        [Luggage & Bags] תיק גב למחשב 15.6 ("laptop backpack 15.6"): 66 real · top 5111/4221/2887/2680
+OK        [Luggage & Bags] תיק צד אדום לנשים ("red crossbody bag women"): 75 real · top 🧬4780/🧬4582/🧬4193/🧬2883
+OK        [Luggage & Bags] ארנק עור לגבר ("men leather wallet"): 57 real · top 21311/9112/9083/8055
+OK        [Luggage & Bags] תיק חוף ("beach bag"): 45 real · top 5660/5640/4569/4063
+OK        [Beauty & Health] מכונת תספורת אלחוטית מקצועית ("professional cordless hair clipper"): 59 real · top 78953/51695/14460/11256
+OK        [Beauty & Health] מברשת שיניים חשמלית ("electric toothbrush"): 55 real · top 22159/21642/15469/12894
+OK        [Beauty & Health] מחליק שיער ("hair straightener"): 29 real · top 1628/1502/1500/1412
+OK        [Beauty & Health] אקדח עיסוי ("massage gun"): 31 real · top 6080/4318/3346/2652
+OK        [Beauty & Health] סט מברשות איפור ("makeup brush set"): 69 real · top 31814/30393/20741/18602
+OK        [Hair & Wigs] פאה לנשים שיער טבעי ("human hair wig"): 19 real · top 716/684/590/526
+OK        [Hair & Wigs] תוספות שיער בקליפס ("clip in hair extensions"): 51 real · top 3200/3055/2579/2534
+OK        [Hair & Wigs] מייבש שיער ("professional hair dryer"): 56 real · top 2216/2026/1686/1678
+OK        [Hair & Wigs] מסלסל שיער אוטומטי ("automatic hair curler"): 6 real · top 388/284/143/126
+OK        [Hair & Wigs] מברשת לשיער ("detangling hair brush"): 70 real · top 6950/5988/5901/5890
+OK        [Mother & Kids] מוניטור לתינוק עם מצלמה ("video baby monitor"): 52 real · top 3308/3046/2713/2219
+OK        [Mother & Kids] בקבוק האכלה לתינוק נגד גזים ("anti colic baby bottle"): 69 real · top 1901/1502/853/732
+SOLD      [Mother & Kids] עגלת תינוק קלה ("lightweight baby stroller"): 54 real · top 119/89/55/43
+OK        [Mother & Kids] מוצץ לתינוק ("baby pacifier"): 45 real · top 3900/3726/3637/3248
+OK        [Mother & Kids] בגד גוף לתינוק ("baby bodysuit"): 22 real · top 2050/1381/978/968
+OK        [Toys & Hobbies] לגו טכני ("building blocks compatible"): 28 real · top 4922/3067/3027/2851
+OK        [Toys & Hobbies] רחפן לילדים עם מצלמה ("kids drone with camera"): 38 real · top 1453/612/346/322
+OK        [Toys & Hobbies] פאזל 1000 חלקים ("1000 piece puzzle"): 63 real · top 1395/1226/1152/1100
+OK        [Toys & Hobbies] מכונית על שלט ("rc car"): 29 real · top 7276/4304/3296/2752
+OK        [Toys & Hobbies] בובה ("doll"): 24 real · top 17366/7817/5372/5007
+OK        [Office & School] קלמר לבית ספר לבנות ("girls school pencil case"): 31 real · top 2888/2305/2074/2005
+OK        [Office & School] מחברת A5 ("a5 notebook"): 59 real · top 5112/3040/2829/2392
+SOLD      [Office & School] תיק לבית ספר לכיתה א ("first grade school backpack"): 43 real · top 2/1/1/1
+OK        [Office & School] עטים צבעוניים ("colored gel pens"): 57 real · top 7724/6729/5734/3754
+OK        [Office & School] מחדד ("pencil sharpener"): 29 real · top 8302/5916/5874/4819
+OK        [Weddings & Events] קישוטים לבר מצווה ("bar mitzvah decorations"): 10 real · top 271/233/165/112
+OK        [Weddings & Events] בלונים ליום הולדת 30 ("30th birthday balloons"): 26 real · top 4412/2001/1190/1167
+OK        [Weddings & Events] קשת לחתונה ("wedding arch"): 20 real · top 1160/1135/1128/992
+OK        [Weddings & Events] כיסויים לכיסאות לאירוע ("chair covers wedding"): 33 real · top 2661/1434/1283/1031
+OK        [Weddings & Events] בלונים ("party balloons"): 35 real · top 8351/8202/6903/4472
+OK        [Novelty & Gifts] מתנה לגבר שיש לו הכל ("unique gift for men"): 13 real · top 3325/3009/1680/1216
+OK        [Novelty & Gifts] תחפושת לפורים לילד ("boys costume"): 22 real · top 1868/1723/1493/1478
+OK        [Novelty & Gifts] מחזיק מפתחות מצחיק ("funny keychain"): 45 real · top 5105/3915/3465/3252
+OK        [Novelty & Gifts] כוס מצחיקה ("funny mug"): 59 real · top 344/268/267/201
+OK        [Novelty & Gifts] מנורת שבת ("night lamp"): 61 real · top 49062/47352/38916/38001
+OK        [Electronic Components] ערכת ארדואינו למתחילים ("arduino starter kit"): 51 real · top 3715/3061/2880/2662
+OK        [Electronic Components] מלחם 80W ("80w soldering iron"): 18 real · top 14154/5085/1310/995
+OK        [Electronic Components] רסברי פאי 5 ("raspberry pi 5"): 4 real · top 787/343/268/221
+OK        [Electronic Components] מולטימטר דיגיטלי ("digital multimeter"): 66 real · top 20854/16819/14242/13821
+OK        [Electronic Components] נגדים ("resistor kit"): 53 real · top 5941/5870/5599/4972
+OK        [Kitchen] סכין שף יפנית ("japanese chef knife"): 59 real · top 3113/2513/1359/1342
+OK        [Kitchen] מטחנת קפה ידנית ("manual coffee grinder"): 50 real · top 1837/1496/1492/1488
+SOLD      [Kitchen] סט סירים נון סטיק לאינדוקציה ("non stick cookware set induction"): 72 real · top 140/70/70/32
+OK        [Kitchen] סכין לחלה ("bread knife"): 39 real · top 899/845/503/444
+OK        [Kitchen] מחבת ("frying pan"): 28 real · top 1853/1393/1378/927
+MISS      [Food] חטיפים יפניים ("japanese snacks"): 1 real · top 79
+OK        [Food] תה ירוק ("green tea"): 27 real · top 4422/4150/4149/3244
+OK        [Food] קפה בפולים ("coffee beans"): 55 real · top 8478/8442/6115/4448
+SOLD      [Food] ממתקים קוריאניים ("korean snacks"): 8 real · top 363/54/18/8
+OK        [Food] תבלינים ("spices"): 11 real · top 2920/2023/1886/1816
+OK        [Books & Culture] ערכת ציור לילדים ("kids drawing set"): 31 real · top 5855/3119/2712/2103
+OK        [Books & Culture] סימניות לספרים ("bookmarks"): 47 real · top 8351/6099/4992/4663
+OK        [Books & Culture] קורא ספרים אלקטרוני ("e-reader"): 29 real · top 5425/3352/3085/2348
+OK        [Books & Culture] צבעי אקריליק ("acrylic paint set"): 69 real · top 33769/8476/7463/7437
+OK        [Books & Culture] מחברת ציור ("sketchbook"): 52 real · top 2929/1787/1786/1597
+
+155/165 OK (94%) · SOLD 9 · MISS 1 · FAKE 2
+
+## The 66 hardest read by hand (top 10 real titles each) - verdicts
+Right and selling: 52 of 66 (79%).
+Bot-fixable, fixed 2026-11-06: black pull-out faucet (sprayer heads by variant), white button-down shirt (T-shirts by variant) -> variant matches now pass a judge check; LEGO Technic, floating wooden shelf, robot vacuum mop -> hints.
+Partial (judges sort it out): 12V LED strip for a ceiling (car lights and 220V strips in the pool).
+Market limits (AliExpress sells little or doesn't ship to Israel): gaming chair, 20 kg adjustable dumbbells, black ankle boots, long black evening dress, 20" cabin suitcase (low sales), bar mitzvah decorations, Japanese snacks, green tea (food isn't shipped).
+
+## Wordings tested for the misses
+לגו טכני "building blocks compatible": 14 fit, 14 sold 100+ · 3067 300/500/1000 עשה זאת בעצמך אבני בניין יצ | 3027 ערכת בניית קוביות מיני וואלי MOC מרובות 
+לגו טכני "technic building blocks": 31 fit, 31 sold 100+ · 3067 300/500/1000 עשה זאת בעצמך אבני בניין יצ | 1523 ערכת לבני בנייה מגוונת, עיר, ערכת יצירה,
+לגו טכני "technic car building blocks": 29 fit, 29 sold 100+ · 1660 סטים לבניית מכוניות מירוץ ToylinX RC, קו | 1261 1310 יחידות סט אבני בניין לרכב מירוץ, ער
+לגו טכני "technic compatible blocks": 31 fit, 31 sold 100+ · 1756 מיקרו בלוקים עיר יצירתית סדרת טירת קסם ב | 1734 צעצוע הרכבה של קוביות בנייה קטנות טיטניק
+מדף קיר צף מעץ "wall shelf": 1 fit, 1 sold 100+ · 1310 6 יחידות מדף צף מתקן טריפוד מתכת שחורה ח
+מדף קיר צף מעץ "floating wall shelf wood": 49 fit, 16 sold 100+ · 497 מדף צף לקישוט קיר מוצק רב תכליתי עם תושב | 414 מדף פינתי עץ לתליה על הקיר, מעמד תצוגה ל
+מדף קיר צף מעץ "wooden floating shelf": 52 fit, 24 sold 100+ · 497 מדף צף לקישוט קיר מוצק רב תכליתי עם תושב | 451 מדף אחסון עץ דו-שכבתי ומדויק למטבח ולחדר
+מדף קיר צף מעץ "floating shelf": 53 fit, 52 sold 100+ · 1215 6 יחידות מדף צף מתקן טריפוד מתכת שחורה ח | 810 2pcs קיפול סוגר עבור שולחן שולחן מדף כבד
+שואב אבק רובוטי עם שטיפה "robot vacuum mop": 2 fit, 2 sold 100+ · 1885 רובוט ניקוי חכם לשאיבה וטאטוא משולב, רוב | 692 שואב אבק רובוטי ABIR K30, תחנת ריקון אוט
+שואב אבק רובוטי עם שטיפה "robot vacuum cleaner": 5 fit, 5 sold 100+ · 7725 Cenrr 998000pa שואב אבק נייד חזק נייד שו | 2147 (קוד קופון:  HOT888) רובוט שואב אבק wd8,
+שואב אבק רובוטי עם שטיפה "robot vacuum cleaner mop": 1 fit, 1 sold 100+ · 692 שואב אבק רובוטי ABIR K30, תחנת ריקון אוט
+שואב אבק רובוטי עם שטיפה "smart robot vacuum": 59 fit, 31 sold 100+ · 2147 (קוד קופון:  HOT888) רובוט שואב אבק wd8, | 1885 רובוט ניקוי חכם לשאיבה וטאטוא משולב, רוב

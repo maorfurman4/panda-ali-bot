@@ -51,7 +51,8 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - ✅ the Shabbat lamp: motion/touch/app/screen lights move down for a Shabbat light request (2026-11-06)
    - "כלים למנגל" (a 3-sold set first): kept by design - a real match leads close ones even with few sales (two tests pin it; changing it would put generic earbuds before "noise cancelling" ones)
    - ✅ the heading "משי ק": a cut AI correction falls back to what was typed (2026-11-06)
-8. ⬜ **Final check of all 33 categories** against the bar above.
+8. ✅ **Final check of all 33 categories, 2026-11-06** (`docs/final-check-2026-11-06.txt`: 165 searches, basic check 94%; the 66 hardest read by hand 79% right and selling, the rest mostly market limits; 5 fixes). Next: the owner's Telegram check of 15, then the weekly learning loop.
+9. ⬜ **Final check of all 33 categories** against the bar above.
 
 ## Rules for every change
 - One change at a time. Free checks before every upload:
