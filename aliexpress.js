@@ -160,6 +160,7 @@ export const skuApproved = (deps = {}) =>
 const SKU_TIMEOUT_MS = 3000;
 export async function skuDetails(productIds, deps = {}) {
   const env = deps.env ?? process.env;
+  if (isMockMode(env)) return new Map();
   const props = (s) => { try { return Object.assign({}, ...JSON.parse(s ?? "[]")); } catch { return {}; } };
   const one = async (id) => {
     const call = apiCall("aliexpress.affiliate.product.sku.detail.get", { product_id: String(id), ship_to_country: "IL", target_currency: "ILS", target_language: "EN", tracking_id: env.ALI_TRACKING_ID }, { ...deps, env });

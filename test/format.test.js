@@ -606,3 +606,30 @@ test("babyOnly: a baby-only title for a child's request; a title for both, or a 
   assert.equal(babyOnly("שמלת נסיכת מואנה אלזה לילדות תחפושת ילדים תלבושת לפעוטות 2-8 שנים", "שמלה לילדה"), false);
   assert.equal(babyOnly("2026 בגדי ילדים חדשים קיץ בנות שמלת שרוולים קצרים שמלת נסיכה לילדים בגדי מסיבת יום הולדת לתינוק", "שמלה לילדה"), false);
 });
+
+test("colorVariant: the asked color in real variant names; codes, no mapping or a full list leave it undecided", async () => {
+  const { colorVariant } = await import("../format.js");
+  const vs = (...colors) => colors.map((color, i) => ({ skuId: String(i), color, photo: `p${i}` }));
+  assert.equal(colorVariant(vs("Wine Red", "Gray"), "סוודר בורדו").variant.color, "Wine Red");
+  assert.equal(colorVariant(vs("Navy", "Khaki"), "מעיל נייבי").variant.color, "Navy");
+  assert.deepEqual(colorVariant(vs("Red", "Gray"), "סוודר בורדו"), { variant: null, decided: true });
+  assert.equal(colorVariant(vs("Wine Red"), "סוודר אדום").variant, null, "wine red is burgundy, not red");
+  assert.equal(colorVariant(vs("A", "B"), "שמלה שחורה").decided, false, "codes");
+  assert.equal(colorVariant(vs("Pink"), "חולצה פודרה").decided, false, "no mapping");
+  assert.equal(colorVariant(vs("White"), "תיק לעבודה לבנות").decided, false, "for women, not white");
+  assert.equal(colorVariant(vs(...Array.from({ length: 20 }, (_, i) => `Gray ${i}`)), "סוודר בורדו").decided, false, "a full list may hide it");
+  assert.equal(colorVariant(vs("SAKURA PINK", "MIDNIGHT BLACK"), "אוזניות ורודות").variant.color, "SAKURA PINK");
+  assert.equal(colorVariant([], "שמלה שחורה").decided, false);
+});
+
+test("namesItem: the request's first word near the title's start", async () => {
+  const { namesItem } = await import("../format.js");
+  assert.equal(namesItem("שמלת חורף 2024 לנשים בצבע אחיד", "שמלה ניוד"), true);
+  assert.equal(namesItem("2026 נעלי לוליטה חדשות עם קשר פרפר לנשים", "שמלה ניוד"), false);
+  assert.equal(namesItem("תיק בקבוק מים נייד עם רצועה מתכווננת", "כוס תרמית שחורה"), false);
+  assert.equal(namesItem("כוס תרמית כפולה מנירוסטה", "כוס תרמית שחורה"), true);
+  assert.equal(namesItem("אוזניות בלוטות' אלחוטיות עמידות במים", "אוזניות אלחוטיות ורודות"), true);
+  assert.equal(namesItem("ג'קטים לטיולים עמידים במים", "מעיל נייבי"), false);
+  assert.equal(namesItem("הלבשה תחתונה שיפון סקסית ללא כתפיות, שמלה", "שמלה שחורה"), false);
+  assert.equal(namesItem("E6s אלחוטית bluetooth אוזניות אלחוטיות", "אוזניות ורודות"), true);
+});

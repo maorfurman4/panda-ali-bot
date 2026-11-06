@@ -1,7 +1,7 @@
 // Telegram handlers: search triggers, link conversion, cooldowns, Hebrew photo result cards.
 // Privacy: logs contain only update IDs and error messages, never message text or user names.
 import { Bot, InputFile } from "grammy";
-import { searchProducts, convertToAffiliate, isMockMode, shortenLinks, addStars } from "./aliexpress.js";
+import { searchProducts, convertToAffiliate, isMockMode, shortenLinks, addStars, skuDetails } from "./aliexpress.js";
 import { findAliExpressUrl } from "./links.js";
 import { understandQuery, filterRelevant, nextAdvice, explainFit, shortTitles, pickColorPhotos } from "./query.js";
 import { makeCollage, photoHash } from "./collage.js";
@@ -18,6 +18,8 @@ import {
   strength,
   offColor,
   babyOnly,
+  colorVariant,
+  namesItem,
   inColors,
   trustedFirst,
   sameReviews,
@@ -92,7 +94,8 @@ const COLOR_PICK_MAX = 4; // multi-color listings whose other photos are looked 
 // Materials and patterns (cashmere, leather, linen, floral) stay: they are the item, not a variant.
 const COLOR_EN = /\b(?:black|white|red|blue|navy|green|yellow|pink|purple|brown|beige|khaki|nude|gr[ae]y|orange|burgundy|turquoise|wine)\b/gi;
 export const withoutColor = (keywords = "") => keywords.replace(COLOR_EN, " ").replace(/\s+/g, " ").trim();
-const COLOR_POOL_PICK = 6;
+const COLOR_POOL_PICK = 6; // at most this many go to the photo picker
+const COLOR_SKU_CHECK = 10; // the color-free best sellers whose variants are checked (free, ~1.5 s in parallel)
 // Titles only on gpt-5.4: ~$0.008 per 48. Non-style searches get 72: the three readings' words make up to ~17 lists, and
 // at 48 they pushed out sellers each single reading had (8,298 shavers, 16,652 car chargers; simulated 2026-11-02).
 // Style searches stay at 48, as approved (with 72 a blue gown got into "שמלת ערב שחורה ארוכה", 2026-11-02).
@@ -277,7 +280,7 @@ export async function checkOptions(search, options, { minIls = null, maxIls = nu
   return (kept.length >= 2 ? kept : ranked.slice(0, 2)).map((x) => x.o);
 }
 
-export async function pickProducts({ search, relevant, look = null, live, hash = null, pickPhoto = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0, reread = null }) {
+export async function pickProducts({ search, relevant, look = null, live, hash = null, pickPhoto = null, skus = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0, reread = null }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -338,7 +341,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       const probe = inTurn(await fetchLists(n.keywords, [{}]).catch(() => [[]]));
       console.log(`self-check: "${context}" read as "${keywords}" matched ${share.toFixed(2)}; "${n.keywords}" ${titleShare(context, probe).toFixed(2)}`);
       if (titleShare(context, probe) > share) {
-        return pickProducts({ search, relevant, look, live, hash, pickPhoto }, { keywords: n.keywords, fallback: n.fallback ?? fallback, alt: n.alt ?? null, terms: n.terms ?? [], category, looks: n.looks ?? looks, context, maxPriceIls, minPriceIls, brandOnly, cheapest, style, brands, limit, extra });
+        return pickProducts({ search, relevant, look, live, hash, pickPhoto, skus }, { keywords: n.keywords, fallback: n.fallback ?? fallback, alt: n.alt ?? null, terms: n.terms ?? [], category, looks: n.looks ?? looks, context, maxPriceIls, minPriceIls, brandOnly, cheapest, style, brands, limit, extra });
       }
     }
   }
@@ -348,6 +351,23 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const known = new Set(); // well-known brands, as the title check names them
   let near = []; // one judge said exact, the other close
   let colorPooled = false; // the color-free best sellers already had their photo look (one picker call per search)
+  // Each candidate's photo in the asked color: first from its variants (SKU API: a "Burgundy" variant's own photo, no AI,
+  // 2026-11-06); a listing whose variants decide "not in this color" is out; only the undecided ones (coded colors, no
+  // data, a full list of 20) go to the photo picker, at most pickMax of them. Returns key -> { url, variant }.
+  const photoInColor = async (cands, pickMax, opts) => {
+    const found = new Map();
+    const variants = skus && cands.length ? await skus(cands.map((p) => String(keyOf(p)))).catch(() => new Map()) : new Map();
+    const undecided = [];
+    for (const p of cands) {
+      const v = colorVariant(variants.get(String(keyOf(p))) ?? [], context);
+      if (v.variant?.photo) found.set(keyOf(p), { url: v.variant.photo, variant: v.variant });
+      else if (!v.decided || v.variant) undecided.push(p);
+    }
+    const toPicker = undecided.slice(0, pickMax);
+    const urls = toPicker.length ? await pickPhoto({ he: context, en: keywords }, toPicker, opts).catch(() => []) : [];
+    toPicker.forEach((p, i) => urls[i] && found.set(keyOf(p), { url: urls[i] }));
+    return found;
+  };
   if (live) {
     // Every list (the main words' best sellers, page 2, relevance order and category lists; each other wording; the broader
     // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
@@ -379,14 +399,14 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // They stay out of the judges' pool, which keeps every place for listings pictured in the asked color (sharing it left
     // "סוודר בורדו" and "שמלה ניוד" with 3 products, owner's test 2026-11-05), so this step only ever adds. Only one the
     // picker sees in the asked color is shown, its first photo included: on the judges' word a pink "15 colors" puffer led
-    // a navy coat card. The title must share a word with the request ("coat" also found towel hooks).
+    // a navy coat card. The title must name the request's item near its start ("coat" also found towel hooks).
     if (plain && pickPhoto) {
       const inPool = new Set(pool.map(keyOf));
-      const left = inTurn(plainLists).filter((p) => !inPool.has(keyOf(p)) && titleShare(context, [p]) > 0 && !offColor(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 0)
-        .sort((a, b) => (Number(b.lastest_volume) || 0) - (Number(a.lastest_volume) || 0)).slice(0, COLOR_POOL_PICK);
-      const urls = left.length ? await pickPhoto({ he: context, en: keywords }, left, { withMain: true }).catch(() => []) : [];
+      const left = inTurn(plainLists).filter((p) => !inPool.has(keyOf(p)) && namesItem(p.product_title, context) && !offColor(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 0)
+        .sort((a, b) => (Number(b.lastest_volume) || 0) - (Number(a.lastest_volume) || 0)).slice(0, COLOR_SKU_CHECK);
+      const found = await photoInColor(left, COLOR_POOL_PICK, { withMain: true });
       colorPooled = left.length > 0;
-      exact = exact.concat(left.flatMap((p, i) => (urls[i] ? [{ ...p, product_main_image_url: urls[i], colorPick: true }] : [])));
+      exact = exact.concat(left.flatMap((p) => (found.has(keyOf(p)) ? [{ ...p, product_main_image_url: found.get(keyOf(p)).url, colorPick: true, ...(found.get(keyOf(p)).variant ? { variant: found.get(keyOf(p)).variant } : {}) }] : [])));
     }
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).
@@ -582,8 +602,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const isShown = (p) => shown.some((s) => keyOf(s) === keyOf(p));
     const back = [...dropped.values()].filter((p) => !isShown(p));
     const multi = [...shown.slice(0, limit + extra).filter((p) => otherColor.has(keyOf(p)) && inColors(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 1), ...back].slice(0, COLOR_PICK_MAX);
-    const urls = multi.length ? await pickPhoto({ he: context, en: keywords }, multi).catch(() => []) : [];
-    const picked = new Map(multi.map((p, i) => [keyOf(p), urls[i]]).filter(([, u]) => u));
+    const found = await photoInColor(multi, COLOR_PICK_MAX);
+    const picked = new Map([...found].map(([k, f]) => [k, f.url]));
     // A dropped one seen in the asked color comes back; one with no such photo comes back only when its title names the
     // asked color among others, after the right-color ones, with a line saying it comes in that color too.
     shown = [...shown, ...back.filter((p) => picked.has(keyOf(p))).map((p) => ({ ...p, looked: true }))];
@@ -591,7 +611,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     for (const p of also) otherColor.add(keyOf(p));
     shown = [...shown, ...also];
     if (picked.size) {
-      shown = shown.map((p) => (picked.has(keyOf(p)) ? { ...p, product_main_image_url: picked.get(keyOf(p)), match: "exact", offColor: false, titleOff: false, colorPick: true } : p));
+      shown = shown.map((p) => (picked.has(keyOf(p)) ? { ...p, product_main_image_url: picked.get(keyOf(p)), match: "exact", offColor: false, titleOff: false, colorPick: true, ...(found.get(keyOf(p)).variant ? { variant: found.get(keyOf(p)).variant } : {}) } : p));
       const off = (p) => otherColor.has(keyOf(p)) && !p.colorPick;
       // Back to its sales place among the right-color ones; a style card keeps its seller/✨ turns (orderCard ranks it).
       const place = new Map(ranked.map((p, i) => [keyOf(p), i]));
@@ -704,6 +724,7 @@ export function createBot({
   relevant = filterRelevant,
   look = (request, products, opts = {}) => filterRelevant(request, products, { photos: true, ...opts }),
   pickPhoto = pickColorPhotos,
+  skus = skuDetails,
   advise = nextAdvice,
   explain = explainFit,
   title = shortTitles,
@@ -894,7 +915,7 @@ export function createBot({
       } else {
         // The self-check's second reading tells the AI what the first one searched (cached like any reading).
         const reread = (words) => understand(rawHeader, { wrong: words }).then((i) => (i?.status === "ok" ? { keywords: i.keywords_en, alt: i.alt_en ?? null, terms: i.terms_en ?? [], fallback: i.fallback_en, looks: i.looks_like ?? null } : null));
-        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
+        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto, skus }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.

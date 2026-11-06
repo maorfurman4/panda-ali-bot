@@ -109,10 +109,31 @@ export const inColors = (title, request) => named(request).some((c) => named(tit
 // The asked color in the shopper's own word, for a listing shown in another color whose title says it comes in that one
 // too (owner, 2026-11-05: "show it in red and write it comes in black too").
 const COLOR_WORDS = [[/שחור/, "שחור"], [/לבן|לבנה/, "לבן"], [/אדו[םמ]/, "אדום"], [/בורדו/, "בורדו"], [/נייבי/, "נייבי"], [/טורקיז/, "טורקיז"], [/תכלת/, "תכלת"], [/כחול/, "כחול"], [/ירוק/, "ירוק"], [/צהוב/, "צהוב"], [/פוקסיה/, "פוקסיה"], [/ורוד/, "ורוד"], [/לילך/, "לילך"], [/סגול/, "סגול"], [/ניוד/, "ניוד"], [/חאקי/, "חאקי"], [/בז'/, "בז'"], [/חום|חומ/, "חום"], [/אפור/, "אפור"], [/כתו[םמ]/, "כתום"]];
-export function colorAlsoLine(request = "") {
+const askedColor = (request = "") => {
   const t = request.replace(NOT_A_COLOR, "");
-  const w = COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1];
+  return COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1] ?? null;
+};
+export function colorAlsoLine(request = "") {
+  const w = askedColor(request);
   return w ? `🎨 מגיע גם ב${w}, בוחרים בדף המוצר` : null;
+}
+// The shopper's color in the English names sellers give variants (SKU API). "Wine Red" is burgundy, not red.
+const VARIANT_EN = {
+  שחור: /\bblack\b/i, לבן: /\bwhite\b/i, אדום: /^(?!.*(?:wine|burgundy|claret)).*\bred\b/i, בורדו: /burgundy|\bwine\b|claret|maroon|bordeaux/i,
+  נייבי: /\bnavy\b|dark\s*blue/i, כחול: /\bblue\b|\bnavy\b/i, תכלת: /(?:light|sky|baby)\s*blue/i, ירוק: /\bgreen\b/i, צהוב: /\byellow\b/i,
+  ורוד: /\bpink\b/i, סגול: /purple|violet|lavender/i, חום: /\bbrown\b|coffee|camel/i, "בז'": /beige|apricot|khaki/i,
+  ניוד: /\bnude\b|beige|apricot|\bskin\b/i, חאקי: /khaki/i, אפור: /\bgr[ae]y\b/i, כתום: /\borange\b/i,
+};
+const CODE = /^[A-Z]\d?$|^\d+$|colou?r\s*\d/i;
+const SKU_CAP = 20; // the API returns at most 20 variants
+// decided: real color names, a known color, and either a match or a full list seen (fewer than 20 variants). Otherwise
+// the photo picker decides, as before.
+export function colorVariant(variants = [], request = "") {
+  const re = VARIANT_EN[askedColor(request)];
+  const named = variants.filter((v) => v.color);
+  if (!re || !named.length || named.some((v) => CODE.test(v.color))) return { variant: null, decided: false };
+  const variant = named.find((v) => re.test(v.color)) ?? null;
+  return { variant, decided: Boolean(variant) || variants.length < SKU_CAP };
 }
 // A request for a child (ילדה, בנות, kids) and a title for a baby: "שמלה לילדה" showed three baby dresses, the judges let
 // them in (owner's test, 2026-11-05). Machine-translated baby titles name girls too ("לתינוקות בנות", "שמלת ילדה בת
@@ -334,6 +355,13 @@ export function titleShare(request = "", products = [], top = 30) {
   return list.filter((p) => ws.some((rs) => rs.some((r) => (p.product_title ?? "").includes(r)))).length / list.length;
 }
 export const SELF_CHECK = 0.2;
+// The request's item (its first word) near the start of the title. The color-free best sellers skip the judges, and a
+// variant color proves the color, not the kind: "Beige" Lolita shoes for "שמלה ניוד", a "Black" bottle bag for "כוס
+// תרמית שחורה" (free check, 2026-11-06).
+export function namesItem(title = "", request = "") {
+  const w = request.split(/[\s,.\-/]+/).find((x) => /^[א-ת"'׳״]{2,}$/.test(x) && !SELF_STOP.has(x));
+  return Boolean(w) && roots(w).some((r) => title.slice(0, 30).includes(r)); // lingerie titles name a dress later on
+}
 
 export const fakeLuxury = (title, request = "") => LUXURY.test(title ?? "") && !LUXURY.test(request);
 

@@ -1762,3 +1762,40 @@ test("a child's request: baby-only listings go after the girls' ones, even when 
   assert.ok(!/לתינוקת/.test(caption.split("🥉")[0] ?? ""), "no baby dress among the first three");
   assert.equal(collaged.length, 4);
 });
+
+// A color search's color-free best sellers checked by their variants (SKU API) before the photo picker (2026-11-06).
+const skuCase = async (variantsOf) => {
+  const gallery = (n) => ({ string: [`https://ae01.alicdn.com/kf/img${n}.jpg`, `https://ae01.alicdn.com/kf/x${n}.jpg`] });
+  const small = Array.from({ length: 5 }, (_, i) => product(i + 1, { lastest_volume: String(40 - i), product_title: `סוודר בורדו ${i + 1}`, product_small_image_urls: gallery(i + 1) }));
+  const big = [product(8, { lastest_volume: "9000", product_title: "סוודר לנשים", product_small_image_urls: gallery(8) })];
+  const picked = [];
+  const pickPhoto = async (_r, p) => (picked.push(...p.map((x) => x.promotion_link.slice(-1))), p.map(() => null));
+  const skus = async (ids) => { if (variantsOf === "fail") throw new Error("down"); return new Map(ids.map((id) => [id, variantsOf])); };
+  let collaged;
+  const ctx = setup({ search: async (q) => (q === "sweater women" ? big : small), live: true, understand: async () => intent({ corrected_he: "סוודר בורדו", keywords_en: "burgundy sweater women" }), pickPhoto, skus, collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי סוודר בורדו"));
+  return { picked, collaged };
+};
+const variant = (color, i) => ({ skuId: String(i), color, photo: `https://ae01.alicdn.com/kf/v-${color.replace(/\s/g, "")}.jpg`, props: { Color: color } });
+
+test("a named color: a color-free best seller whose variants include the color shows that variant's photo, without the photo picker", async () => {
+  const { picked, collaged } = await skuCase([variant("Gray", 1), variant("Wine Red", 2)]);
+  assert.ok(!picked.includes("8"));
+  assert.equal(collaged[0], "https://ae01.alicdn.com/kf/v-WineRed.jpg", "the 9,000-sold sweater leads, in its burgundy variant's photo");
+});
+
+test("a named color: real variant names without the color keep it out, without the photo picker", async () => {
+  const { picked, collaged } = await skuCase([variant("Gray", 1), variant("White", 2)]);
+  assert.ok(!picked.includes("8"));
+  assert.ok(!collaged.some((u) => /img8|x8|v-/.test(u)));
+});
+
+test("a named color: coded variant names go to the photo picker as before", async () => {
+  const { picked } = await skuCase([variant("A", 1), variant("B", 2)]);
+  assert.ok(picked.includes("8"));
+});
+
+test("a named color: the variant lookup failing leaves the photo picker path", async () => {
+  const { picked } = await skuCase("fail");
+  assert.ok(picked.includes("8"));
+});
