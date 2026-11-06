@@ -109,3 +109,50 @@ MID  [מטבח] ספוגים בצבעים לבשרי וחלבי: "colored dish s
 "night lamp": 72 in the pool, 34 screen/sensor/touch/app lights:
 "night light": 72 in the pool, 23 screen/sensor/touch/app lights:
 "plug in night light": 72 in the pool, 37 screen/sensor/touch/app lights:
+
+## Market research, 2026-11-06: sellers' own English titles (SKU API en_title) mined for 30 weak items
+# Round 1 (loose title check) - most 'gains' were unrelated best sellers (baby bath cups for 'washing cup', demon-horn stickers for 'shofar')
+GAIN כוס קידוש: "kiddush cup" 0/56 → best "washing cup" 35/35 · mined: washing cup | cup with dual | hand washing cup | wash cup | cup judaica hand
+GAIN סט הבדלה: "havdalah set" 0/16 → best "havdalah" 5/6 · mined: tray havdalah | havdalah candle | havdalah 4pcs | tray havdalah candle | shabbat havdalah
+GAIN צלחת לדבש: "honey dish" 0/30 → best "honey jar" 13/18 · mined: rosh hashanah | mini honey | honey vinegar | mini honey vinegar | honey jar
+GAIN שופר: "shofar" 0/26 → best "demon horn" 9/13 · mined: shofar horn | polished shofar | horn smooth | horn smooth mouthpiece | demon horn
+GAIN קישוטים לסוכה: "sukkah decorations" 0/16 → best "sukkah" 11/12 · mined: happy sukkot | sukkot table | lulav sukkah | sukkah table | runner sukkot
+same חנוכייה: "hanukkah menorah" 0/6 → best "menorah" 1/11 · mined: acrylic chanukah | judaism menorah | menorah star | judaism menorah star | menorah candelabra
+same סביבון: "dreidel" 0/11 → best "wooden dreidel" 0/25 · mined: 6pcs dreidels | dreidels hanukkah | 6pcs dreidels hanukkah | dreidels unfinished | wooden dreidel
+GAIN רעשן: "grogger" 0/2 → best "noise maker" 27/28 · mined: noise maker | ratchet noise | wooden spinningratchet | spinningratchet noise | board ratchet
+same קערת פסח: "seder plate" 0/37 → best "seder plate" 0/37 · mined: passover seder | passover seder plate | passover matzah | festive passover | festive passover seder
+same כיסוי למצות: "matzah cover" 0/1 → best "matzo cover" 0/11 · mined: matzo cover cloth | dining matzo | kitchen dining matzo | dining matzo cover | passover decorations
+same כוס אליהו: "elijah cup" 0/12 → best "kiddush cup" 0/57 · mined: kiddush cup | shabbat passover | plated kiddush | silver plated kiddush | plated kiddush cup
+GAIN טלית: "tallit" 1/28 → best "tallis" 6/6 · mined: tallit prayer | tallit prayer shawl | islamic prayer shawl | church prayer shawl | brtagg tallit
+same תפילין: "tefillin" 1/11 → best "tefillin" 1/11 · mined: tefillin shape | sticker decoration tefillin | hebrew tefillin | gold tefillin | phylacteries souvenir
+same ציצית: "tzitzit" 1/37 → best "tzitzit" 1/37 · mined: blue tzitzit | tzitzit judaism | royal blue tzitzit | blue tzitzit judaism | tzitzit talis
+same תיק לטלית ותפילין: "tallit bag" 0/1 → best "tefillin bag" 0/2 · mined: talit tefillin | tallit shawl | talit tefillin bag | tallit shawl scarf | tov tefillin
+same כתובה: "ketubah" 0/0 → best "ketubah" 0/0 · mined: -
+GAIN כוס לשבירה בחתונה: "jewish wedding glass" 0/4 → best "breaking glass" 14/26 · mined: chuppah breaking | breaking glass | chuppah breaking glass | wedding chuppah breaking | drawstring bagjewish
+GAIN סידור: "siddur" 0/0 → best "prayer book" 3/35 · mined: prayer book | bible prayer book | prayer book shaped
+same מגילת אסתר: "megillah" 0/0 → best "megillah" 0/0 · mined: -
+same קופת צדקה: "tzedakah box" 1/12 → best "charity box" 1/37 · mined: cafe charity | bar cafe charity | box jewish charity | tzedakah coin | charity donation
+GAIN מזוזה לרכב: "car mezuzah" 0/11 → best "mezuzah" 10/37 · mined: mezuzah case | door mezuzah | mezuzah with shin | mezuzah case modern | door mezuzah case
+same יד לספר תורה: "torah pointer" 0/0 → best "yad pointer" 0/19 · mined: yad torah | pointer yad | torah scroll | torah scroll reading | yad torah pointer
+GAIN ברכת הבית: "jewish home blessing" 0/14 → best "hebrew blessing" 9/14 · mined: blessing wall | blessing wall sign | hebrew blessing | elegant hebrew | hebrew prayer
+GAIN נר הבדלה: "havdalah candle" 0/2 → best "braided wick" 2/2 · mined: braided wick | core braided | braided candle wick | roll core braided | core braided wick
+same כרית לברית: "brit milah pillow" 0/0 → best "cushion christening" 1/26 · mined: cushion christening | feeding cushion christening | baby christening | cushion baby christening
+same דגל ישראל: "israel flag" 0/0 → best "singer israeli" 0/9 · mined: star of david | israeli fashion | israeli fashion flag | singer israeli | israeli popular
+same הגדה של פסח: "haggadah" 0/1 → best "haggadah" 0/1 · mined: haggadah whisperer | family seder | seder matzah | passover the haggadah | haggadah whisperer family
+same כיפות מודפסות לאירוע: "custom kippah" 0/59 → best "kippah yarmulke" 1/71 · mined: kippah yarmulke | kippot wedding | wedding kippah | customized jewish kippot | kippot wedding kippah
+same נרתיק לאתרוג: "etrog box" 0/0 → best "etrog holder" 0/1 · mined: stacked etrog | etrog apple | holder stacked etrog | stacked etrog apple
+same חנוכייה חשמלית: "electric menorah" 0/1 → best "hanukkah chanukah" 0/14 · mined: wood menorah | led wood menorah | banana menorah | menorah hanukkah | hanukkah chanukah
+
+# Round 2 (strict: the title carries the item's own Hebrew name) - real items found, best seller's sales, items sold 20+
+כוס קידוש: "kiddush cup" 41 real, best 41, 20+: 1 · "kiddush cup set with plate" 2 real, best 0, 20+: 0 · "judaica kiddush cup" 14 real, best 41, 20+: 1 · "crystal kiddush cup" 1 real, best 3, 20+: 0
+צלחת לדבש: "honey dish" 56 real, best 14, 20+: 0 · "rosh hashanah honey dish" 14 real, best 14, 20+: 0 · "honey dish with spoon" 2 real, best 14, 20+: 0 · "judaica honey dish" 2 real, best 14, 20+: 0
+שופר: "shofar" 59 real, best 142, 20+: 4 · "shofar horn" 32 real, best 142, 20+: 4 · "polished shofar" 3 real, best 2, 20+: 0 · "rosh hashanah shofar" 31 real, best 12, 20+: 0
+סט הבדלה: "havdalah set" 5 real, best 21, 20+: 1 · "havdalah candle holder" 2 real, best 1, 20+: 0 · "judaica havdalah" 4 real, best 21, 20+: 1
+חנוכייה: "hanukkah menorah" 4 real, best 24, 20+: 1 · "menorah candle holder" 7 real, best 24, 20+: 1 · "judaica menorah" 5 real, best 24, 20+: 1 · "chanukah menorah" 11 real, best 24, 20+: 1
+קערת פסח: "seder plate" 17 real, best 1, 20+: 0 · "passover seder plate" 16 real, best 1, 20+: 0 · "judaica seder plate" 1 real, best 1, 20+: 0 · "pesach plate" 12 real, best 6, 20+: 0
+טלית: "tallit" 26 real, best 103, 20+: 1 · "tallit prayer shawl" 28 real, best 19, 20+: 0 · "jewish prayer shawl" 19 real, best 19, 20+: 0 · "tallit gadol" 0 real, best 0, 20+: 0
+ברכת הבית: "jewish home blessing" 35 real, best 312, 20+: 17 · "hebrew blessing wall sign" 59 real, best 50, 20+: 3 · "birkat habayit" 17 real, best 20, 20+: 2 · "judaica wall sign" 7 real, best 50, 20+: 1
+נטלה: "netilat yadayim cup" 66 real, best 68, 20+: 2 · "hand washing cup judaica" 16 real, best 68, 20+: 3 · "judaica wash cup" 21 real, best 68, 20+: 3
+מזוזה: "mezuzah case" 45 real, best 266, 20+: 19 · "mezuzah case modern" 25 real, best 55, 20+: 4 · "judaica mezuzah" 50 real, best 133, 20+: 11
+סביבון: "dreidel" 14 real, best 11, 20+: 0 · "hanukkah dreidel" 14 real, best 11, 20+: 0 · "dreidels hanukkah" 14 real, best 11, 20+: 0
+רעשן לפורים: "grogger" 1 real, best 0, 20+: 0 · "purim grogger" 0 real, best 0, 20+: 0 · "purim noisemaker" 0 real, best 0, 20+: 0
