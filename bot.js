@@ -45,6 +45,7 @@ import {
   EMPTY_QUERY,
   NO_RESULTS,
   NO_FOOD,
+  NO_ADULT,
   bigItem,
   WEAK_SOLD,
   NOT_PRODUCT,
@@ -133,6 +134,7 @@ export function styleFloor(products) {
 const BRAND_MIN_SOLD = 100;
 const BRAND_SHARE = 0.1;
 // AliExpress barely ships food to Israel: an empty food search gets an explanation instead of "try rewording".
+const SEX_TOY_WORDS = /ויברטור|דילדו|(?:אביזר|צעצוע)(?:י)? מין|(?:ביצת|טבעת) רטט|פלאג אנאלי|vibrator|dildo|sex toy|butt plug|anal plug/i;
 const FOOD_WORDS = /חטיף|ממתק|שוקולד|סוכרי|עוגיות|\bתה\b|קפה טחון|פולי קפה|אוכל|מזון|תבלין|דבש|אגוזים|food|snack|candy|tea\b/i;
 const RESULTS_TTL_MS = 24 * 60 * 60_000; // one answer a day: the judges vary run to run (owner, 2026-11-01). shortcut: prices may drift within the day; shorten if that matters
 const RESULTS_MAX = 300;
@@ -964,7 +966,8 @@ export function createBot({
       stats.count("noResults");
       stats.report("noResults", `😕 בלי תוצאות: "${header}" (חיפשתי: ${keywords})`);
       const food = FOOD_WORDS.test(`${header} ${keywords}`) && !/מטחנ|כוס|ספל|קופס|grinder|mug|cup|box/i.test(`${header} ${keywords}`);
-      return ctx.reply(food ? NO_FOOD : NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
+      const toy = SEX_TOY_WORDS.test(`${header} ${keywords}`);
+      return ctx.reply(toy ? NO_ADULT : food ? NO_FOOD : NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
     const shown = found.slice(0, limit);
     const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice

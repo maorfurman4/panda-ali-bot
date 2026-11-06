@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
 import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, styleFloor, withoutColor, medalsBySales, orderCard } from "../bot.js";
-import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, HOW_TO_SEARCH } from "../format.js";
+import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, NO_ADULT, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
   product_title: `Wireless Earbuds model ${n}`,
@@ -1118,6 +1118,15 @@ test("an empty food search explains that AliExpress barely ships food to Israel"
   const ctx = setup({ search: async () => [], understand: async () => intent({ corrected_he: "חטיפים יפניים", keywords_en: "Japanese snacks" }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי חטיפים יפניים"));
   assert.equal(ctx.sent()[0].body, NO_FOOD);
+});
+
+test("an empty sex-toy search says AliExpress hides them from the bot's search (owner, 2026-11-06)", async () => {
+  const ctx = setup({ search: async () => [], understand: async () => intent({ corrected_he: "ויברטור", keywords_en: "vibrator" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי ויברטור"));
+  assert.equal(ctx.sent()[0].body, NO_ADULT);
+  const bike = setup({ search: async () => [], understand: async () => intent({ corrected_he: "חומר סיכה לשרשרת אופניים", keywords_en: "bike chain lube" }) });
+  await bike.bot.handleUpdate(textUpdate("חפש לי חומר סיכה לשרשרת אופניים"));
+  assert.equal(bike.sent()[0].body, NO_RESULTS, "ordinary lube: the usual message");
 });
 
 test("the fixed 'how to search' message: once per 10 minutes per user, none for admins, links or replies, no AI", async () => {

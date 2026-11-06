@@ -775,6 +775,8 @@ export const CLARIFY_NOT_YOURS = "רק מי שביקש יכול לבחור";
 export const CLARIFY_EXPIRED = "הבקשה פגה, חפשו שוב";
 export const EMPTY_QUERY = rtl(["מה לחפש? לדוגמה: חפש לי אוזניות אלחוטיות"]);
 export const NO_FOOD = rtl(["😕 עלי אקספרס כמעט לא שולחת מזון לישראל, ולכן אין תוצאות.", "אפשר לחפש אביזרים, למשל: חפש לי מטחנת קפה ידנית"]);
+// AliExpress's affiliate search returns no sex toys at all ("dildo", "sex toys": 0 results, 2026-11-06); lingerie does come.
+export const NO_ADULT = rtl(["🙈 עלי אקספרס לא מציגה צעצועי מין בחיפוש דרך הבוט, ולכן אין תוצאות.", "אפשר לחפש הלבשה תחתונה, למשל: חפש לי הלבשה תחתונה סקסית"]);
 export const NO_RESULTS = rtl(["🙈 לא מצאתי משהו שמתאים בדיוק, אבל אני כאן בשבילכם!", "נסו לכתוב את זה קצת אחרת או כללי יותר, למשל: חפש לי מטען לאייפון 😊"]);
 export const HOW_TO_SEARCH = rtl(["🐼 היי! הקבוצה מיועדת לדילים ולמוצרים מעלי אקספרס בלבד.", 'מחפשים משהו? כתבו "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
 export const guideText = (name) => rtl(['🙂 כדי שאוכל לעזור בצורה הכי טובה, כתבו "חפש לי" ואחריו שם המוצר.', `למשל: חפש לי ${esc(name)}`]);
