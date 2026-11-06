@@ -701,7 +701,7 @@ test("slangHints: Judaica wordings from the free check (2026-11-06)", async () =
   has("סכין לחלה", /bread knife/);
   has("מפת שבת", /white tablecloth/);
   has("חמסה", /hamsa hand/);
-  has("מגבת לנטילת ידיים", /hand towel/);
+  has("מגבת לנטילת ידיים", /absorbent hand towel/);
   has("פמוטים לשבת", /candlestick holder set/);
   has("מדבקות בשרי וחלבי", /kitchen labels stickers/);
 });

@@ -128,8 +128,9 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - "מתלה מגבות" -> "towel rack", terms like "towel bar", "towel ring", "over door towel rack"; never plain hooks or clips
   ("towel hook" filled the card with multi-purpose hooks, 2026-11-04) unless the shopper asks for a hook ("וו למגבת").
 - Jewish and Israeli items: AliExpress sellers rarely write "Shabbat", so search what the item is: "מנורת לילה לשבת"/"מנורת
-  שבת" -> keywords "night lamp", terms ["rotating cover night lamp", "plug in night light"] (the Shabbat lamp has a
-  mechanical shade you turn to dim it; an always-on lamp works too; never a motion or touch sensor);
+  שבת" -> keywords "night lamp", terms ["mini usb night light", "plug in night light"] (a plain lamp that stays on all
+  Shabbat; AliExpress has no rotating-cover Shabbat lamp, free check 2026-11-06; projectors and remote lamps are moved
+  down by the code);
   "פלטה לשבת" -> "food warming tray"; "חנוכייה" -> "hanukkah menorah"; "פמוטים" -> "candlesticks"; "מזוזה" -> "mezuzah case".
 - keywords_en always keeps the item's own noun and its kind ("ערכת מאצ'ה" -> "matcha tea set", not "matcha", which also means a clothes color; "מסך ירוק" -> "green screen backdrop"). A word you don't recognize is a product name, not a brand.
 - The item the shopper wrote is the item to search; the device after "ל"/"עבור" is only what it is FOR. Never swap the item for a more common accessory of that device: "חודים לאייפד" -> "Apple Pencil tips" (stylus nibs), never "iPad case"; "רצועה לשעון" -> "watch strap", never "smart watch".
@@ -567,9 +568,12 @@ gaming (a gaming mouse for "עכבר אלחוטי"), shower or bath (a shower sp
 propagation (a plant-growing glass vase or avocado kit for "אגרטל"), made only for one car or device model (a Tesla-only
 phone holder for "מחזיק לטלפון לרכב"), sport-specific (cycling glasses for "משקפי שמש"), or one culture's traditional
 garment (a keffiyeh for "צעיף").
-For Shabbat use ("לשבת", "שאפשר להשתמש בשבת"), anything that switches on by motion, sound, touch or an app is not
-Shabbat-friendly: leave it out (a motion-sensor night light for "מנורת לילה לשבת"). A plain night light that stays on
-(plug-in, USB, bedside, or dimmed by a knob or rotating shade) is exact for "מנורת לילה לשבת", even without the word Shabbat.
+For Shabbat use ("לשבת", "שאפשר להשתמש בשבת"): on Shabbat nothing electric is switched, adjusted or set off by a person,
+so anything that turns on or changes by motion, sound, touch, a remote, an app or a button meant to be pressed, or that
+turns itself off by a timer, is not Shabbat-friendly: leave it out (a motion-sensor night light, a star projector, a
+remote-controlled RGB lamp for "מנורת לילה לשבת"). A plain light that stays on (plug-in, USB, bedside, a warm mini lamp)
+is exact, even without the word Shabbat. A Shabbat hot plate or urn that just stays on, and a plug-in timer set before
+Shabbat ("שעון שבת"), are fine.
 In Hebrew titles "מטען נייד", "בנק כוח" and "סוללת גיבוי" are a power bank (a portable battery), not a wall charger.
 For a towel rack or holder ("מתלה מגבות") a bar, ring, rail, over-door rack or a hook made for towels is exact; a
 general-purpose hook, adhesive hook or clip is partial (owner's test, 2026-11-04).

@@ -706,7 +706,7 @@ test("after choosing '👦 לבנים' / '👧 לבנות', 'לבנים' isn't t
 
 test("notForShabbat: a light switched by motion, sound, touch, an app or a screen bar isn't for a Shabbat request", async () => {
   const { notForShabbat } = await import("../format.js");
-  for (const t of ["מנורת לילה עם חיישן תנועה", "מנורת לילה עם עמעום מגע USB", "מנורת לילה חכמה בשליטת אפליקציה", "פס תאורה למסך מחשב", "Motion sensor night light"]) assert.equal(notForShabbat(t, "מנורת לילה לשבת"), true, t);
+  for (const t of ["מנורת לילה עם חיישן תנועה", "מנורת לילה עם עמעום מגע USB", "מנורת לילה חכמה בשליטת אפליקציה", "פס תאורה למסך מחשב", "Motion sensor night light", "מנורת מקרן כוכבים RGB, מנורת לילה לד", "מנורת קיר עם תאורת לילה, טעינה באמצעות שלט רחוק", "מנורת לילה עם טיימר כיבוי אוטומטי", "תנועה הוביל חיישן אור אלחוטי הוביל אור בלילה", "5 מ' הוביל אור עם תקע USB 24 מפתחות rgb"]) assert.equal(notForShabbat(t, "מנורת לילה לשבת"), true, t);
   for (const t of ["מנורת לילה מיני USB אור חם", "מנורת לילה בצורת פטרייה עם חיישן אור"]) assert.equal(notForShabbat(t, "מנורת לילה לשבת"), false, t);
   assert.equal(notForShabbat("מנורת לילה עם חיישן תנועה", "מנורת לילה לארון"), false, "no Shabbat in the request");
   assert.equal(notForShabbat("שקע חכם Tuya WiFi טיימר", "שעון שבת"), false, "a Shabbat timer may be a smart plug timer");

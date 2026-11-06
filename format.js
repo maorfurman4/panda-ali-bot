@@ -171,7 +171,9 @@ export function babyOnly(title = "", request = "") {
 // For a Shabbat request, a light that switches by motion, sound, touch or an app, or a screen light bar, isn't the item: 30
 // of the 72 for "מנורת לילה לשבת" were motion-sensor lights (free check, 2026-11-06). A light (dusk) sensor stays.
 const SHABBAT = /שבת/;
-const SWITCHED = /חיישן\s*(?:תנועה|קול|מגע)|תנועה\s*חיישן|מגע|חכמ|אפליקצי|wi-?fi|בלוטו|קולי|מסך|מוניטור|\b(?:motion|touch|app|smart|monitor|screen)\b/i;
+// Also a remote control, an auto-off timer, or a projector (a motor, colors and a timer, made to be switched): the night lamp
+// card showed star projectors and remote-controlled RGB lamps (owner's test, 2026-11-06).
+const SWITCHED = /חיישן\s*(?:תנועה|קול|מגע)|תנועה(?=.{0,20}חיישן)|\d+\s*מפתחות|מגע|חכמ|אפליקצי|wi-?fi|בלוטו|קולי|מסך|מוניטור|שלט|טיימר|כיבוי אוטומטי|מקרן|הקרנה|\b(?:motion|touch|app|smart|monitor|screen|remote|timer|projector)\b/i;
 // Lights only: a Shabbat timer ("שעון שבת") may well be a digital or smart plug timer, set before Shabbat.
 const LIGHT_REQ = /מנור|תאור|נורה|נורת|(?<![א-ת])אור(?![א-ת])/;
 export const notForShabbat = (title = "", request = "") => SHABBAT.test(request) && LIGHT_REQ.test(request) && SWITCHED.test(title);
