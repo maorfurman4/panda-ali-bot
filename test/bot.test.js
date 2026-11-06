@@ -1815,6 +1815,8 @@ test("/trace: the owner gets how the card was made under his searches; off by de
   const line = ctx.sent().find((m) => /^🔧 "/.test(m.text ?? ""));
   assert.ok(line, "a trace after turning it on");
   assert.match(line.text, /בכרטיס: 4/);
+  assert.equal(line.text.match(/בכרטיס/g).length, 1, "one card line, after the final order");
+  assert.match(line.text.split("\n").at(-1), /^בכרטיס/);
 });
 
 test("a named color: a variant-confirmed best seller stays even if the photo look leaves it out", async () => {

@@ -649,7 +649,6 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // A fake that would have led was moved down: every returned product carries it, so the card (and "עוד") can say why.
   const out = shown.slice(0, limit + extra);
   const moved = ranked.find((p) => p.fakeMoved);
-  trace.push(`בכרטיס: ${Math.min(limit, out.length)} (${out.slice(0, limit).map((p) => `${p.colorPick ? (p.variant ? "🧬" : "📷") : ""}${Number(p.lastest_volume) || 0}`).join(" / ")})`);
   return Object.assign(moved ? out.map((p) => ({ ...p, fakesSkipped: fakeExample(moved.product_title) })) : out, { trace });
 }
 
@@ -947,6 +946,8 @@ export function createBot({
         const [linked, names, rated] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null), stars(found).catch(() => null)]);
         found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
         found = orderCard(found, { context, style, cheapest, limit });
+        // After the final order (twins out, reviews, ✨, extras up): the owner saw 346 sold in the trace and 950 in the card.
+        trace?.push(`בכרטיס: ${Math.min(limit, found.length)} (${found.slice(0, limit).map((p) => `${p.colorPick ? (p.variant ? "🧬" : "📷") : ""}${Number(p.lastest_volume) || 0}`).join(" / ")})`);
         const over = found.filter((p) => p.overBudget); // one over-budget product per card: the others wait for "עוד"
         if (over.length > 1) found = [...found.filter((p) => !p.overBudget || p === over[0]), ...over.slice(1)];
         if (found.length) resultsCache.set(key, { found, at: now() });
