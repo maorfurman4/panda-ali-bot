@@ -44,7 +44,8 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - evening dresses: few long ones sell well on AliExpress (1 over 1,000 recent sales); short party dresses only if the owner wants them
    - the API's sales count is recent (likely 30 days), not the site's lifetime "1K+ sold"
    - a collage of colors as a coat's main photo
-   - when the SKU API is approved: variant colors and prices instead of the photo picker
+   - ✅ SKU API approved 2026-11-06: color searches use the variants (live; /trace shows the owner how a card was made)
+   - ⬜ the link opens the asked variant (free commission check first)
 6. ⬜ **Small leftovers:**
    - the Shabbat lamp still lets in a monitor light bar
    - a 3-sold set came first for "כלים למנגל"
