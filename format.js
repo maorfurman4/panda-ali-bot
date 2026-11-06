@@ -388,6 +388,14 @@ export function titleShare(request = "", products = [], top = 30) {
   return list.filter((p) => { const tw = wordsOf(p.product_title ?? ""); return ws.some((rs) => rs.some((r) => noGeresh(p.product_title).includes(r) || tw.some((x) => wordHas(x, r)))); }).length / list.length;
 }
 export const SELF_CHECK = 0.2;
+// The card's header is the AI's corrected Hebrew, unless it is what was typed cut off mid-word: "משי ק" for "משי קר"
+// (owner's test, 2026-11-05).
+const VERB_HEAD = /^\s*(?:חפש|תחפש|מצא|תמצא|חפשי|תחפשי)\s+(?:לי\s+)?/;
+export function headerOf(corrected = "", typed = "") {
+  const c = (corrected ?? "").trim(), t = (typed ?? "").replace(VERB_HEAD, "").trim();
+  if (!c) return t;
+  return t.startsWith(c) && /[\p{L}\p{N}]/u.test(t[c.length] ?? "") ? t : c;
+}
 // One form for the ways the same request is typed (text audit, 2026-11-06: 62 matcher readings changed with the writing):
 // copied text carries invisible direction marks; the geresh comes as ׳, ’ or `; gershayim as ״; the maqaf ־; no-break and
 // double spaces; niqqud. Punctuation and emoji stay: "?" marks a question, "👍" alone is thanks.

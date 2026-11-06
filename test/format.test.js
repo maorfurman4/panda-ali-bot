@@ -711,3 +711,13 @@ test("notForShabbat: a light switched by motion, sound, touch, an app or a scree
   assert.equal(notForShabbat("מנורת לילה עם חיישן תנועה", "מנורת לילה לארון"), false, "no Shabbat in the request");
   assert.equal(notForShabbat("שקע חכם Tuya WiFi טיימר", "שעון שבת"), false, "a Shabbat timer may be a smart plug timer");
 });
+
+test("headerOf: the AI's corrected Hebrew cut mid-word ('חולצת פולו משי ק') gives way to what was typed; a real correction stays", async () => {
+  const { headerOf } = await import("../format.js");
+  assert.equal(headerOf("חולצת פולו משי ק", "חולצת פולו משי קר"), "חולצת פולו משי קר");
+  assert.equal(headerOf("משי ק", "חפש לי משי קר"), "משי קר");
+  assert.equal(headerOf("אוזניות", "אוזנייות"), "אוזניות", "a typo fix stays");
+  assert.equal(headerOf("מטען לרכב", "מטען לרכב"), "מטען לרכב");
+  assert.equal(headerOf("", "מקרן"), "מקרן");
+  assert.equal(headerOf("שמלה", "שמלה שחורה"), "שמלה", "a whole word: the AI's reading, not a cut");
+});

@@ -22,6 +22,7 @@ import {
   colorVariant,
   namesItem,
   normalizeText,
+  headerOf,
   whiteOrKids,
   inColors,
   trustedFirst,
@@ -865,7 +866,7 @@ export function createBot({
         style: intent?.style ?? false,
         brands: intent?.brands_en ?? [],
         cheapest: CHEAPEST.test(query),
-        header: intent?.corrected_he || query,
+        header: headerOf(intent?.corrected_he, query),
         maxPriceIls: intent?.max_price_ils ?? null,
         minPriceIls: intent?.min_price_ils ?? intent?.floor_price_ils ?? null,
         floorOnly: Boolean(!intent?.min_price_ils && intent?.floor_price_ils),
@@ -894,7 +895,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], style: intent.style ?? false, brands: intent.brands_en ?? [], cheapest: CHEAPEST.test(text), header: intent.corrected_he || text, maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], style: intent.style ?? false, brands: intent.brands_en ?? [], cheapest: CHEAPEST.test(text), header: headerOf(intent.corrected_he, text), maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
     );
   }
 
