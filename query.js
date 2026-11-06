@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
 import { stats } from "./stats.js";
-import { isPartFor, forWhom, namesModel, manySizes } from "./format.js";
+import { isPartFor, forWhom, namesModel, manySizes, whiteByGrammar } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
 // USD per 1M tokens [input, output], for the owner's daily cost line (unknown models are priced as gpt-5.4).
@@ -155,7 +155,7 @@ Pro" found 2 earbuds, 2026-11-03), Xiaomi's are often "Redmi" or "Mijia", Lenovo
   Allowed (status "ok"): kitchen and chef knives, folding multitools, toy guns ("אקדח מים" -> "water gun toy", "רובה נרף" -> "foam blaster toy"), security and dash cameras, GPS trackers for keys, bags or cars.
 - Prefer searching over asking. Any named product type is status "ok", with or without details: "מטען", "כבל", "אוזניות", "שואב אבק רובוטי", "מצלמת דרך", "חכה לדייג" (a fishing rod), "מארגן למקרר", "מפיץ ריח איכותי לבית" (-> "home aroma diffuser"), "צעצוע לתינוקת" (-> "baby girl toys"). Never ask to clarify a named product.
 - Ages: "לבנות"/"לבנים"/"לילדים" = kids, not babies; only "לתינוק"/"לתינוקת" means babies.
-- "לבנות"/"לבנים" right after clothes, shoes or bags, with nothing else telling age or color ("נעלי ספורט לבנות", "מגפיים לבנות", "חולצות לבנים"), can mean white OR for girls/boys: this is the ONE case where a named product is status "clarify": clarify_question_he "בצבע לבן או לילדות?" (or "לילדים?" for לבנים) with exactly two options, label_he "בצבע לבן" (keywords_en with "white") and "לילדות"/"לילדים" (keywords_en with "girls"/"boys kids"). Not ambiguous, so status "ok": "בצבע לבן", "לבנות בנות 8", "לבנות קטנות", "לילדות", "לבנה".
+- "לבנות"/"לבנים" right after a plural item it agrees with ("נעלי ספורט לבנות", "כפכפים לבנים", "מגפיים לבנים") is the color white: status "ok", keywords_en with "white" (owner, 2026-11-06: don't ask). After a singular item or one it can't describe ("תיק לעבודה לבנות", "חולצות לבנים") it says who it is for: girls/women or boys/men, not white.
 - status "clarify" ONLY when no sensible product search is possible (e.g. "מתנה לאמא", "משהו לבית"). For a gift, one of the options or questions should be the budget: give clarify_question_he and 2-4 options, each with label_he (max 3 words) and keywords_en. Every option must fit the request and everything it already says, and name a whole product on its own (never a lone word cut from the request, like "למים"). Otherwise set clarify_question_he and options to null.
 - floor_price_ils = for big-ticket items whose cheap listings are mostly spare parts, accessories or toys, the realistic lowest price in shekels of the real item ("שואב אבק רובוטי" -> 200, "קורקינט חשמלי" -> 500, "אופניים חשמליים" -> 1200, "כיסא גיימינג" -> 250, "שולחן מחשב" -> 150, "שלט לפלייסטיישן" -> 60, "סלסלה לפיקניק" -> 60, "מיקרוגל" -> 150, "מקרר" -> 400, "מכונת כביסה" -> 500, "מזגן" -> 600, "מכונת קפה" -> 120); null for almost everything else (earbuds, cables, clothes, and whenever unsure).
 - min_price_ils / max_price_ils = numbers only when the request states a shekel range or limit ("עד 50 שקל" -> max 50, "בין 80 ל-150" -> min 80, max 150, "עד 20 דולר" -> max 74), otherwise null.
@@ -228,16 +228,6 @@ export function statedPrice(text) {
   return out;
 }
 
-// Clothes, shoes or bags ending in "לבנות"/"לבנים" with nothing else saying color or age: white, or for girls/boys?
-const WEARABLE = /(?:^|\s)(?:נעל|נעלי|נעליים|סניקרס|סנדל|כפכפ|מגפ|חולצ|טישירט|מכנס|ג'ינס|שמל|חצאי|מעיל|ג'קט|סווטשירט|קפוצ|טייץ|פיג'מ|בגד|גרבי|תיק|כובע)/;
-export function whiteOrKids(text = "") {
-  const t = String(text).replace(/(?:[.!?,\s\uFE0F]|\p{Extended_Pictographic})+$/u, "");
-  if (forWhom(t)) return null; // the grammar says who it is for: no question
-  const m = t.match(/\s(לבנות|לבנים)$/);
-  if (!m || !WEARABLE.test(t) || /צבע|גיל|\d|קטנ|נוער|בנות\s|בנים\s|ילד/.test(t.slice(0, m.index))) return null;
-  return m[1];
-}
-
 export function validateIntent(o) {
   if (!o || typeof o !== "object") return null;
   const status = String(o.status).toLowerCase();
@@ -262,15 +252,6 @@ export function validateIntent(o) {
   if (o.style === true) base.style = true;
   const brands = (Array.isArray(o.brands_en) ? o.brands_en : []).map((b) => clean(b, 20)).filter((b) => /^[\w .&+-]{2,20}$/.test(b)).slice(0, 2);
   if (brands.length) base.brands_en = brands;
-  // "נעלי ספורט לבנות" = white sneakers OR sneakers for girls: the owner wants the shopper asked (2026-11-02). Asked here in
-  // code, since the model answered "white" without asking.
-  const ambiguous = status !== "not_product" && status !== "not_allowed" && whiteOrKids(base.corrected_he);
-  if (ambiguous && /[a-z]/i.test(base.keywords_en)) {
-    const item = base.keywords_en.replace(/\b(?:white|girls?|boys?|kids?|children|women|men)\b/gi, " ").replace(/\s+/g, " ").trim();
-    const boys = ambiguous === "לבנים";
-    return { ...base, status: "clarify", clarify_question_he: boys ? "בצבע לבן או לילדים?" : "בצבע לבן או לילדות?",
-      options: [{ label_he: "בצבע לבן", keywords_en: `white ${item}` }, { label_he: boys ? "לילדים" : "לילדות", keywords_en: `${boys ? "boys" : "girls"} ${item} kids` }] };
-  }
   if (status === "not_product" || status === "not_allowed") return { status, corrected_he: base.corrected_he, keywords_en: "", max_price_ils: null };
   const fallback = clean(o.fallback_en, 100);
   if (status === "ok") return base.keywords_en ? (fallback && fallback !== base.keywords_en ? { ...base, fallback_en: fallback } : base) : null;
@@ -505,7 +486,7 @@ const VISUAL_WORDS = /אפור|שחור|לבן|לבנה(?![\u05D0-\u05EA])|חו�
 // Not a color: heat (מד/אקדח חום), money (מחזיק/שטר כסף), skin cream (קרם לחות, or the request starting with קרם).
 const NOT_LOOK = /רעש\s+לבן|white\s+noise|(?:מד|אקדח|מגן|בידוד|עמיד\s+ל|מפזר|משאבת|נגד)\s*חום|(?:מחזיק|שטרי?|שטרות|קופ[הת]|תיבת|ספירת)\s+(?:ל|של\s+)?כסף|^\s*קרם\S*|קרם\s+(?:ל\S*|נגד|הגנה|לחות|פנים|ידיים|גוף|עיניים|לילה|יום|רגליים|שיער|גילוח)/gi;
 // A color or pattern: the card puts the right look before reviews. "רעש לבן" / white noise isn't white (2026-11-02).
-export const namesLook = (text) => VISUAL_WORDS.test((text ?? "").replace(NOT_LOOK, ""));
+export const namesLook = (text) => VISUAL_WORDS.test((text ?? "").replace(NOT_LOOK, "")) || whiteByGrammar(text ?? "");
 
 const RELEVANCE_SYSTEM = `You check AliExpress search results for an Israeli shopper.
 You get the request (Hebrew, with English search keywords) and numbered products: a title (often machine-translated Hebrew)

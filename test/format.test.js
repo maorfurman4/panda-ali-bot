@@ -682,3 +682,11 @@ test("namesItem and titleShare: full or defective spelling (אזניות/אוז�
   }
   assert.equal(namesItem("נרתיק לאוזניות רך", "אזניות"), false, "still not an accessory");
 });
+
+test("colorVariant: silver and gold, and an agreeing 'לבנים' as white", async () => {
+  const { colorVariant } = await import("../format.js");
+  const vs = [{ skuId: "1", color: "Silver", photo: "a" }, { skuId: "2", color: "Gold", photo: "b" }, { skuId: "3", color: "White", photo: "c" }];
+  assert.equal(colorVariant(vs, "שעון לגבר כסוף").variant.color, "Silver");
+  assert.equal(colorVariant(vs, "עגילי זהב לנשים").variant.color, "Gold");
+  assert.equal(colorVariant(vs, "כפכפים לבנים").variant.color, "White");
+});

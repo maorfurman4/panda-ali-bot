@@ -92,6 +92,9 @@ const NOT_A_COLOR = /רעש\s+לבן|white\s+noise/gi;
 const FEM_PLURAL = /^(?:נעליים|נעלי|סניקרס)$|ות$/;
 const MASC_PLURAL = /^(?:סניקרס)$|(?<!^נעל)(?:ים|י)$/;
 const WHO_WORD = /(?<![א-ת])(לבנות|לבנים)(?![א-ת])/;
+// "כפכפים לבנים", "נעלי ספורט לבנות": the plural item agrees, so it is the color white (owner, 2026-11-06: don't ask);
+// with a singular item ("תיק לעבודה לבנות") forWhom says who it is for.
+export const whiteByGrammar = (text = "") => WHO_WORD.test(text) && !forWhom(text);
 export function forWhom(text = "") {
   const m = WHO_WORD.exec(text);
   if (!m) return null;
@@ -108,7 +111,7 @@ const named = (text) => {
 export const inColors = (title, request) => named(request).some((c) => named(title).includes(c)) && named(title).length > 1;
 // The asked color in the shopper's own word, for a listing shown in another color whose title says it comes in that one
 // too (owner, 2026-11-05: "show it in red and write it comes in black too").
-const COLOR_WORDS = [[/שחור/, "שחור"], [/לבן|לבנה/, "לבן"], [/אדו[םמ]/, "אדום"], [/בורדו/, "בורדו"], [/נייבי/, "נייבי"], [/טורקיז/, "טורקיז"], [/תכלת/, "תכלת"], [/כחול/, "כחול"], [/ירוק/, "ירוק"], [/צהוב/, "צהוב"], [/פוקסיה/, "פוקסיה"], [/ורוד/, "ורוד"], [/לילך/, "לילך"], [/סגול/, "סגול"], [/ניוד/, "ניוד"], [/חאקי/, "חאקי"], [/בז(?:'|׳)?(?![א-ת])/, "בז'"], [/חום|חומ/, "חום"], [/אפור/, "אפור"], [/כתו[םמ]/, "כתום"]];
+const COLOR_WORDS = [[/שחור/, "שחור"], [/לבן|לבנה|לבנות|לבנים/, "לבן"], [/כסוף|כסופ/, "כסוף"], [/זהב|זהוב/, "זהב"], [/אדו[םמ]/, "אדום"], [/בורדו/, "בורדו"], [/נייבי/, "נייבי"], [/טורקיז/, "טורקיז"], [/תכלת/, "תכלת"], [/כחול/, "כחול"], [/ירוק/, "ירוק"], [/צהוב/, "צהוב"], [/פוקסיה/, "פוקסיה"], [/ורוד/, "ורוד"], [/לילך/, "לילך"], [/סגול/, "סגול"], [/ניוד/, "ניוד"], [/חאקי/, "חאקי"], [/בז(?:'|׳)?(?![א-ת])/, "בז'"], [/חום|חומ/, "חום"], [/אפור/, "אפור"], [/כתו[םמ]/, "כתום"]];
 const askedColor = (request = "") => {
   const t = request.replace(NOT_A_COLOR, "");
   return COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1] ?? null;
@@ -122,7 +125,7 @@ const VARIANT_EN = {
   שחור: /\bblack\b/i, לבן: /\bwhite\b/i, אדום: /^(?!.*(?:wine|burgundy|claret)).*\bred\b/i, בורדו: /burgundy|\bwine\b|claret|maroon|bordeaux/i,
   נייבי: /\bnavy\b|dark\s*blue/i, כחול: /\bblue\b|\bnavy\b/i, תכלת: /(?:light|sky|baby)\s*blue/i, ירוק: /\bgreen\b/i, צהוב: /\byellow\b/i,
   ורוד: /\bpink\b/i, סגול: /purple|violet|lavender/i, חום: /\bbrown\b|coffee|camel/i, "בז'": /beige|apricot|khaki/i,
-  ניוד: /\bnude\b|beige|apricot|\bskin\b/i, חאקי: /khaki/i, אפור: /\bgr[ae]y\b/i, כתום: /\borange\b/i,
+  ניוד: /\bnude\b|beige|apricot|\bskin\b/i, חאקי: /khaki/i, אפור: /\bgr[ae]y\b/i, כתום: /\borange\b/i, כסוף: /silver/i, זהב: /\bgold(?:en)?\b/i,
 };
 const CODE = /^[A-Z]\d?$|^\d+$|colou?r\s*\d/i;
 const SKU_CAP = 20; // the API returns at most 20 variants

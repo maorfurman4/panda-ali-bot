@@ -8,7 +8,7 @@ import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
-import { createUnderstander, claudeCheck, namesLook, whiteOrKids } from "./query.js";
+import { createUnderstander, claudeCheck, namesLook } from "./query.js";
 import {
   shortTitle,
   soldText,
@@ -95,10 +95,10 @@ const COLOR_PICK_MAX = 4; // multi-color listings whose other photos are looked 
 // Materials and patterns (cashmere, leather, linen, floral) stay: they are the item, not a variant.
 // The reading words a color several ways ("maroon", "dark red", "navy blue"), so the common ones are all stripped: an
 // unstripped one skips the color-free search (a guess at why one "סוודר בורדו" card had only 1-9 sold, 2026-11-06).
-const COLOR_EN = /\b(?:(?:dark|light|deep|sky|navy|wine|baby|royal)\s+)?(?:black|white|red|blue|navy|green|yellow|pink|purple|brown|beige|khaki|nude|gr[ae]y|orange|burgundy|turquoise|wine|maroon|bordeaux|claret|ivory|cream|camel|apricot|lavender|violet|lilac|fuchsia|magenta|teal|mint|olive|mustard|coral|champagne|charcoal)\b/gi;
+const COLOR_EN = /\b(?:(?:dark|light|deep|sky|navy|wine|baby|royal|rose)\s+)?(?:black|white|red|blue|navy|green|yellow|pink|purple|brown|beige|khaki|nude|gr[ae]y|orange|burgundy|turquoise|wine|maroon|bordeaux|claret|ivory|cream|camel|apricot|lavender|violet|lilac|fuchsia|magenta|teal|mint|olive|mustard|coral|champagne|charcoal|silver|gold|golden)\b/gi;
 export const withoutColor = (keywords = "") => keywords.replace(COLOR_EN, " ").replace(/\s+/g, " ").trim();
 const COLOR_POOL_PICK = 6; // at most this many go to the photo picker
-const COLOR_SKU_CHECK = 20; // the color-free best sellers whose variants are checked (free: 20 at once in 0.8-1.5 s, 2026-11-06)
+const COLOR_SKU_CHECK = 40; // the color-free best sellers whose variants are checked (free: 40 at once in 0.7-1.5 s, 2026-11-06)
 // Titles only on gpt-5.4: ~$0.008 per 48. Non-style searches get 72: the three readings' words make up to ~17 lists, and
 // at 48 they pushed out sellers each single reading had (8,298 shavers, 16,652 car chargers; simulated 2026-11-02).
 // Style searches stay at 48, as approved (with 72 a blue gown got into "שמלת ערב שחורה ארוכה", 2026-11-02).
@@ -371,7 +371,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const toPicker = undecided.slice(0, pickMax);
     const urls = toPicker.length ? await pickPhoto({ he: context, en: keywords }, toPicker, opts).catch(() => []) : [];
     toPicker.forEach((p, i) => urls[i] && found.set(keyOf(p), { url: urls[i] }));
-    trace.push(`צבע: ${cands.length} נבדקו, ${byVariant} לפי וריאציות (${variants.size} ענו), ${found.size - byVariant}/${toPicker.length} לפי תמונות`);
+    if (cands.length) trace.push(`צבע: ${cands.length} נבדקו, ${byVariant} לפי וריאציות (${variants.size} ענו), ${found.size - byVariant}/${toPicker.length} לפי תמונות`);
     return found;
   };
   if (live) {
@@ -1026,8 +1026,7 @@ export function createBot({
 
   function askClarify(ctx, query, intent) {
     // The AI's keywords ride along, so "תחפש כבר" before any answer searches them, not the Hebrew request.
-    // The white-or-girls question is the only one: the answer makes the search clear, no advisor round after it.
-    const session = Object.assign(newSession(ctx, query, intent.max_price_ils, intent.min_price_ils, intent.keywords_en || null), whiteOrKids(intent.corrected_he) ? { direct: true } : {});
+    const session = newSession(ctx, query, intent.max_price_ils, intent.min_price_ils, intent.keywords_en || null);
     return showQuestion(ctx, session, intent.clarify_question_he, intent.options);
   }
 

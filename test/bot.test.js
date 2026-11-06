@@ -1693,6 +1693,8 @@ test("withoutColor: a color is a variant, so the item is searched without it; ma
   assert.equal(withoutColor("maroon sweater women"), "sweater women");
   assert.equal(withoutColor("dark red knit sweater"), "knit sweater");
   assert.equal(withoutColor("navy blue coat women"), "coat women");
+  assert.equal(withoutColor("silver men's watch"), "men's watch");
+  assert.equal(withoutColor("gold earrings women"), "earrings women");
 });
 
 test("a named color: the item is searched without it too, and a best seller pictured in another color comes back in the asked one", async () => {
