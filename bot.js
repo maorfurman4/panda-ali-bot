@@ -21,6 +21,7 @@ import {
   colorVariant,
   namesItem,
   normalizeText,
+  whiteOrKids,
   inColors,
   trustedFirst,
   sameReviews,
@@ -1026,7 +1027,8 @@ export function createBot({
 
   function askClarify(ctx, query, intent) {
     // The AI's keywords ride along, so "תחפש כבר" before any answer searches them, not the Hebrew request.
-    const session = newSession(ctx, query, intent.max_price_ils, intent.min_price_ils, intent.keywords_en || null);
+    // The white-or-boys question is the only one: the answer makes the search clear, no advisor round after it.
+    const session = Object.assign(newSession(ctx, query, intent.max_price_ils, intent.min_price_ils, intent.keywords_en || null), whiteOrKids(intent.corrected_he) ? { direct: true } : {});
     return showQuestion(ctx, session, intent.clarify_question_he, intent.options);
   }
 

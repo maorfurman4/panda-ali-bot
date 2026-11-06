@@ -92,9 +92,19 @@ const NOT_A_COLOR = /רעש\s+לבן|white\s+noise/gi;
 const FEM_PLURAL = /^(?:נעליים|נעלי|סניקרס)$|ות$/;
 const MASC_PLURAL = /^(?:סניקרס)$|(?<!^נעל)(?:ים|י)$/;
 const WHO_WORD = /(?<![א-ת])(לבנות|לבנים)(?![א-ת])/;
-// "כפכפים לבנים", "נעלי ספורט לבנות": the plural item agrees, so it is the color white (owner, 2026-11-06: don't ask);
-// with a singular item ("תיק לעבודה לבנות") forWhom says who it is for.
-export const whiteByGrammar = (text = "") => WHO_WORD.test(text) && !forWhom(text);
+// Clothes, shoes or bags ending in "לבנות"/"לבנים" with nothing else saying color or age: white, or for girls/boys? The
+// shopper is asked (owner, 2026-11-06: it really can't be told, ask with clear buttons).
+const WEARABLE = /(?:^|\s)(?:נעל|נעלי|נעליים|סניקרס|סנדל|כפכפ|מגפ|חולצ|טישירט|מכנס|ג'ינס|שמל|חצאי|מעיל|ג'קט|סווטשירט|קפוצ|טייץ|פיג'מ|בגד|גרבי|תיק|כובע)/;
+export function whiteOrKids(text = "") {
+  const t = String(text).replace(/(?:[.!?,\s\uFE0F]|\p{Extended_Pictographic})+$/u, "");
+  if (forWhom(t)) return null; // the grammar says who it is for: no question
+  const m = t.match(/\s(לבנות|לבנים)$/);
+  if (!m || !WEARABLE.test(t) || /צבע|גיל|\d|קטנ|נוער|בנות\s|בנים\s|ילד/.test(t.slice(0, m.index))) return null;
+  return m[1];
+}
+// "לבנות"/"לבנים" that can only be the color: the plural item agrees and the rest of the request says who ("סניקרס לבנים
+// לנשים"), or the shopper chose "⚪ בצבע לבן". Not when it is asked first, nor after "👦 לבנים" / "👧 לבנות".
+export const whiteByGrammar = (text = "") => WHO_WORD.test(text) && !forWhom(text) && !whiteOrKids(text) && !/👦|👧/.test(text);
 export function forWhom(text = "") {
   const m = WHO_WORD.exec(text);
   if (!m) return null;
@@ -111,10 +121,10 @@ const named = (text) => {
 export const inColors = (title, request) => named(request).some((c) => named(title).includes(c)) && named(title).length > 1;
 // The asked color in the shopper's own word, for a listing shown in another color whose title says it comes in that one
 // too (owner, 2026-11-05: "show it in red and write it comes in black too").
-const COLOR_WORDS = [[/שחור/, "שחור"], [/לבן|לבנה|לבנות|לבנים/, "לבן"], [/כסוף|כסופ/, "כסוף"], [/זהב|זהוב/, "זהב"], [/אדו[םמ]/, "אדום"], [/בורדו/, "בורדו"], [/נייבי/, "נייבי"], [/טורקיז/, "טורקיז"], [/תכלת/, "תכלת"], [/כחול/, "כחול"], [/ירוק/, "ירוק"], [/צהוב/, "צהוב"], [/פוקסיה/, "פוקסיה"], [/ורוד/, "ורוד"], [/לילך/, "לילך"], [/סגול/, "סגול"], [/ניוד/, "ניוד"], [/חאקי/, "חאקי"], [/בז(?:'|׳)?(?![א-ת])/, "בז'"], [/חום|חומ/, "חום"], [/אפור/, "אפור"], [/כתו[םמ]/, "כתום"]];
+const COLOR_WORDS = [[/שחור/, "שחור"], [/לבן|לבנה/, "לבן"], [/כסוף|כסופ/, "כסוף"], [/זהב|זהוב/, "זהב"], [/אדו[םמ]/, "אדום"], [/בורדו/, "בורדו"], [/נייבי/, "נייבי"], [/טורקיז/, "טורקיז"], [/תכלת/, "תכלת"], [/כחול/, "כחול"], [/ירוק/, "ירוק"], [/צהוב/, "צהוב"], [/פוקסיה/, "פוקסיה"], [/ורוד/, "ורוד"], [/לילך/, "לילך"], [/סגול/, "סגול"], [/ניוד/, "ניוד"], [/חאקי/, "חאקי"], [/בז(?:'|׳)?(?![א-ת])/, "בז'"], [/חום|חומ/, "חום"], [/אפור/, "אפור"], [/כתו[םמ]/, "כתום"]];
 const askedColor = (request = "") => {
   const t = request.replace(NOT_A_COLOR, "");
-  return COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1] ?? null;
+  return COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1] ?? (whiteByGrammar(t) ? "לבן" : null);
 };
 export function colorAlsoLine(request = "") {
   const w = askedColor(request);

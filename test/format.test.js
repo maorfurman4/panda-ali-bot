@@ -688,5 +688,6 @@ test("colorVariant: silver and gold, and an agreeing 'לבנים' as white", asy
   const vs = [{ skuId: "1", color: "Silver", photo: "a" }, { skuId: "2", color: "Gold", photo: "b" }, { skuId: "3", color: "White", photo: "c" }];
   assert.equal(colorVariant(vs, "שעון לגבר כסוף").variant.color, "Silver");
   assert.equal(colorVariant(vs, "עגילי זהב לנשים").variant.color, "Gold");
-  assert.equal(colorVariant(vs, "כפכפים לבנים").variant.color, "White");
+  assert.equal(colorVariant(vs, "סניקרס לבנים לנשים").variant.color, "White");
+  assert.equal(colorVariant(vs, "כפכפים לבנים").variant, null, "asked first");
 });

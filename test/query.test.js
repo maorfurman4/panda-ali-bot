@@ -533,8 +533,8 @@ test("the final photo look: two judges for a named color (350 px photos), one ju
 
 test("namesLook: 'לבנות'/'לבנים' alone isn't a color (can mean for girls/boys); 'לבן', 'לבנה', 'בצבע לבן' are", async () => {
   const { namesLook } = await import("../query.js");
-  for (const t of ["חולצות לבנים", "תיק לעבודה לבנות"]) assert.equal(namesLook(t), false, t);
-  for (const t of ["חולצה לבנה", "תיק לבן", "נעלי ספורט לבנות", "כפכפים לבנים"]) assert.equal(namesLook(t), true, t);
+  for (const t of ["חולצות לבנים", "תיק לעבודה לבנות", "כפכפים לבנים"]) assert.equal(namesLook(t), false, t);
+  for (const t of ["חולצה לבנה", "תיק לבן", "סניקרס לבנים לנשים", "כפכפים לבנים · ⚪ בצבע לבן"]) assert.equal(namesLook(t), true, t);
 });
 
 test("explainer: a reason that argues against the product is dropped (no 💡 for it), the others stay", async () => {
@@ -543,12 +543,22 @@ test("explainer: a reason that argues against the product is dropped (no 💡 fo
   assert.deepEqual(await createExplainer({ fetch: api.fetch, env: ENV })({ request: "מתנה לגבר", history: [] }, products), ["גאדג'ט קטן ושימושי", null]);
 });
 
-test("validateIntent: 'כפכפים לבנים' / 'נעלי ספורט לבנות' are white, no question (owner, 2026-11-06); a singular item stays 'for'", async () => {
-  const { whiteByGrammar } = await import("../format.js");
-  const out = validateIntent({ status: "ok", corrected_he: "נעלי ספורט לבנות", keywords_en: "white sneakers women" });
-  assert.equal(out.status, "ok");
-  for (const t of ["כפכפים לבנים", "נעלי ספורט לבנות", "מגפיים לבנים", "סניקרס לבנים לנשים"]) assert.equal(whiteByGrammar(t), true, t);
-  for (const t of ["חולצות לבנים", "תיק לעבודה לבנות", "שמלה לבנה", "מתנה לבנות"]) assert.equal(whiteByGrammar(t), false, t);
+test("validateIntent: 'כפכפים לבנים' asks white or for boys, with clear buttons (owner, 2026-11-06); clear cases are searched", async () => {
+  const { whiteOrKids, whiteByGrammar } = await import("../format.js");
+  const boys = validateIntent({ status: "ok", corrected_he: "כפכפים לבנים", keywords_en: "white slides" });
+  assert.equal(boys.status, "clarify");
+  assert.equal(boys.clarify_question_he, "בצבע לבן או לבנים?");
+  assert.deepEqual(boys.options.map((o) => o.label_he), ["⚪ בצבע לבן", "👦 לבנים"]);
+  assert.match(boys.options[0].keywords_en, /white slides/);
+  assert.match(boys.options[1].keywords_en, /boys slides/);
+  const girls = validateIntent({ status: "ok", corrected_he: "נעלי ספורט לבנות", keywords_en: "white sneakers women" });
+  assert.deepEqual(girls.options.map((o) => o.label_he), ["⚪ בצבע לבן", "👧 לבנות"]);
+  assert.equal(whiteOrKids("חולצות לבנים"), null, "shirts can't be 'לבנים' white: for boys");
+  for (const t of ["נעלי ספורט בצבע לבן", "שמלה לבנה", "נעליים לבנות בנות 8", "סניקרס לבנים לנשים"]) assert.equal(whiteOrKids(t), null, t);
+  assert.equal(whiteByGrammar("סניקרס לבנים לנשים"), true, "the rest of the request says who: it's the color");
+  assert.equal(whiteByGrammar("כפכפים לבנים"), false, "asked first");
+  assert.equal(whiteByGrammar("כפכפים לבנים (👦 לבנים)"), false, "the shopper chose boys");
+  assert.equal(whiteByGrammar("כפכפים לבנים (⚪ בצבע לבן)"), true);
 });
 
 test("pickColorPhotos: the photo number per listing becomes its URL; bad numbers and failures give null", async () => {
@@ -665,9 +675,9 @@ test("slangHints: a key with a geresh matches it written with ׳, ’ or without
   assert.equal(slangHints("נטילת  ידיים").length > 0, true);
 });
 
-test("whiteByGrammar: a trailing emoji doesn't hide 'לבנות'", async () => {
-  const { whiteByGrammar } = await import("../format.js");
-  assert.equal(whiteByGrammar("נעלי ספורט לבנות 👟"), true);
+test("whiteOrKids: a trailing emoji doesn't hide 'לבנות'", async () => {
+  const { whiteOrKids } = await import("../format.js");
+  assert.equal(whiteOrKids("נעלי ספורט לבנות 👟"), "לבנות");
 });
 
 test("slangHints: one or two yods/vavs (גופיה/גופייה, טיץ/טייץ) find the same hint", async () => {
