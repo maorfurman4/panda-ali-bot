@@ -193,7 +193,9 @@ export async function addStars(products, { fetch = globalThis.fetch, timeoutMs =
   return Promise.all(products.map((p) => (p.product_id ? one(p).catch(() => p) : p)));
 }
 
-const itemUrl = (p) => `https://www.aliexpress.com/item/${p.product_id}.html`;
+// A color-matched product links to its variant: the page opens on that color, and the link stays a normal affiliate link
+// (free check 2026-11-06: link.generate's s.click link redirects with skuId and the aff_ parameters kept).
+const itemUrl = (p) => `https://www.aliexpress.com/item/${p.product_id}.html${p.variant?.skuId ? `?skuId=${p.variant.skuId}` : ""}`;
 
 // product.query promotion links are ~1 KB long (risky for Telegram URL buttons): swap them for short
 // s.click links in ONE link.generate call (max 50 per call). On failure the original links are kept.

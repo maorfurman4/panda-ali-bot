@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { sign, apiCall, isMockMode, searchProducts, generateAffiliateLink, listOrders, skuApproved, skuDetails } from "../aliexpress.js";
+import { sign, apiCall, isMockMode, searchProducts, generateAffiliateLink, listOrders, skuApproved, skuDetails, shortenLinks } from "../aliexpress.js";
 
 const LIVE_ENV = { ALI_APP_KEY: "123", ALI_APP_SECRET: "s3cret", ALI_TRACKING_ID: "panda_bot" };
 const noSleep = async () => {};
@@ -265,4 +265,18 @@ test("skuDetails: a product answered with error 15 is missing, the others stay",
   const out = await skuDetails(["1", "2"], { fetch, env: LIVE_ENV, sleep: async () => {} });
   assert.ok(out.has("1"));
   assert.ok(!out.has("2"));
+});
+
+test("shortenLinks: a product with a matched variant gets the link made for its variant, so the page opens on that color", async () => {
+  let sources;
+  const fetch = async (_u, o) => {
+    sources = new URLSearchParams(o.body).get("source_values").split(",");
+    return json({ resp_result: { resp_code: 200, result: { promotion_links: { promotion_link: sources.map((s, i) => ({ source_value: s, promotion_link: `https://s.click.aliexpress.com/e/_v${i}` })) } } } });
+  };
+  const out = await shortenLinks([
+    { product_id: "11", promotion_link: "https://s.click.aliexpress.com/s/long1", variant: { skuId: "999" } },
+    { product_id: "12", promotion_link: "https://s.click.aliexpress.com/s/long2" },
+  ], { fetch, env: LIVE_ENV });
+  assert.deepEqual(sources, ["https://www.aliexpress.com/item/11.html?skuId=999", "https://www.aliexpress.com/item/12.html"]);
+  assert.deepEqual(out.map((p) => p.promotion_link), ["https://s.click.aliexpress.com/e/_v0", "https://s.click.aliexpress.com/e/_v1"]);
 });
