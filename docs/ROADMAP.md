@@ -52,6 +52,7 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - "כלים למנגל" (a 3-sold set first): kept by design - a real match leads close ones even with few sales (two tests pin it; changing it would put generic earbuds before "noise cancelling" ones)
    - ✅ the heading "משי ק": a cut AI correction falls back to what was typed (2026-11-06)
 8. ✅ **Final check of all 33 categories, 2026-11-06** (`docs/final-check-2026-11-06.txt`: 165 searches, basic check 94%; the 66 hardest read by hand 79% right and selling, the rest mostly market limits; 5 fixes). Next: the owner's Telegram check of 15, then the weekly learning loop.
+9. ✅ **500-search check, 2026-11-06** (`docs/check-500-2026-11-06.txt`: 15 per category, free, a strict automatic judge; 419 → 439 OK (84% → 88%) after the matcher fix and 10 wording hints; read by hand ~94% right and available, the rest market limits). Open: the 65W-charger price flag false alarm; wording for פס לד 12V, ארגז כלים, סט לק ג'ל.
 
 ## Rules for every change
 - One change at a time. Free checks before every upload:
@@ -64,5 +65,4 @@ Updated 2026-11-05. ✅ done · ⬜ next.
 ## Owner actions
 - ⬜ Check each upload in Telegram (the list comes with each upload).
 - ⬜ Forward the weekly digest and 🐼 reports (step 3).
-- ⬜ Follow the AliExpress ticket; say when SKU shows "Active".
 - ⬜ Each autumn: update the Black Friday and Cyber Monday dates in deals.js.
