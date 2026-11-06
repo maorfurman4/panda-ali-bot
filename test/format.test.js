@@ -640,3 +640,11 @@ test("colorVariant: 'בז' without the geresh finds beige variants", async () =>
   const { colorVariant } = await import("../format.js");
   assert.equal(colorVariant([{ skuId: "1", color: "Beige", photo: "p" }, { skuId: "2", color: "Black", photo: "q" }], "סוודר בז").variant.color, "Beige");
 });
+
+test("titleShare and namesItem: a word with a geresh (ג'ינס, ז'קט) matches its titles - the self-check paid a second reading for 'ג'ינס'", async () => {
+  const { titleShare, namesItem } = await import("../format.js");
+  assert.equal(titleShare("ג'ינס", [{ product_title: "ג'ינס גברים ישר" }]), 1);
+  assert.equal(titleShare("ג׳ינס", [{ product_title: "ג'ינס גברים ישר" }]), 1);
+  assert.equal(namesItem("ג'ינס גברים ישר", "ג'ינס שחור לגבר"), true);
+  assert.equal(namesItem("ז'קט עור לגברים", "ז'קט שחור"), true);
+});

@@ -347,12 +347,14 @@ export const singleForSet = (title, request = "") => SET_REQUEST.test(request) &
 const SELF_STOP = new Set("חפש תחפש מצא תמצא לי של עם את על בשביל עבור גם כולל איכותי איכותית איכותיים מעוצב מעוצבת חדש חדשה זול זולה הכי טוב טובה יפה גדול גדולה קטן קטנה שיכול להכיל או וגם".split(" "));
 const unsuffix = (w) => (w.length > 4 ? w.replace(/(יות|ים|ות|ית)$/, "") : w).replace(/(?<=..[א-ת])[הת]$/, "");
 // Both the word and the word without a one-letter prefix (ו/ל/ה/ב from 4 letters, מ/ש/כ from 5), suffixes trimmed.
+// roots() drops the geresh ("ג'ינס" -> "גינס"), so titles are compared without it too.
+const noGeresh = (t) => (t ?? "").replace(/["'׳״]/g, "");
 const roots = (w) => { const c = w.replace(/["'׳״]/g, ""); const bare = c.length >= 5 || (c.length >= 4 && /^[ולהב]/.test(c)) ? c.replace(/^[ולהבמשכ]/, "") : c; return [...new Set([unsuffix(c), unsuffix(bare)])].filter((r) => r.length >= 3); };
 export function titleShare(request = "", products = [], top = 30) {
   const ws = request.split(/[\s,.\-/]+/).filter((w) => /^[א-ת"'׳״]{2,}$/.test(w) && !SELF_STOP.has(w)).map(roots);
   const list = products.slice(0, top);
   if (!ws.length || !list.length) return 1; // nothing to compare (an English request, no products): never alarms
-  return list.filter((p) => ws.some((rs) => rs.some((r) => (p.product_title ?? "").includes(r)))).length / list.length;
+  return list.filter((p) => ws.some((rs) => rs.some((r) => noGeresh(p.product_title).includes(r)))).length / list.length;
 }
 export const SELF_CHECK = 0.2;
 // The request's item (its first word) near the start of the title. The color-free best sellers skip the judges, and a
@@ -363,7 +365,7 @@ const ACCESSORY_BEFORE = /(?:^|\s)(?:כיסוי|נרתיק|מגן|רצועה|ר�
 export function namesItem(title = "", request = "") {
   const w = request.split(/[\s,.\-/]+/).find((x) => /^[א-ת"'׳״]{2,}$/.test(x) && !SELF_STOP.has(x));
   if (!w) return false;
-  const head = title.slice(0, 30); // lingerie titles name a dress later on
+  const head = noGeresh(title).slice(0, 30); // lingerie titles name a dress later on
   return roots(w).some((r) => { const i = head.indexOf(r); return i >= 0 && !ACCESSORY_BEFORE.test(head.slice(0, i).replace(/[ל-]+$/, "").trim()); });
 }
 
