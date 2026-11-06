@@ -53,6 +53,7 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - ✅ the heading "משי ק": a cut AI correction falls back to what was typed (2026-11-06)
 8. ✅ **Final check of all 33 categories, 2026-11-06** (`docs/final-check-2026-11-06.txt`: 165 searches, basic check 94%; the 66 hardest read by hand 79% right and selling, the rest mostly market limits; 5 fixes). Next: the owner's Telegram check of 15, then the weekly learning loop.
 9. ✅ **500-search check, 2026-11-06** (`docs/check-500-2026-11-06.txt`: 15 per category, free, a strict automatic judge; 419 → 439 OK (84% → 88%) after the matcher fix and 10 wording hints; read by hand ~94% right and available, the rest market limits). Open: the 65W-charger price flag false alarm; wording for פס לד 12V, ארגז כלים, סט לק ג'ל.
+10. ✅ **1,000-search check, 2026-11-06** (`docs/check-1000-2026-11-06.txt`: 1,000 never-checked searches over AliExpress's 524 sub-categories; automatic 79% → 80% after 20 hints; by hand ~88% right and selling, ~96% the right item; 18 wrong-item searches left for the AI judges; 23 not really on AliExpress). Also 50 formerly blocked searches: hidden cameras 17/18, lingerie fine, sex toys absent from AliExpress's affiliate search (a message says so).
 
 ## Rules for every change
 - One change at a time. Free checks before every upload:
