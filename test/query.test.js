@@ -188,6 +188,7 @@ test("aiSpend: every AI call inside a search adds its dollar cost to that search
   const spent = { usd: 0 };
   await aiSpend.run(spent, () => createUnderstander({ fetch: api.fetch, env: ENV })("אושניות"));
   assert.ok(spent.usd > 0, "the three readings were counted");
+  assert.deepEqual(Object.keys(spent.parts), ["search_intent·gpt-5.4-mini"], "the breakdown names the step and model");
   const other = { usd: 0 };
   await aiSpend.run(other, async () => {});
   assert.equal(other.usd, 0, "another search's calls don't leak in");

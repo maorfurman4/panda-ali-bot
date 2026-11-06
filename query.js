@@ -19,7 +19,11 @@ const PRICES = { "gpt-5.4": [2.5, 15], "gpt-5.4-mini": [0.75, 4.5], "gpt-5.5": [
 // check. Each OpenAI model has its Claude counterpart (same JSON schema, same instructions).
 // The running search's AI spend (bot.js opens one per Telegram update): the owner's /trace shows what each search cost.
 export const aiSpend = new AsyncLocalStorage();
-const spend = (usd) => { stats.count("aiCost", usd); const s = aiSpend.getStore(); if (s) s.usd += usd; };
+const spend = (usd, step) => {
+  stats.count("aiCost", usd);
+  const s = aiSpend.getStore();
+  if (s) (s.usd += usd), ((s.parts ??= {})[step] = (s.parts[step] ?? 0) + usd); // step: call name and model, for the breakdown
+};
 const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 const CLAUDE_FOR = { "gpt-5.4": "claude-sonnet-5-5", "gpt-5.5": "claude-sonnet-5-5" }; // anything else: Haiku
 const claudeFor = (model) => CLAUDE_FOR[model] ?? "claude-haiku-5-5";
@@ -297,7 +301,7 @@ export function validateIntent(o) {
 async function requestJson({ hedgeMs = HEDGE_MS, timeoutMs = TIMEOUT_MS, ...opts }) {
   const first = () => requestOnce({ ...opts, timeoutMs });
   const claude = Boolean(opts.env?.ANTHROPIC_API_KEY);
-  const backup = () => (claude ? requestClaude({ ...opts, model: claudeFor(opts.model), timeoutMs }) : requestOnce({ ...opts, timeoutMs }));
+  const backup = () => (claude ? requestClaude({ ...opts, model: claudeFor(opts.model), timeoutMs, backup: true }) : requestOnce({ ...opts, timeoutMs }));
   if (!hedgeMs || hedgeMs >= timeoutMs) return claude ? first().catch(() => backup()) : first(); // no hedge: backup on failure only
   return new Promise((resolve, reject) => {
     let sent = 0, failed = 0, done = false;
@@ -317,7 +321,7 @@ async function requestJson({ hedgeMs = HEDGE_MS, timeoutMs = TIMEOUT_MS, ...opts
 
 // One strict-JSON call to Claude (Messages API, JSON-schema output), taking the same arguments as requestOnce. Thinking
 // is off, like OpenAI's effort "none" (Sonnet 5.5 thinks by default: 47 s on a test search, 2026-11-02).
-async function requestClaude({ fetch, env, model, instructions, content, schema, onUsage, timeoutMs }) {
+async function requestClaude({ fetch, env, model, instructions, content, name, schema, onUsage, timeoutMs, backup = false }) {
   const parts = typeof content === "string" ? content : content.map((c) => (c.type === "input_image" ? { type: "image", source: { type: "url", url: c.image_url } } : { type: "text", text: c.text }));
   let res;
   try {
@@ -345,7 +349,7 @@ async function requestClaude({ fetch, env, model, instructions, content, schema,
     onUsage({ input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens });
     const [pin, pout] = PRICES[model] ?? PRICES["claude-sonnet-5-5"];
     const { input_tokens: fresh = 0, cache_creation_input_tokens: written = 0, cache_read_input_tokens: read = 0, output_tokens: out = 0 } = data.usage;
-    spend((fresh * pin + written * pin * 2 + read * CLAUDE_CACHE_READ[model] + out * pout) / 1e6);
+    spend((fresh * pin + written * pin * 2 + read * CLAUDE_CACHE_READ[model] + out * pout) / 1e6, `${name}·${model}${backup ? "·backup" : ""}`);
   }
   const text = data.content?.find((c) => c.type === "text")?.text;
   if (data.stop_reason === "max_tokens" || !text) throw new Error(`claude ${data.stop_reason ?? "no output"}`);
@@ -385,7 +389,7 @@ async function requestOnce({ fetch, env, model, instructions, content, name, sch
     // OpenAI caches a repeated prompt start by itself and bills it at 10% (≈70% of our input, measured 2026-11-02).
     const [pin, pout] = PRICES[model] ?? PRICES["gpt-5.4"];
     const cached = data.usage.input_tokens_details?.cached_tokens ?? 0;
-    spend(((data.usage.input_tokens - cached) * pin + cached * pin * 0.1 + data.usage.output_tokens * pout) / 1e6);
+    spend(((data.usage.input_tokens - cached) * pin + cached * pin * 0.1 + data.usage.output_tokens * pout) / 1e6, `${name}·${model}`);
   }
   if (data.status !== "completed") throw new Error(`status ${data.status}`);
   const part = data.output?.find((o) => o.type === "message")?.content?.[0];

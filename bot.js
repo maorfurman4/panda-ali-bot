@@ -977,7 +977,12 @@ export function createBot({
     if (traceOn && isOwner(ctx) && ctx.chat.type === "private" && trace?.length) {
       // This update's AI calls so far (reading, judges, photo looks, names); after a question button, the part after the press.
       const usd = aiSpend.getStore()?.usd ?? 0;
-      const cost = `💰 עלות החיפוש: ${(usd * 100).toFixed(2)}¢ ≈ ${(usd * USD_ILS * 100).toFixed(1)} אגורות`;
+      const STEP = { search_intent: "קריאת הבקשה", relevant_products: "שופט", color_photos: "תמונה בצבע", short_titles: "שמות קצרים", advisor_step: "יועץ", fit_reasons: "הסבר" };
+      const parts = Object.entries(aiSpend.getStore()?.parts ?? {}).sort((a, b) => b[1] - a[1]);
+      const cost = [`💰 עלות החיפוש: ${(usd * 100).toFixed(2)}¢ ≈ ${(usd * USD_ILS * 100).toFixed(1)} אגורות`, ...parts.map(([k, v]) => {
+        const [name, model, backup] = k.split("·");
+        return `  ${STEP[name] ?? name} (${model}${backup ? ", גיבוי" : ""}): ${(v * 100).toFixed(2)}¢`;
+      })].join("\n");
       await ctx.reply(`🔧 ${[...trace, cost].join("\n")}`).catch(() => {});
     }
     return sent;
