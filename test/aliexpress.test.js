@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { sign, apiCall, isMockMode, searchProducts, generateAffiliateLink, listOrders, skuApproved } from "../aliexpress.js";
+import { sign, apiCall, isMockMode, searchProducts, generateAffiliateLink, listOrders, skuApproved, skuDetails } from "../aliexpress.js";
 
 const LIVE_ENV = { ALI_APP_KEY: "123", ALI_APP_SECRET: "s3cret", ALI_TRACKING_ID: "panda_bot" };
 const noSleep = async () => {};
@@ -236,4 +236,33 @@ test("addStars: the review count is every rating (the star counts), not only tot
   const stat = { evarageStar: 4.9, totalNum: 202, fiveStarNum: 424, fourStarNum: 22, threeStarNum: 0, twoStarNum: 0, oneStarNum: 0 };
   const [p] = await addStars([{ product_id: "1" }], { fetch: async () => ({ json: async () => ({ data: { productEvaluationStatistic: stat } }) }) });
   assert.equal(p.reviewCount, 446);
+});
+
+// The live answer shape (2026-11-06): no resp_code, the data under result.result.
+const skuAnswer = (variants) => ({ aliexpress_affiliate_product_sku_detail_get_response: { result: { result: { ae_item_info: { product_id: "1", review_number: "2594" }, ae_item_sku_info: { traffic_sku_info_list: variants } } } } });
+const v = (sku, props, extra = {}) => ({ sku_id: sku, sku_properties: JSON.stringify(props), sku_image_link: `https://ae01.alicdn.com/kf/${sku}.jpg`, price_with_tax: "90.85", sale_price_with_tax: "41.79", link: `https://he.aliexpress.com/item/1.html?sku=${sku}`, currency: "ILS", ...extra });
+
+test("skuApproved: true when the SKU answer has data and no resp_code", async () => {
+  assert.equal(await skuApproved({ fetch: async () => json(skuAnswer([v(1, [{ Color: "Red" }])])), env: LIVE_ENV }), true);
+});
+
+test("skuDetails: parses colors, photos, prices and links per variant", async () => {
+  const asked = [];
+  const fetch = async (_u, o) => (asked.push(Object.fromEntries(o.body)), json(skuAnswer([v(11, [{ Color: "Burgundy" }, { Size: "M" }]), v(12, [{ "Color Name": " Navy " }])])));
+  const out = await skuDetails(["1"], { fetch, env: LIVE_ENV });
+  const list = out.get("1");
+  assert.deepEqual(list.map((x) => x.color), ["Burgundy", "Navy"]);
+  assert.deepEqual(list[0].props, { Color: "Burgundy", Size: "M" });
+  assert.equal(list[0].photo, "https://ae01.alicdn.com/kf/11.jpg");
+  assert.equal(list[0].salePrice, 41.79);
+  assert.equal(list[0].skuId, "11");
+  assert.equal(asked[0].target_language, "EN");
+  assert.equal(asked[0].tracking_id, "panda_bot");
+});
+
+test("skuDetails: a product answered with error 15 is missing, the others stay", async () => {
+  const fetch = async (_u, o) => json(new URLSearchParams(o.body).get("product_id") === "2" ? { error_response: { code: "15", sub_code: "405" } } : skuAnswer([v(1, [{ Color: "Black" }])]));
+  const out = await skuDetails(["1", "2"], { fetch, env: LIVE_ENV, sleep: async () => {} });
+  assert.ok(out.has("1"));
+  assert.ok(!out.has("2"));
 });

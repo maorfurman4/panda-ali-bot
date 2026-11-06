@@ -37,6 +37,9 @@ async function callOnce(method, params, { fetch, env, now }) {
   if (err || res.status === 401) return { status: res.status, err: err ?? { code: `HTTP ${res.status}` } };
   // Simplified responses put resp_result at the top; non-simplified wrap it in "<method>_response".
   const resp = data.resp_result ?? Object.values(data).find((v) => v?.resp_result)?.resp_result;
+  // The SKU API answers without resp_code, its data under result.result (live, 2026-11-06).
+  const bare = !resp && Object.values(data).find((v) => v?.result?.result)?.result.result;
+  if (bare) return { result: bare };
   if (Number(resp?.resp_code) !== 200) return { status: res.status, err: { code: `resp_code ${resp?.resp_code}`, msg: resp?.resp_msg } };
   return { result: resp.result ?? {} };
 }
@@ -150,6 +153,26 @@ export const skuApproved = (deps = {}) =>
     () => true,
     (e) => (e.code === "InsufficientPermission" ? false : null),
   );
+
+// Every variant of each product (color, size, capacity, model), with its own photo, price and link (SKU API, approved
+// 2026-11-06). English names: real color names ("Burgundy", "Navy") in 29 of 32 best sellers checked. At most 20 variants
+// come back, so a missing one isn't proof it doesn't exist. A product with no answer (error 15 / 405, timeout) is left out.
+const SKU_TIMEOUT_MS = 3000;
+export async function skuDetails(productIds, deps = {}) {
+  const env = deps.env ?? process.env;
+  const props = (s) => { try { return Object.assign({}, ...JSON.parse(s ?? "[]")); } catch { return {}; } };
+  const one = async (id) => {
+    const call = apiCall("aliexpress.affiliate.product.sku.detail.get", { product_id: String(id), ship_to_country: "IL", target_currency: "ILS", target_language: "EN", tracking_id: env.ALI_TRACKING_ID }, { ...deps, env });
+    const r = await Promise.race([call, new Promise((_, no) => setTimeout(no, SKU_TIMEOUT_MS, new Error("sku timeout")).unref())]);
+    return (r?.ae_item_sku_info?.traffic_sku_info_list ?? []).map((v) => {
+      const p = props(v.sku_properties);
+      const colorKey = Object.keys(p).find((k) => /colou?r/i.test(k));
+      return { skuId: String(v.sku_id), props: p, color: colorKey ? String(p[colorKey]).trim() : null, photo: v.sku_image_link ?? null, price: Number(v.price_with_tax) || 0, salePrice: Number(v.sale_price_with_tax) || 0, link: v.link ?? null };
+    });
+  };
+  const got = await Promise.all(productIds.map((id) => one(id).then((l) => [String(id), l], () => null)));
+  return new Map(got.filter((x) => x && x[1].length));
+}
 
 // Stars and review count from the public review summary the item page uses (no API has them: the DS API can't be added to
 // an affiliate account). shortcut: unofficial and may change or block; every failure just leaves the % feedback line.
