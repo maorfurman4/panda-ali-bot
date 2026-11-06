@@ -1,6 +1,6 @@
 # 500-search check, 2026-11-06 (free; 33 categories, 15 each; AI judges stubbed, a strict automatic judge instead)
 # Run 1 (before fixes): OK 419/500 (83.8%). Run 2 (after the matcher and 10 wording fixes): OK 439/500 (87.8%), SOLD 23, MISS 38, FAKE 3.
-# Reading the 61 non-OK by hand: ~28 are the automatic judge's naming (the item is there, titled another way), 5 the stub picking a wrong hint wording, ~28 market limits. Right and available: ~472/500 (94%).
+# The 61 non-OK by hand: 23 right but low-selling (market), 24 likely right (titles name the item another way, or the stub picked a wrong hint wording), 6 wording to check, 8 not really sold on AliExpress. Right item and selling: about 463/500 (93%).
 # Free pipeline time: median 1.2 s, 90% under 2.0 s (the AI calls come on top).
 
 OK        [Consumer Electronics] אוזניות עם ביטול רעשים אקטיבי עד 150 שקל ("anc wireless earbuds") 64/72 · 18458 ₪53 אוזניות אלחוטיות Baseus Bass EP10 N | 13479 ₪77 אוזניות אלחוטיות Baseus EP10 Pro AN | 11340 ₪95 Qcy melobuet' אוזניות 5.3 אוזניות א
