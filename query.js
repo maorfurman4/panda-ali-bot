@@ -19,10 +19,14 @@ const PRICES = { "gpt-5.4": [2.5, 15], "gpt-5.4-mini": [0.75, 4.5], "gpt-5.5": [
 // check. Each OpenAI model has its Claude counterpart (same JSON schema, same instructions).
 // The running search's AI spend (bot.js opens one per Telegram update): the owner's /trace shows what each search cost.
 export const aiSpend = new AsyncLocalStorage();
-const spend = (usd, step) => {
+// step: call name and model, for the breakdown; input/cached tokens show how much was billed at the cached-input price.
+const spend = (usd, step, input = 0, cached = 0) => {
   stats.count("aiCost", usd);
   const s = aiSpend.getStore();
-  if (s) (s.usd += usd), ((s.parts ??= {})[step] = (s.parts[step] ?? 0) + usd); // step: call name and model, for the breakdown
+  if (!s) return;
+  s.usd += usd;
+  const p = ((s.parts ??= {})[step] ??= { usd: 0, input: 0, cached: 0 });
+  (p.usd += usd), (p.input += input), (p.cached += cached);
 };
 const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 const CLAUDE_FOR = { "gpt-5.4": "claude-sonnet-5-5", "gpt-5.5": "claude-sonnet-5-5" }; // anything else: Haiku
@@ -349,7 +353,7 @@ async function requestClaude({ fetch, env, model, instructions, content, name, s
     onUsage({ input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens });
     const [pin, pout] = PRICES[model] ?? PRICES["claude-sonnet-5-5"];
     const { input_tokens: fresh = 0, cache_creation_input_tokens: written = 0, cache_read_input_tokens: read = 0, output_tokens: out = 0 } = data.usage;
-    spend((fresh * pin + written * pin * 2 + read * CLAUDE_CACHE_READ[model] + out * pout) / 1e6, `${name}·${model}${backup ? "·backup" : ""}`);
+    spend((fresh * pin + written * pin * 2 + read * CLAUDE_CACHE_READ[model] + out * pout) / 1e6, `${name}·${model}${backup ? "·backup" : ""}`, fresh + written + read, read);
   }
   const text = data.content?.find((c) => c.type === "text")?.text;
   if (data.stop_reason === "max_tokens" || !text) throw new Error(`claude ${data.stop_reason ?? "no output"}`);
@@ -389,7 +393,7 @@ async function requestOnce({ fetch, env, model, instructions, content, name, sch
     // OpenAI caches a repeated prompt start by itself and bills it at 10% (≈70% of our input, measured 2026-11-02).
     const [pin, pout] = PRICES[model] ?? PRICES["gpt-5.4"];
     const cached = data.usage.input_tokens_details?.cached_tokens ?? 0;
-    spend(((data.usage.input_tokens - cached) * pin + cached * pin * 0.1 + data.usage.output_tokens * pout) / 1e6, `${name}·${model}`);
+    spend(((data.usage.input_tokens - cached) * pin + cached * pin * 0.1 + data.usage.output_tokens * pout) / 1e6, `${name}·${model}`, data.usage.input_tokens, cached);
   }
   if (data.status !== "completed") throw new Error(`status ${data.status}`);
   const part = data.output?.find((o) => o.type === "message")?.content?.[0];
