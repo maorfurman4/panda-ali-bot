@@ -499,7 +499,7 @@ const RELEVANCE_MODEL = "gpt-5.4";
 // photos for nothing (2026-11-05). Hebrew ones also cover the feminine/plural forms (אדומה, כתומה, שקופה, זהובה).
 // "זית"/"חרדל"/"שמנת"/"פודרה" are foods or makeup too, so they count only through "צבע". The Israeli fashion colors
 // (ניוד, חאקי, נייבי...) came with the color-variant rescue in bot.js: without it the photo look dropped variant listings.
-const VISUAL_WORDS = /אפור|שחור|לבן|לבנה(?![\u05D0-\u05EA])|חומה|חומים|חומות|אדו[םמ]|כחול|ירוק|צהוב|ורוד|סגול|חום|בז'|כתו[םמ]|זהב|זהוב|כסוף|כסופ|כסף|שקו[ףפ]|תכלת|בורדו|קרם|ניוד|נייבי|חאקי|טורקיז|פוקסיה|לילך|פרחוני|מנוקד|פסים|משובץ|הדפס|צבע|אגוז|אלון|\b(?:walnut|oak|gr[ae]y|black|white|red|blue|green|yellow|pink|purple|brown|beige|orange|gold|silver|clear|floral|striped|plaid|navy|khaki|nude|burgundy|turquoise|colou?r(?:ed|ful|s)?)\b/i;
+const VISUAL_WORDS = /אפור|שחור|לבן|לבנה(?![\u05D0-\u05EA])|חומה|חומים|חומות|אדו[םמ]|כחול|ירוק|צהוב|ורוד|סגול|חום|בז(?:'|׳)?(?![א-ת])|כתו[םמ]|זהב|זהוב|כסוף|כסופ|כסף|שקו[ףפ]|תכלת|בורדו|קרם|ניוד|נייבי|חאקי|טורקיז|פוקסיה|לילך|פרחוני|מנוקד|פסים|משובץ|הדפס|צבע|אגוז|אלון|\b(?:walnut|oak|gr[ae]y|black|white|red|blue|green|yellow|pink|purple|brown|beige|orange|gold|silver|clear|floral|striped|plaid|navy|khaki|nude|burgundy|turquoise|colou?r(?:ed|ful|s)?)\b/i;
 // Not a color: heat (מד/אקדח חום), money (מחזיק/שטר כסף), skin cream (קרם לחות, or the request starting with קרם).
 const NOT_LOOK = /רעש\s+לבן|white\s+noise|(?:מד|אקדח|מגן|בידוד|עמיד\s+ל|מפזר|משאבת|נגד)\s*חום|(?:מחזיק|שטרי?|שטרות|קופ[הת]|תיבת|ספירת)\s+(?:ל|של\s+)?כסף|^\s*קרם\S*|קרם\s+(?:ל\S*|נגד|הגנה|לחות|פנים|ידיים|גוף|עיניים|לילה|יום|רגליים|שיער|גילוח)/gi;
 // A color or pattern: the card puts the right look before reviews. "רעש לבן" / white noise isn't white (2026-11-02).

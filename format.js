@@ -82,7 +82,7 @@ export function trustedFirst(products, { bySales = false, look = false } = {}) {
 const COLORS = {
   black: /שחור|\bblack\b/i, white: /לבן|לבנ|\bwhite\b/i, red: /אדום|אדומ|בורדו|\bred\b|burgundy/i, blue: /כחול|נייבי|טורקיז|\bblue\b|\bnavy\b|turquoise/i,
   green: /ירוק|\bgreen\b/i, yellow: /צהוב|\byellow\b/i, pink: /ורוד|פוקסיה|\bpink\b|fuchsia/i, purple: /סגול|לילך|\bpurple\b|lilac/i,
-  brown: /חומה|חומים|חומות|\bbrown\b|\bcoffee\b/i, beige: /בז'|ניוד|חאקי|\bbeige\b|\bkhaki\b|\bnude\b/i, gray: /אפור|\bgr[ae]y\b/i, orange: /כתו[םמ]|\borange\b/i,
+  brown: /חומה|חומים|חומות|\bbrown\b|\bcoffee\b/i, beige: /בז(?:'|׳)?(?![א-ת])|ניוד|חאקי|\bbeige\b|\bkhaki\b|\bnude\b/i, gray: /אפור|\bgr[ae]y\b/i, orange: /כתו[םמ]|\borange\b/i,
 };
 // "רעש לבן" (white noise) names no color: a white noise machine search got the color note (owner's test, 2026-11-02).
 const NOT_A_COLOR = /רעש\s+לבן|white\s+noise/gi;
@@ -108,7 +108,7 @@ const named = (text) => {
 export const inColors = (title, request) => named(request).some((c) => named(title).includes(c)) && named(title).length > 1;
 // The asked color in the shopper's own word, for a listing shown in another color whose title says it comes in that one
 // too (owner, 2026-11-05: "show it in red and write it comes in black too").
-const COLOR_WORDS = [[/שחור/, "שחור"], [/לבן|לבנה/, "לבן"], [/אדו[םמ]/, "אדום"], [/בורדו/, "בורדו"], [/נייבי/, "נייבי"], [/טורקיז/, "טורקיז"], [/תכלת/, "תכלת"], [/כחול/, "כחול"], [/ירוק/, "ירוק"], [/צהוב/, "צהוב"], [/פוקסיה/, "פוקסיה"], [/ורוד/, "ורוד"], [/לילך/, "לילך"], [/סגול/, "סגול"], [/ניוד/, "ניוד"], [/חאקי/, "חאקי"], [/בז'/, "בז'"], [/חום|חומ/, "חום"], [/אפור/, "אפור"], [/כתו[םמ]/, "כתום"]];
+const COLOR_WORDS = [[/שחור/, "שחור"], [/לבן|לבנה/, "לבן"], [/אדו[םמ]/, "אדום"], [/בורדו/, "בורדו"], [/נייבי/, "נייבי"], [/טורקיז/, "טורקיז"], [/תכלת/, "תכלת"], [/כחול/, "כחול"], [/ירוק/, "ירוק"], [/צהוב/, "צהוב"], [/פוקסיה/, "פוקסיה"], [/ורוד/, "ורוד"], [/לילך/, "לילך"], [/סגול/, "סגול"], [/ניוד/, "ניוד"], [/חאקי/, "חאקי"], [/בז(?:'|׳)?(?![א-ת])/, "בז'"], [/חום|חומ/, "חום"], [/אפור/, "אפור"], [/כתו[םמ]/, "כתום"]];
 const askedColor = (request = "") => {
   const t = request.replace(NOT_A_COLOR, "");
   return COLOR_WORDS.find(([re]) => re.test(forWhom(t) ? t.replace(WHO_WORD, "") : t))?.[1] ?? null;

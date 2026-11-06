@@ -635,3 +635,8 @@ test("namesItem: the request's first word near the title's start", async () => {
   assert.equal(namesItem("נרתיק לאוזניות רך וגמיש עמיד", "אוזניות ורודות"), false, "an accessory for the item");
   assert.equal(namesItem("כיסוי סיליקון לאוזניות", "אוזניות ורודות"), false);
 });
+
+test("colorVariant: 'בז' without the geresh finds beige variants", async () => {
+  const { colorVariant } = await import("../format.js");
+  assert.equal(colorVariant([{ skuId: "1", color: "Beige", photo: "p" }, { skuId: "2", color: "Black", photo: "q" }], "סוודר בז").variant.color, "Beige");
+});

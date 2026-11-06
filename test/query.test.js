@@ -658,3 +658,8 @@ test("namesLook: English colors are whole words; heat, money and skin cream aren
   for (const t of ["רמקול בלוטוס bluetooth speaker", "wired earphones", "credit card holder", "blackout curtains", "מד חום thermometer", "אקדח חום", "מחזיק כסף", "קרם לחות לפנים", "קרם הגנה", "שמן זית"]) assert.equal(namesLook(t), false, t);
   for (const t of ["שמלה ניוד", "נעליים אדומות", "חולצה חאקי", "כוס שקופה", "סוודר קרם", "שמלה בצבע זית", "red dress", "colored pencils", "תכשיט כסף"]) assert.equal(namesLook(t), true, t);
 });
+
+test("namesLook: beige typed without the geresh ('סוודר בז') is a color, as the owner typed it (2026-11-06)", async () => {
+  const { namesLook } = await import("../query.js");
+  for (const t of ["סוודר בז", "סוודר בז'", "סוודר בז׳"]) assert.equal(namesLook(t), true, t);
+});
