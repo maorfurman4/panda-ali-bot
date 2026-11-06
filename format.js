@@ -358,9 +358,13 @@ export const SELF_CHECK = 0.2;
 // The request's item (its first word) near the start of the title. The color-free best sellers skip the judges, and a
 // variant color proves the color, not the kind: "Beige" Lolita shoes for "שמלה ניוד", a "Black" bottle bag for "כוס
 // תרמית שחורה" (free check, 2026-11-06).
+// An accessory names the item after "for" ("נרתיק לאוזניות", "כיסוי ל-"): that isn't the item.
+const ACCESSORY_BEFORE = /(?:^|\s)(?:כיסוי|נרתיק|מגן|רצועה|רצועת|מחזיק|מעמד|תיק|קופסה|מארז|חלקי|עבור|תואם|מתאים|for)(?:\s|$)/i;
 export function namesItem(title = "", request = "") {
   const w = request.split(/[\s,.\-/]+/).find((x) => /^[א-ת"'׳״]{2,}$/.test(x) && !SELF_STOP.has(x));
-  return Boolean(w) && roots(w).some((r) => title.slice(0, 30).includes(r)); // lingerie titles name a dress later on
+  if (!w) return false;
+  const head = title.slice(0, 30); // lingerie titles name a dress later on
+  return roots(w).some((r) => { const i = head.indexOf(r); return i >= 0 && !ACCESSORY_BEFORE.test(head.slice(0, i).replace(/[ל-]+$/, "").trim()); });
 }
 
 export const fakeLuxury = (title, request = "") => LUXURY.test(title ?? "") && !LUXURY.test(request);

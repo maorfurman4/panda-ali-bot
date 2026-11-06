@@ -92,10 +92,12 @@ const COLOR_PICK_MAX = 4; // multi-color listings whose other photos are looked 
 // for "women sweater"; black travel mug 1 vs 2,057; pink earbuds 6 vs 18,410). The item is also searched without the color,
 // and the best sellers the judges left out get a look at their other photos for the asked color (one call, ≈0.45¢).
 // Materials and patterns (cashmere, leather, linen, floral) stay: they are the item, not a variant.
-const COLOR_EN = /\b(?:black|white|red|blue|navy|green|yellow|pink|purple|brown|beige|khaki|nude|gr[ae]y|orange|burgundy|turquoise|wine)\b/gi;
+// The reading words a color several ways ("maroon", "dark red", "navy blue"), so the common ones are all stripped: an
+// unstripped one skips the color-free search (a guess at why one "סוודר בורדו" card had only 1-9 sold, 2026-11-06).
+const COLOR_EN = /\b(?:(?:dark|light|deep|sky|navy|wine|baby|royal)\s+)?(?:black|white|red|blue|navy|green|yellow|pink|purple|brown|beige|khaki|nude|gr[ae]y|orange|burgundy|turquoise|wine|maroon|bordeaux|claret|ivory|cream|camel|apricot|lavender|violet|lilac|fuchsia|magenta|teal|mint|olive|mustard|coral|champagne|charcoal)\b/gi;
 export const withoutColor = (keywords = "") => keywords.replace(COLOR_EN, " ").replace(/\s+/g, " ").trim();
 const COLOR_POOL_PICK = 6; // at most this many go to the photo picker
-const COLOR_SKU_CHECK = 10; // the color-free best sellers whose variants are checked (free, ~1.5 s in parallel)
+const COLOR_SKU_CHECK = 20; // the color-free best sellers whose variants are checked (free: 20 at once in 0.8-1.5 s, 2026-11-06)
 // Titles only on gpt-5.4: ~$0.008 per 48. Non-style searches get 72: the three readings' words make up to ~17 lists, and
 // at 48 they pushed out sellers each single reading had (8,298 shavers, 16,652 car chargers; simulated 2026-11-02).
 // Style searches stay at 48, as approved (with 72 a blue gown got into "שמלת ערב שחורה ארוכה", 2026-11-02).
@@ -351,6 +353,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const known = new Set(); // well-known brands, as the title check names them
   let near = []; // one judge said exact, the other close
   let colorPooled = false; // the color-free best sellers already had their photo look (one picker call per search)
+  const trace = [`"${keywords}"`]; // what happened, step by step: the owner sees it under his own searches (2026-11-06)
   // Each candidate's photo in the asked color: first from its variants (SKU API: a "Burgundy" variant's own photo, no AI,
   // 2026-11-06); a listing whose variants decide "not in this color" is out; only the undecided ones (coded colors, no
   // data, a full list of 20) go to the photo picker, at most pickMax of them. Returns key -> { url, variant }.
@@ -363,9 +366,11 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       if (v.variant?.photo) found.set(keyOf(p), { url: v.variant.photo, variant: v.variant });
       else if (!v.decided || v.variant) undecided.push(p);
     }
+    const byVariant = found.size;
     const toPicker = undecided.slice(0, pickMax);
     const urls = toPicker.length ? await pickPhoto({ he: context, en: keywords }, toPicker, opts).catch(() => []) : [];
     toPicker.forEach((p, i) => urls[i] && found.set(keyOf(p), { url: urls[i] }));
+    trace.push(`צבע: ${cands.length} נבדקו, ${byVariant} לפי וריאציות (${variants.size} ענו), ${found.size - byVariant}/${toPicker.length} לפי תמונות`);
     return found;
   };
   if (live) {
@@ -400,6 +405,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // "סוודר בורדו" and "שמלה ניוד" with 3 products, owner's test 2026-11-05), so this step only ever adds. Only one the
     // picker sees in the asked color is shown, its first photo included: on the judges' word a pink "15 colors" puffer led
     // a navy coat card. The title must name the request's item near its start ("coat" also found towel hooks).
+    if (plain) trace.push(`בלי צבע: "${plain}"`);
     if (plain && pickPhoto) {
       const inPool = new Set(pool.map(keyOf));
       const left = inTurn(plainLists).filter((p) => !inPool.has(keyOf(p)) && namesItem(p.product_title, context) && !offColor(p.product_title, context) && (p.product_small_image_urls?.string?.length ?? 0) > 0)
@@ -552,6 +558,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     // The same item from another listing (one POEDAGAR watch twice, 2026-11-01) is dropped like a photo that isn't the item.
     const kept = head.filter((p) => ok.has(keyOf(p)) && !same.has(keyOf(p)));
+    trace.push(`מבט בתמונות: ${kept.length} מתוך ${head.length}${seen ? "" : " (לא ענה)"}`);
     if (seen) dropIn(head, (p) => ok.has(keyOf(p)) || same.has(keyOf(p)));
     if (kept.length) {
       const byKey = new Map(kept.map((p) => [keyOf(p), p]));
@@ -588,6 +595,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       // A fill item of another brand (a brand search with few items of the brand) stays: the photo look drops it for "not
       // Aruba", though both title judges called it the same kind of item (the AP22 card came out with 1 product, 2026-11-03).
       const kept = head.filter((p) => ok.has(keyOf(p)) || p.brandFill);
+      trace.push(`מבט בתמונות: ${kept.length} מתוך ${head.length}`);
       dropIn(head, (p) => ok.has(keyOf(p)) || p.brandFill);
       const rest = shown.slice(head.length);
       if (kept.length) shown = [...kept.filter((p) => !close.has(keyOf(p))).map((p) => ({ ...p, looked: true })), ...kept.filter((p) => close.has(keyOf(p))).map((p) => ({ ...p, match: "partial", offColor: true, looked: true })), ...(namedColor ? [] : rest)];
@@ -629,7 +637,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // A fake that would have led was moved down: every returned product carries it, so the card (and "עוד") can say why.
   const out = shown.slice(0, limit + extra);
   const moved = ranked.find((p) => p.fakeMoved);
-  return moved ? out.map((p) => ({ ...p, fakesSkipped: fakeExample(moved.product_title) })) : out;
+  trace.push(`בכרטיס: ${Math.min(limit, out.length)} (${out.slice(0, limit).map((p) => `${p.colorPick ? (p.variant ? "🧬" : "📷") : ""}${Number(p.lastest_volume) || 0}`).join(" / ")})`);
+  return Object.assign(moved ? out.map((p) => ({ ...p, fakesSkipped: fakeExample(moved.product_title) })) : out, { trace });
 }
 
 // The card's final order, once names and stars are in (the bot and the search-quality check share it).
@@ -749,6 +758,7 @@ export function createBot({
   // The bot lives in OUR group only (owner request). Other groups are ignored completely. In private only the owner is
   // served (to try searches without the group seeing, 2026-11-01); everyone else gets /myid and an invitation to the group.
   const isOwner = (ctx) => Boolean(adminId) && String(ctx.from?.id) === String(adminId);
+  let traceOn = false;
   bot.use(async (ctx, next) => {
     const type = ctx.chat?.type;
     if (type === "group" || type === "supergroup") return groupId == null || String(ctx.chat.id) === String(groupId) ? next() : undefined;
@@ -906,6 +916,7 @@ export function createBot({
     const header = cardTitle(rawHeader);
     stats.count("search");
     let found;
+    let trace = ["מהזיכרון (אותו חיפוש ב-24 השעות האחרונות)"];
     try {
       const key = JSON.stringify([keywords, fallback, category, maxPriceIls, minPriceIls, brandOnly, cheapest, limit]);
       const hit = resultsCache.get(key);
@@ -918,6 +929,7 @@ export function createBot({
         const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto, skus }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
         found = await pick(minPriceIls);
         if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
+        trace = found.trace ?? null;
         // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
         const [linked, names, rated] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null), stars(found).catch(() => null)]);
         found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
@@ -940,7 +952,10 @@ export function createBot({
     }
     const shown = found.slice(0, limit);
     const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice
-    return sendCard(ctx, shown, { header, replyToId, reasons, rest: found.slice(limit), style });
+    const sent = await sendCard(ctx, shown, { header, replyToId, reasons, rest: found.slice(limit), style });
+    // The owner, in a private chat, also gets how the card was made (one short line per step), to see where products drop.
+    if (traceOn && isOwner(ctx) && ctx.chat.type === "private" && trace?.length) await ctx.reply(`🔧 ${trace.join("\n")}`).catch(() => {});
+    return sent;
   }
 
   // Photo card (collage), then 🎯/🐼 side by side and "לחפש עוד?" below them (always shown, owner request).
@@ -957,7 +972,9 @@ export function createBot({
     // Half the card barely sold counts too (Tesla mats sold 7 and 4 under a 1,640-sold one, juicers 17-76; owner's test,
     // 2026-11-04); style cards often sell little and have their own order.
     const few = shown.filter((p) => (Number(p.lastest_volume) || 0) < WEAK_SOLD).length;
-    const weak = shown.length < GROUP_RESULTS || Math.max(0, ...shown.map((p) => Number(p.lastest_volume) || 0)) < WEAK_SOLD || (!style && few * 2 >= shown.length);
+    // Fewer than 4 is weak only with a barely-sold one among them: three 10,000-sold pink earbuds got "few products sell"
+    // (owner's test, 2026-11-06).
+    const weak = (shown.length < GROUP_RESULTS && few > 0) || Math.max(0, ...shown.map((p) => Number(p.lastest_volume) || 0)) < WEAK_SOLD || (!style && few * 2 >= shown.length);
     if (weak) stats.remember("weak", `${header} (${shown.map((p) => soldText(p.lastest_volume) ?? 0).join(" / ")})`);
     const { caption, count } = formatCard(shown, { query: header, demo: isMockMode(), reasons, closest, rare: closest && shown.length + rest.length <= 2, weak, fakes: shown.find((p) => p.fakesSkipped)?.fakesSkipped ?? false });
     if (count < shown.length) cards.get(id)?.rest.unshift(...shown.slice(count)), (shown = shown.slice(0, count)); // the collage shows what the caption lists; the rest waits for "עוד"
@@ -1089,6 +1106,13 @@ export function createBot({
     } catch (e) {
       return ctx.reply(`😕 לא הצלחתי: ${esc(e.description ?? e.message)}. בדקו שלבוט יש הרשאת "הצמדת הודעות" בקבוצה.`);
     }
+  });
+
+  // /trace (owner, private): turns the "how the card was made" line under his searches on or off. Off after a restart.
+  bot.command("trace", async (ctx) => {
+    if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId)) return;
+    traceOn = !traceOn;
+    await ctx.reply(traceOn ? "🔧 אבחון פועל: מתחת לכל חיפוש שלך תופיע שורה שמראה איך נבנה הכרטיס. /trace שוב כדי לכבות." : "🔧 אבחון כבוי.");
   });
 
   bot.command("status", async (ctx) => {

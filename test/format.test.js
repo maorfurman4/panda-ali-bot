@@ -632,4 +632,6 @@ test("namesItem: the request's first word near the title's start", async () => {
   assert.equal(namesItem("ג'קטים לטיולים עמידים במים", "מעיל נייבי"), false);
   assert.equal(namesItem("הלבשה תחתונה שיפון סקסית ללא כתפיות, שמלה", "שמלה שחורה"), false);
   assert.equal(namesItem("E6s אלחוטית bluetooth אוזניות אלחוטיות", "אוזניות ורודות"), true);
+  assert.equal(namesItem("נרתיק לאוזניות רך וגמיש עמיד", "אוזניות ורודות"), false, "an accessory for the item");
+  assert.equal(namesItem("כיסוי סיליקון לאוזניות", "אוזניות ורודות"), false);
 });

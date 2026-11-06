@@ -1690,6 +1690,9 @@ test("withoutColor: a color is a variant, so the item is searched without it; ma
   assert.equal(withoutColor("pink wireless earbuds"), "wireless earbuds");
   assert.equal(withoutColor("iphone 16 clear case"), "iphone 16 clear case");
   assert.equal(withoutColor("cashmere sweater women"), "cashmere sweater women");
+  assert.equal(withoutColor("maroon sweater women"), "sweater women");
+  assert.equal(withoutColor("dark red knit sweater"), "knit sweater");
+  assert.equal(withoutColor("navy blue coat women"), "coat women");
 });
 
 test("a named color: the item is searched without it too, and a best seller pictured in another color comes back in the asked one", async () => {
@@ -1798,4 +1801,16 @@ test("a named color: coded variant names go to the photo picker as before", asyn
 test("a named color: the variant lookup failing leaves the photo picker path", async () => {
   const { picked } = await skuCase("fail");
   assert.ok(picked.includes("8"));
+});
+
+test("/trace: the owner gets how the card was made under his searches; off by default", async () => {
+  const off = setup({ search: async () => SIX, live: true, adminId: "7" });
+  await off.bot.handleUpdate(textUpdate("חפש לי מטען", { chat: "private" }));
+  assert.ok(!off.sent().some((m) => /^🔧/.test(m.text ?? "")), "off by default");
+  const ctx = setup({ search: async () => SIX, live: true, adminId: "7" });
+  await ctx.bot.handleUpdate(textUpdate("/trace", { chat: "private" }));
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מטען לרכב", { chat: "private" }));
+  const line = ctx.sent().find((m) => /^🔧 "/.test(m.text ?? ""));
+  assert.ok(line, "a trace after turning it on");
+  assert.match(line.text, /בכרטיס: 4/);
 });
