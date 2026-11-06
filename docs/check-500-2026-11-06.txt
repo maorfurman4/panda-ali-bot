@@ -546,3 +546,10 @@ OK        [Books & Culture] ערכת סריגה ("knitting kit") 21/72 · 1436 �
 רסברי פאי 5 "raspberry pi 5": 8 fit, 8 sold 100+ · 624 4 יחידות מאוורר 3007 עבור Raspberry Pi | 546 ספק כוח PD 27W עבור Raspberry Pi 5 5.1
 רסברי פאי 5 "raspberry pi 5 board": 16 fit, 6 sold 100+ · 343 לוח רשמי של Raspberry Pi 5, מעבד מרובע | 221 לוח Raspberry Pi 5 PCIe ל-M.2 Mini NVM
 רסברי פאי 5 "raspberry pi 5 4gb": 37 fit, 0 sold 100+ · 97 Raspberry Pi 5 רשמי מקורי Cortex-A76 ל | 42 Raspberry Pi 5, 8GB, 4GB, לוח אם, מחשב
+
+## The last 5 open misses, wordings tested free (50 results each)
+- ארגז כלים: "tool box" brought car trunk organizers; "plastic tool box with handle" 14 real tool boxes (top 1,928 sold) -> hint added
+- טוסטר לחיצה: "sandwich maker" 2 of 50; "sandwich toaster" 44 of 50 (top 459 sold) -> hint added
+- פס לד 12V: the check's own "12v led strip" brought power supplies; the fixed rule's "12V LED strip with power supply" already gives 32 of 50 real strips (top 5,689) -> nothing to change
+- ארגונית למגירות: "kitchen drawer organizer" 33 of 50 organizers already -> nothing to change
+- סיליקון לאמבטיה: "bathroom sealant tape" 34 of 50 sealing strips; "silicone sealant" brings removal tools and electronics glue -> nothing to change
