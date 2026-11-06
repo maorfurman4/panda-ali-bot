@@ -36,7 +36,7 @@ Updated 2026-11-05. ✅ done · ⬜ next.
 4. ⬜ **The 11 untested categories.** 2-3 searches each, free pool check, fix only real failures:
    - tools, security, motorcycle, sports, bags, hair
    - baby, school, electronic parts, kitchen, books
-5. ⬜ **Fashion leftovers** (from the owner's Telegram checks, 2026-11-05):
+5. ✅ **Fashion closed 2026-11-06** (127 items checked for free, `docs/fashion-check-2026-11-06.txt`: 102 fine, 3 wording fixes, the rest weak by nature: flannel/chinos/men's dress shoes/blazers/suits/leather jackets/modest dresses/abaya/kaftan/plus size/evening dresses). Earlier leftovers (from the owner's Telegram checks, 2026-11-05):
    - (kept by the owner's choice: 4 products with one weak beats 3 good ones, 2026-11-05)
    - some photos aren't in the asked color (a beige stack for burgundy, an orange dress for nude)
    - in color cards the 🥇 isn't always the best seller (photo-confirmed ones go first)

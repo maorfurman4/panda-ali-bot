@@ -1,0 +1,212 @@
+# Fashion close-out check, 2026-11-06 (free: AliExpress API, stub judges; style pool of 48)
+# real = the item's Hebrew noun near the title's start; strong = 300+ sold. OK 10+ strong, MID 4-9, WEAK <4, ACC <40% real
+
+## Round 1: 127 items
+ACC  [נשים] שמלה ("women casual dress"): 17/48 real, 12 strong · 4597 שמלת בית ארוכה ורחבה ללא כתפיו
+MID  [נשים] שמלת ערב ("evening dress"): 27/48 real, 9 strong · 1520 שמלות ארוכות עם סרט סאטן, שמלו
+OK   [נשים] שמלת קיץ ("casual summer dress women"): 23/48 real, 18 strong · 2498 שמלת טי-שירט קיץ חדשה לנשים עם
+OK   [נשים] שמלת מידי ("midi dress women"): 42/48 real, 10 strong · 864 שמלת מידי סקסית ללא שרוולים עם
+OK   [נשים] שמלת מקסי ("maxi dress women"): 40/48 real, 15 strong · 3408 שמלות מקסי מודפסות עם פסים משי
+ACC  [נשים] חצאית ("women skirt"): 10/48 real, 7 strong · 2762 מכנסיים קצרים בסגנון חצאית א-ס
+OK   [נשים] חצאית מיני ("mini skirt women"): 20/48 real, 20 strong · 5949 חצאית מיני עם פסים שחורים ואפו
+ACC  [נשים] חצאית ארוכה ("long skirt women"): 18/48 real, 5 strong · 601 חצאית מידי משובצת לנשים עם שול
+OK   [נשים] חולצה לנשים ("women blouse"): 42/48 real, 21 strong · 2075 חולצה לבנה נשים בלוזות שרוול ק
+OK   [נשים] חולצת טי לנשים ("men basic t shirt"): 47/48 real, 16 strong · 8668 חולצת גברים משקל כבד 425 גרם, 
+OK   [נשים] בלוזה ("women blouse"): 43/48 real, 29 strong · 2075 חולצה לבנה נשים בלוזות שרוול ק
+OK   [נשים] גופייה לנשים ("women tank top"): 31/48 real, 24 strong · 16498 חולצות ספורט לנשים WAREBALL מה
+OK   [נשים] טופ קרופ ("crop top women"): 31/48 real, 20 strong · 8695 CHUANGERM – חולצת ספורט קצרה ל
+OK   [נשים] סוודר לנשים ("women sweater"): 38/48 real, 25 strong · 2631 סוודרים ארוכי שרוולים סרוגים ב
+ACC  [נשים] קרדיגן ("women cardigan"): 15/48 real, 10 strong · 3977 אביב/קיץ קרדיגן פשתן אצטט לנשי
+ACC  [נשים] קפוצ'ון לנשים ("women hoodie"): 17/48 real, 6 strong · 1187 סווטשירטים ספורט מותאמים לנשים
+ACC  [נשים] סווטשירט לנשים ("women sweatshirt"): 19/48 real, 5 strong · 3531 בגדי יוגה חולצת רוח לנשים בגדי
+OK   [נשים] ז'קט לנשים ("women jacket"): 27/48 real, 21 strong · 1852 ג'קטים שחורים מעור סינטטי HXAO
+OK   [נשים] מעיל לנשים ("women winter coat"): 31/48 real, 28 strong · 1803 ג'קט עם כובע מפואר לנשים לעונת
+OK   [נשים] מעיל גשם ("women raincoat"): 38/48 real, 12 strong · 5682 מעיל גשם ארוך שחור ועמיד למים,
+OK   [נשים] בלייזר לנשים ("women blazer"): 36/48 real, 11 strong · 1193 ז'קט פסים לנשים מובילות עם חזה
+OK   [נשים] ג'ינס לאישה ("men denim jeans"): 45/48 real, 24 strong · 2504 2026 סגנון חדש ג'ינס לגברים עס
+OK   [נשים] מכנסיים רחבים ("wide leg pants women"): 32/48 real, 25 strong · 2679 מכנסי ספורט ישרים מקסימים עם ג
+OK   [נשים] מכנסי פשתן ("linen pants women"): 29/48 real, 10 strong · 1150 מכנסי פשתן ופשתן לנשים עם חגור
+ACC  [נשים] טייץ ("women leggings"): 17/48 real, 16 strong · 14508 מכנסי יוגה קצרים לנשים DFWomen
+OK   [נשים] טרנינג לנשים ("men sweatpants"): 42/48 real, 28 strong · 6832 מכנסי ספורט אופנתיים לגברים בס
+OK   [נשים] סט שני חלקים ("two piece set women"): 23/48 real, 10 strong · 1803 סט ביקיני חדש ומגניב עם תמיכה 
+ACC  [נשים] אוברול לנשים ("women jumpsuit"): 9/48 real, 7 strong · 956 אוברול יוגה סקסי צמוד לגוף לנש
+OK   [נשים] בגד גוף לנשים ("women bodysuit"): 27/48 real, 19 strong · 4489 בודיסוטים גמישים במיוחד לנשים 
+OK   [נשים] פיג'מה לנשים ("women pajamas"): 32/48 real, 21 strong · 17477 סט פיג'מה מצולע עם הדפס לבבות 
+ACC  [נשים] חלוק רחצה ("women bathrobe"): 16/48 real, 2 strong · 417 חלוק שינה לנשים, בעיצוב המתאים
+OK   [נשים] בגד ים לנשים ("women swimsuit"): 35/48 real, 23 strong · 2529 2026 סט ביקיני סקסי עם קפלים, 
+OK   [נשים] ביקיני ("bikini set"): 24/48 real, 11 strong · 2844 2 יחידות\סט 2024 אופנה בגד ים 
+OK   [נשים] בגד ים שלם ("one piece swimsuit women"): 42/48 real, 13 strong · 1483 2026 2 יחידות בגד ים סקסי לנשי
+OK   [נשים] פראו לחוף ("beach cover up"): 28/48 real, 12 strong · 1941 שמלת רשת מחוררת עם כיסוי מגניב
+OK   [הלבשה תחתונה] חזייה ("women bra"): 23/48 real, 18 strong · 6901 חזיית הנקה לנשים במידות גדולות
+OK   [הלבשה תחתונה] חזיית ספורט ("sports bra"): 34/48 real, 22 strong · 7784 חזיית ספורט חדשה לנשים, חזיית 
+OK   [הלבשה תחתונה] תחתונים לנשים ("women panties"): 42/48 real, 26 strong · 8604 5 יחידות / מערכת תחתונים מבד כ
+OK   [הלבשה תחתונה] גרביונים ("women tights pantyhose"): 39/48 real, 28 strong · 8952 גרבי תחרה משובצות סקסיות לנשים
+OK   [הלבשה תחתונה] גרביים לנשים ("women socks"): 40/48 real, 31 strong · 14582 גרבי ריצה ספורטיביות לגברים ול
+OK   [הלבשה תחתונה] מחטב ("shapewear women"): 28/48 real, 14 strong · 11310 תחתוני מחטבים לנשים בגזרה גבוה
+OK   [הלבשה תחתונה] כתונת לילה ("women nightgown"): 33/48 real, 26 strong · 4905 שמלת לינגרי סקסית לקיץ לנשים ע
+OK   [גברים] חולצת טי לגבר ("men basic t shirt"): 47/48 real, 16 strong · 8668 חולצת גברים משקל כבד 425 גרם, 
+OK   [גברים] חולצה מכופתרת לגבר ("men button shirt"): 41/48 real, 28 strong · 2022 חולצות כותנה חדשות לגברים חולצ
+OK   [גברים] חולצת פולו ("men polo shirt"): 42/48 real, 29 strong · 2696 Dropshipping polo ג 'ירפה חולצ
+WEAK [גברים] חולצת פלנל ("men flannel shirt"): 39/48 real, 0 strong · 261 חולצת פלנל לגברים 100% כותנה מ
+OK   [גברים] גופייה לגבר ("men tank top"): 32/48 real, 25 strong · 42375 גופיית ספורט לגברים עם גב רשת 
+ACC  [גברים] קפוצ'ון לגבר ("men hoodie"): 19/48 real, 5 strong · 1187 סווטשירטים ספורט מותאמים לנשים
+OK   [גברים] סווטשירט לגבר ("men sweatshirt"): 25/48 real, 16 strong · 2925 חולצת טי-שירט קיץ צמודה לגברים
+OK   [גברים] סוודר לגבר ("men sweater"): 24/48 real, 12 strong · 1046 סוודר צווארון גבוה איכותי לגבר
+OK   [גברים] ז'קט לגבר ("men jacket"): 30/48 real, 23 strong · 3777 ג'קט גשם למחנאות לגברים ונשים,
+OK   [גברים] מעיל לגבר ("men winter coat"): 30/48 real, 19 strong · 5306 ג'קטים מחוממים חשמליים עם 21 א
+MID  [גברים] ז'קט עור לגבר ("men leather jacket"): 28/48 real, 6 strong · 1210 מעיל קוספליי לגברים לתחפושת של
+MID  [גברים] בלייזר לגבר ("men blazer"): 30/48 real, 4 strong · 459 מעיל חליפה לנשים מעוצב בסגנון 
+ACC  [גברים] חליפה לגבר ("men suit"): 10/48 real, 6 strong · 747 חליפת גילי לגברים נשים וילדים,
+OK   [גברים] ג'ינס לגבר ("men denim jeans"): 45/48 real, 24 strong · 2504 2026 סגנון חדש ג'ינס לגברים עס
+WEAK [גברים] מכנסי צ'ינו ("men chino pants"): 38/48 real, 0 strong · 120 מכנסיים חורים לבנים מבד כותנה 
+OK   [גברים] מכנסיים קצרים לגברים ("men casual shorts"): 20/48 real, 17 strong · 17716 מכנסי ספורט וקז'ואל קצרים לגבר
+OK   [גברים] ברמודה ("cargo shorts men"): 34/48 real, 10 strong · 1792 מכנסי קרגו וינטג' לגברים, מכנס
+OK   [גברים] טרנינג לגבר ("men sweatpants"): 37/48 real, 28 strong · 6832 מכנסי ספורט אופנתיים לגברים בס
+OK   [גברים] בגד ים לגבר ("men swim shorts"): 29/48 real, 14 strong · 5329 מכנסי שחייה לגברים, ייבוש מהיר
+OK   [גברים] בוקסר לגבר ("men boxer briefs"): 42/48 real, 28 strong · 3168 תחתוני בוקסר לגברים, רכים, נוש
+OK   [גברים] גרביים לגבר ("men socks"): 43/48 real, 30 strong · 30512 3/5/10 יחידות גרביים לא-מגדריו
+OK   [גברים] פיג'מה לגבר ("men pajamas"): 40/48 real, 11 strong · 5903 פיג'מת אוברול חמודה ומצחיקה של
+OK   [ספורט] חולצת ריצה ("running shirt"): 34/48 real, 25 strong · 33620 חולצת טי שירט לגברים, עשויה פו
+OK   [ספורט] מכנסי ריצה ("running shorts"): 24/48 real, 23 strong · 14508 מכנסי יוגה קצרים לנשים DFWomen
+OK   [ספורט] טייץ לגבר ("men compression leggings"): 39/48 real, 20 strong · 12387 מכנסי ריצה קצרים לגברים, ייבוש
+OK   [ספורט] בגדי יוגה ("yoga set women"): 41/48 real, 28 strong · 4122 2 יחידות סט חזיות ספורט גבוהות
+OK   [ספורט] ביגוד רכיבה ("cycling jersey"): 26/48 real, 17 strong · 10709 חולצת רכיבה לבנה עם שכבת בסיס 
+OK   [ספורט] מעיל רוח ("windbreaker jacket"): 38/48 real, 30 strong · 8024 ג'קטים לטיולים עמידים במים LNG
+OK   [ילדים] בגדי תינוקות ("baby clothes"): 29/48 real, 19 strong · 2647 סטים לילדים בגדים לילדים בנים 
+ACC  [ילדים] בגד גוף לתינוק ("baby bodysuit"): 17/48 real, 9 strong · 1381 1-2 חתיכות בגד גוף לתינוקות לת
+ACC  [ילדים] אוברול לתינוק ("baby romper"): 13/48 real, 10 strong · 2491 【בייבי בוי】בגד גוף אדום לסתיו 
+ACC  [ילדים] שמלה לילדה ("women casual dress"): 15/48 real, 11 strong · 4597 שמלת בית ארוכה ורחבה ללא כתפיו
+OK   [ילדים] חולצה לילד ("boys t shirt"): 35/48 real, 22 strong · 2654 חולצות ילדים מבד כותנה עם שרוו
+ACC  [ילדים] מכנסיים לילד ("boys pants"): 18/48 real, 18 strong · 2666 בנות הקיץ בנים בנות מכנסיים מז
+OK   [ילדים] טרנינג לילדים ("men sweatpants"): 42/48 real, 28 strong · 6832 מכנסי ספורט אופנתיים לגברים בס
+OK   [ילדים] פיג'מה לילדים ("kids pajamas"): 33/48 real, 15 strong · 3551 סט פיג'מות לתינוקות מבד כותנה,
+OK   [ילדים] מעיל לילדים ("kids winter jacket"): 37/48 real, 10 strong · 1309 ילדים בנים תינוקות מעילים קלים
+MID  [ילדים] בגד ים לילדים ("kids swimsuit"): 32/48 real, 4 strong · 911 בגדי ים לילדות פעוטות בגילאי 3
+OK   [ילדים] תחפושת לילדים ("kids costume"): 22/48 real, 14 strong · 2033 אנה תחפושת לילדים ילדה מפוארת 
+OK   [נעליים] נעלי ספורט ("sneakers"): 41/48 real, 26 strong · 38393 שקיות כביסה רב פעמיות לנעליים 
+OK   [נעליים] נעלי ריצה ("lightweight running shoes"): 48/48 real, 32 strong · 14146 נעלי ריצה לגברים מרתון, פלטפור
+OK   [נעליים] סניקרס לבנות ("white sneakers"): 46/48 real, 28 strong · 6903 1 זוג / AF1 חוטי נעליים שטוחים
+OK   [נעליים] מגפיים לנשים ("women boots"): 34/48 real, 18 strong · 2047 נעלי עבודה עם פנים מפלדה, נעלי
+OK   [נעליים] מגפוני קרסול ("women ankle boots"): 42/48 real, 15 strong · 1726 נעלי שלג קרסול לגברים לחורף, ע
+MID  [נעליים] נעלי עקב ("high heels"): 37/48 real, 6 strong · 672 סנדלי עקב גבוהים לנשים מעור פט
+OK   [נעליים] נעלי בובה ("women flats"): 41/48 real, 24 strong · 2731 נעלי בלט קלאסיות עם קשירת קשת 
+OK   [נעליים] סנדלים ("sandals"): 27/48 real, 22 strong · 8860 סנדלי BUSYLION לנשים עם סוליה 
+OK   [נעליים] כפכפים ("slides slippers"): 48/48 real, 32 strong · 31876 סנדלי גברים אנטי-החלקה EVA לבי
+OK   [נעליים] נעלי בית ("house slippers"): 34/48 real, 19 strong · 7625 נעלי בית אופנתיות לגברים, סנדל
+OK   [נעליים] מוקסינים ("men loafers"): 47/48 real, 16 strong · 1194 2026 נעליים חדשות לגברים נעלי 
+WEAK [נעליים] נעלי אלגנט לגבר ("men dress shoes"): 40/48 real, 1 strong · 315 נעלי גברים לבושות קלאסיות נושמ
+OK   [נעליים] נעלי עבודה ("safety work shoes"): 47/48 real, 29 strong · 2329 נעלי רגל נעלי בית פלדה נעלי גב
+OK   [נעליים] קרוקס ("garden clogs"): 45/48 real, 28 strong · 9068 סנדלי קיץ לילדות תינוקות בנים 
+OK   [נעליים] נעליים לילדים ("kids shoes"): 32/48 real, 23 strong · 30268 שרוכי נעליים אלסטיים חדשים, שר
+OK   [תיקים] תיק יד ("women handbag"): 40/48 real, 29 strong · 5248 תיק קניות מתקפל יומי לנשים עם 
+OK   [תיקים] תיק צד ("crossbody bag"): 47/48 real, 31 strong · 7180 תיק חזה לגברים, מתאים לפעילויו
+OK   [תיקים] תיק גב ("backpack"): 26/48 real, 15 strong · 10869 תרמיל טקטי גדול ועמיד למים לגב
+OK   [תיקים] תיק נסיעות ("travel duffel bag"): 47/48 real, 16 strong · 14942 תיק דאפל נפתח לנסיעות עם נפח ג
+OK   [תיקים] תיק חוף ("beach bag"): 33/48 real, 18 strong · 5640 10 יחידות עם תיק צדפה הדפסת 3D
+OK   [תיקים] תיק למחשב ("laptop bag"): 40/48 real, 26 strong · 21137 תיק מחשב נייד עבור Xiaomi Leno
+OK   [תיקים] ארנק לאישה ("women wallet"): 21/48 real, 11 strong · 5667 ארנק עור דק לגברים עם חסימת RF
+OK   [תיקים] ארנק לגבר ("men wallet"): 24/48 real, 17 strong · 10893 ארנק חכם עם מחזיק כרטיסים מתכת
+OK   [תיקים] פאוץ' ("makeup pouch"): 43/48 real, 28 strong · 15240 תיק איפור רך בעיצוב אנימה, תיק
+OK   [אביזרים] כובע מצחייה ("baseball cap"): 39/48 real, 25 strong · 7322 יוניסקס מכתב רקמה היפ הופ כובע
+OK   [אביזרים] כובע צמר ("winter beanie hat"): 45/48 real, 29 strong · 6847 כובע סריגה אוניברסלי לגברים ונ
+OK   [אביזרים] כובע שמש ("sun hat"): 40/48 real, 28 strong · 13921 כובע דייגים אוניברסלי, עמיד לר
+OK   [אביזרים] צעיף ("women winter scarf"): 38/48 real, 26 strong · 6816 מבצע! צעיף נשים בצבע אחיד עם צ
+OK   [אביזרים] כפפות ("winter gloves"): 33/48 real, 26 strong · 21514 כפפות חמות לחורף עם מסך מגע, ע
+OK   [אביזרים] חגורה ("leather belt"): 26/48 real, 21 strong · 12986 חגורת גברים מעור פרה חדשה עם א
+OK   [אביזרים] משקפי שמש ("sunglasses"): 42/48 real, 30 strong · 30364 משקפי שמש ספורט צבעוניים בגודל
+OK   [אביזרים] עניבה ("men necktie"): 27/48 real, 19 strong · 3604 קלאסי עניבת 7.5cm עסקי עניבה מ
+OK   [אביזרים] פשמינה ("pashmina shawl"): 45/48 real, 15 strong · 1774 צעיף קשמיר חם לחורף, צעיף אופנ
+OK   [אביזרים] גומיות לשיער ("hair ties"): 21/48 real, 18 strong · 40108 1000 יחידות/שקית גומיות שיער ק
+ACC  [אביזרים] קשת לשיער ("headband"): 14/48 real, 12 strong · 22884 סרט ראש ניילון פשוט ומודרני בע
+OK   [אביזרים] קליפס לשיער ("hair claw clip"): 37/48 real, 26 strong · 35061 5/10/20/30 יחידות קליפסים קטני
+OK   [תכשיטים] שרשרת ("women necklace"): 40/48 real, 24 strong · 7768 שרשרת כסף סטרלינג 925 יפה וטרנ
+OK   [תכשיטים] עגילים ("women earrings"): 30/48 real, 24 strong · 5621 עגילי כסף טהור לנשים עגילי מעג
+ACC  [תכשיטים] צמיד ("women bracelet"): 12/48 real, 6 strong · 2191 צמידי כסף סטרלינג מקוריים 925 
+OK   [תכשיטים] טבעת ("women ring"): 26/48 real, 18 strong · 5679 טבעות חתול חמודות לנשים וגברים
+OK   [תכשיטים] תכשיטי כסף ("925 sterling silver jewelry"): 28/48 real, 28 strong · 7768 שרשרת כסף סטרלינג 925 יפה וטרנ
+OK   [תכשיטים] שרשרת לגבר ("men necklace"): 39/48 real, 27 strong · 11752 3/5/7MM רוחב נירוסטה שרשרת קיש
+OK   [תכשיטים] שעון לאישה ("women watch"): 28/48 real, 17 strong · 11581 2 יחידות, סט שעון יד קוורץ לנש
+OK   [תכשיטים] שעון לגבר ("men watch"): 34/48 real, 24 strong · 11983 4 יחידות שעון קוורץ עסקי לגברי
+ACC  [צניעות ומידות] שמלה צנועה ("women casual dress"): 13/48 real, 12 strong · 4597 שמלת בית ארוכה ורחבה ללא כתפיו
+ACC  [צניעות ומידות] חצאית צנועה ("long modest skirt"): 16/48 real, 0 strong · 19 חליפות חצאית אלגנטיות לנשים מו
+OK   [צניעות ומידות] מטפחת ("head scarf"): 29/48 real, 16 strong · 10086 מסיכות רכיבה ראש חגורת ראש צעי
+WEAK [צניעות ומידות] טישל ("tichel head scarf"): 0/0 real, 0 strong · -
+WEAK [צניעות ומידות] גלביה ("kaftan dress"): 36/48 real, 0 strong · 168 שמלת עיד לנשים מוסלמיות אבאיה 
+WEAK [צניעות ומידות] עבאיה ("abaya"): 31/48 real, 0 strong · 231 שמלת מקסי לבנה עם עיטורי פניני
+ACC  [צניעות ומידות] שמלה במידות גדולות ("women casual dress"): 19/48 real, 14 strong · 4597 שמלת בית ארוכה ורחבה ללא כתפיו
+OK   [צניעות ומידות] ג'ינס במידות גדולות ("men denim jeans"): 45/48 real, 24 strong · 2504 2026 סגנון חדש ג'ינס לגברים עס
+
+## Round 2: sellers' wordings for the weak ones
+ACC  [נשים] חצאית ("women skirt"): 9/48 real, 6 strong · 2762 מכנסיים קצרים בסגנון חצאית א-ס
+OK   [נשים] חצאית ("women midi skirt"): 31/48 real, 10 strong · 1513 חצאית טול קוריאנית לנשים, אופנ
+OK   [נשים] חצאית ("a line skirt women"): 32/48 real, 16 strong · 2316 חצאית מיני צבעונית עם פסים בסג
+OK   [נשים] חצאית ("pleated skirt women"): 31/48 real, 14 strong · 2259 חצאית מיני בסגנון A קוריאני עם
+OK   [נשים] חצאית ארוכה ("long skirt women"): 20/48 real, 10 strong · 1619 חצאית סאטן שחורה Willshela 202
+MID  [נשים] חצאית ארוכה ("maxi skirt women"): 26/48 real, 5 strong · 688 סט חצאית קמיזול נשים מבד כותנה
+WEAK [נשים] חצאית ארוכה ("long pleated skirt women"): 26/48 real, 1 strong · 399 חצאית גאוז פרחונית חצאית חצי פ
+ACC  [נשים] קפוצ'ון לנשים ("women hoodie"): 17/48 real, 6 strong · 1187 סווטשירטים ספורט מותאמים לנשים
+MID  [נשים] קפוצ'ון לנשים ("women pullover hoodie"): 26/48 real, 5 strong · 1187 סווטשירטים ספורט מותאמים לנשים
+WEAK [נשים] קפוצ'ון לנשים ("oversized hoodie women"): 30/48 real, 2 strong · 368 קפוצ'ון אופנתי לנשים בגזרה גדו
+MID  [גברים] קפוצ'ון לגבר ("men hoodie"): 22/48 real, 9 strong · 1187 סווטשירטים ספורט מותאמים לנשים
+MID  [גברים] קפוצ'ון לגבר ("men pullover hoodie"): 28/48 real, 7 strong · 1187 סווטשירטים ספורט מותאמים לנשים
+MID  [גברים] קפוצ'ון לגבר ("hoodie men cotton"): 25/48 real, 4 strong · 2205 קפוצ 'ונים רוכסן קפוצ' ות סתיו
+MID  [נשים] סווטשירט לנשים ("women sweatshirt"): 20/48 real, 5 strong · 1187 סווטשירטים ספורט מותאמים לנשים
+WEAK [נשים] סווטשירט לנשים ("women crewneck sweatshirt"): 35/48 real, 0 strong · 124 סווטשירט עם שרוולים ארוכים ופס
+WEAK [נשים] סווטשירט לנשים ("oversized sweatshirt women"): 34/48 real, 2 strong · 368 קפוצ'ון אופנתי לנשים בגזרה גדו
+ACC  [נשים] חלוק רחצה ("women bathrobe"): 14/48 real, 2 strong · 417 חלוק שינה לנשים, בעיצוב המתאים
+ACC  [נשים] חלוק רחצה ("bathrobe women"): 14/48 real, 2 strong · 417 חלוק שינה לנשים, בעיצוב המתאים
+ACC  [נשים] חלוק רחצה ("women robe"): 5/48 real, 2 strong · 917 חלוק עם חגורה בהדפס דובדבן, סא
+ACC  [צניעות ומידות] חצאית צנועה ("long modest skirt"): 16/48 real, 0 strong · 19 חליפות חצאית אלגנטיות לנשים מו
+MID  [צניעות ומידות] חצאית צנועה ("maxi skirt women"): 29/48 real, 5 strong · 688 סט חצאית קמיזול נשים מבד כותנה
+ACC  [צניעות ומידות] חצאית צנועה ("long skirt women"): 17/48 real, 8 strong · 1589 חצאית טרומפט שחורה מבד סאטן אל
+WEAK [צניעות ומידות] טישל ("tichel head scarf"): 0/0 real, 0 strong · -
+MID  [צניעות ומידות] טישל ("turban head wrap women"): 36/48 real, 9 strong · 1257 כיסוי ראש טורבן סרוג אופנתי במ
+OK   [צניעות ומידות] טישל ("head scarf women"): 39/48 real, 25 strong · 8935 כובע חורף תרמי נגד קור לגברים 
+WEAK [גברים] חולצת פלנל ("men flannel shirt"): 39/48 real, 0 strong · 261 חולצת פלנל לגברים 100% כותנה מ
+MID  [גברים] חולצת פלנל ("plaid shirt men"): 37/48 real, 9 strong · 980 חולצות גברים מבד אוקספורד 100%
+WEAK [גברים] חולצת פלנל ("men checkered shirt"): 40/48 real, 0 strong · 168 חולצות כותנה אוקספורד משובחות 
+WEAK [גברים] מכנסי צ'ינו ("men chino pants"): 38/48 real, 0 strong · 120 מכנסיים חורים לבנים מבד כותנה 
+OK   [גברים] מכנסי צ'ינו ("men casual pants"): 29/48 real, 26 strong · 7639 מכנסי עבודה טקטיים חדשים לגברי
+WEAK [גברים] מכנסי צ'ינו ("chinos men"): 37/48 real, 0 strong · 120 מכנסיים חורים לבנים מבד כותנה 
+WEAK [נעליים] נעלי אלגנט לגבר ("men dress shoes"): 38/48 real, 1 strong · 315 נעלי גברים לבושות קלאסיות נושמ
+OK   [נעליים] נעלי אלגנט לגבר ("men leather shoes"): 38/48 real, 25 strong · 6469 1 זוג כריתי עור פרה לנעליים לג
+WEAK [נעליים] נעלי אלגנט לגבר ("men oxford shoes"): 25/48 real, 0 strong · 276 נעלי כותנה קונג פו המסורתיות ה
+MID  [גברים] בלייזר לגבר ("men blazer"): 30/48 real, 4 strong · 459 מעיל חליפה לנשים מעוצב בסגנון 
+ACC  [גברים] בלייזר לגבר ("men suit jacket"): 18/48 real, 4 strong · 1003 ג'קט חיים מקצועי לגברים, חליפת
+MID  [גברים] בלייזר לגבר ("men blazer jacket"): 34/48 real, 4 strong · 459 מעיל חליפה לנשים מעוצב בסגנון 
+MID  [ילדים] בגד ים לילדים ("kids swimsuit"): 32/48 real, 4 strong · 911 בגדי ים לילדות פעוטות בגילאי 3
+MID  [ילדים] בגד ים לילדים ("girls swimsuit"): 23/48 real, 9 strong · 1955 בגד ים סקסי לנשים משנת 2026, ס
+MID  [ילדים] בגד ים לילדים ("kids swimwear"): 41/48 real, 4 strong · 911 בגדי ים לילדות פעוטות בגילאי 3
+MID  [נעליים] נעלי עקב ("high heels"): 39/48 real, 5 strong · 672 סנדלי עקב גבוהים לנשים מעור פט
+MID  [נעליים] נעלי עקב ("women pumps"): 45/48 real, 8 strong · 716 2026 נעלי לוליטה חדשות עם קשר 
+MID  [נעליים] נעלי עקב ("heels women"): 36/48 real, 6 strong · 672 סנדלי עקב גבוהים לנשים מעור פט
+ACC  [תכשיטים] צמיד ("women bracelet"): 13/48 real, 5 strong · 2191 צמידי כסף סטרלינג מקוריים 925 
+ACC  [תכשיטים] צמיד ("bracelet women"): 15/48 real, 6 strong · 2191 צמידי כסף סטרלינג מקוריים 925 
+ACC  [תכשיטים] צמיד ("charm bracelet"): 16/48 real, 8 strong · 9822 סט תכשיטים לצמיד ושרשרת מכסף 9
+MID  [ילדים] שמלה לילדה ("girls casual dress"): 25/48 real, 9 strong · 1990 שמלת פרינט פרחונית לתינוקות בנ
+WEAK [צניעות ומידות] שמלה צנועה ("modest dress long sleeve"): 41/48 real, 0 strong · 91 שמלת נשים מוסלמית צנועה מדובאי
+WEAK [צניעות ומידות] שמלה צנועה ("long sleeve maxi dress women"): 42/48 real, 2 strong · 509 שמלת מקסי סקסית עם שרוולים קצר
+WEAK [צניעות ומידות] שמלה צנועה ("modest dress women"): 31/48 real, 0 strong · 91 שמלת נשים מוסלמית צנועה מדובאי
+ACC  [צניעות ומידות] שמלה במידות גדולות ("plus size dress"): 11/48 real, 4 strong · 649 שמלת קיץ דקה במידה גדולה עם שר
+ACC  [צניעות ומידות] שמלה במידות גדולות ("plus size dress women"): 16/48 real, 5 strong · 676 שמלת קיץ דקה במידה גדולה עם שר
+ACC  [צניעות ומידות] שמלה במידות גדולות ("women plus size dress"): 15/48 real, 5 strong · 676 שמלת קיץ דקה במידה גדולה עם שר
+ACC  [נשים] אוברול לנשים ("women jumpsuit"): 8/48 real, 6 strong · 956 אוברול יוגה סקסי צמוד לגוף לנש
+ACC  [נשים] אוברול לנשים ("jumpsuit women"): 9/48 real, 7 strong · 956 אוברול יוגה סקסי צמוד לגוף לנש
+ACC  [נשים] אוברול לנשים ("women overalls"): 17/48 real, 3 strong · 788 אוברולים קצרים לנשים, קז'ואל, 
+
+## 15 color searches through the variant (SKU) step
+MID  שמלה לבנה ("dress women"): 11 candidates, 1 in the color, 6 to photos · 287 "WHITE"
+OK   חולצה שחורה לנשים ("blouse women"): 20 candidates, 13 in the color, 6 to photos · 2692 "black", 1941 "Black", 1414 "black", 1412 "black"
+NONE נעלי ספורט לבנות לגבר ("men sneakers"): 20 candidates, 0 in the color, 20 to photos · 
+OK   תיק בז' ("handbag women"): 20 candidates, 4 in the color, 1 to photos · 2771 "Beige", 2769 "Beige", 2428 "Khaki", 1697 "Beige Butterfly"
+OK   צעיף אדום ("scarf women"): 20 candidates, 4 in the color, 5 to photos · 4469 "Red", 1776 "Dye red 2", 1749 "Red", 1515 "Red"
+OK   מעיל שחור לגבר ("men winter coat"): 20 candidates, 14 in the color, 2 to photos · 1107 "black", 1105 "black", 987 "Black", 728 "black"
+MID  בגד ים כחול לגבר ("men swim shorts"): 8 candidates, 2 in the color, 4 to photos · 741 "light blue", 264 "Blue"
+OK   סוודר ירוק לנשים ("sweater women"): 20 candidates, 7 in the color, 2 to photos · 2631 "light green", 2420 "Green Gradient", 1544 "Green", 1464 "army green"
+OK   חולצה לבנה לגבר ("men shirt"): 20 candidates, 6 in the color, 11 to photos · 2465 "WHITE", 1854 "WHITE", 861 "WHITE", 819 "White"
+NONE ג'ינס שחור לגבר ("men jeans"): 0 candidates, 0 in the color, 0 to photos · 
+MID  שמלה ורודה ("dress women"): 8 candidates, 2 in the color, 5 to photos · 554 "pink", 287 "Pink"
+OK   כובע שחור ("baseball cap"): 20 candidates, 13 in the color, 1 to photos · 11091 "black", 9853 "Black", 7322 "Black Black", 6922 "Black"
+MID  חליפה כחולה לגבר ("men suit"): 20 candidates, 3 in the color, 8 to photos · 459 "Light  Blue", 364 "Blue", 357 "Blue"
+OK   מגפיים חומים לנשים ("women boots"): 20 candidates, 12 in the color, 5 to photos · 1473 "ST07-Brown", 1173 "Brown", 1099 "Brown", 1017 "brown"
+OK   תיק גב שחור ("backpack"): 20 candidates, 13 in the color, 2 to photos · 5714 "black", 3785 "black", 3603 "black", 2884 "Black"
