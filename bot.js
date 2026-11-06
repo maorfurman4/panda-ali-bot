@@ -678,7 +678,14 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
   // The same plain name and nearly the same review count is one product in two listings (two "מטען קיר GaN", 4,926 and
   // 4,920 reviews, 2026-11-02): AliExpress shares reviews between linked listings.
   const twin = (p, q) => p.short_he === q.short_he && p.reviewCount >= 100 && Math.abs(p.reviewCount - q.reviewCount) <= p.reviewCount * 0.01;
-  if (found.length > limit) found = found.filter((p, i) => !p.short_he || found.findIndex((q) => q === p || (q.short_he && (sameModel(key(q.short_he), key(p.short_he)) || twin(p, q)))) === i);
+  if (found.length > limit) {
+    const firstOf = (list, alike) => list.filter((p, i) => !p.short_he || list.findIndex((q) => q === p || (q.short_he && alike(p, q))) === i);
+    const listings = firstOf(found, twin); // the same listing twice always goes
+    const models = firstOf(listings, (p, q) => sameModel(key(q.short_he), key(p.short_he)));
+    // A request for one model names every listing alike: "נעלי סניקרס ניו באלאנס דגם 530" kept 1 of 6 listings while a
+    // competitor showed 4 colorways (owner, 2026-11-06). Other listings of the model fill a card the dedupe left short.
+    found = models.length >= limit ? models : [...models, ...listings.filter((p) => !models.includes(p))];
+  }
   found = sameReviews(found);
   const counted = found.some((p) => p.reviewCount);
   // ✨ only for well-reviewed products (owner's spec): a pretty pick with few reviews is an ordinary product. Style searches

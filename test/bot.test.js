@@ -150,6 +150,15 @@ test("the card title never starts with the search verb, even when the AI echoes 
   assert.match(ctx.sent()[0].caption, /🔎 <b>אוזניות<\/b>/);
 });
 
+test("orderCard: a request for one model keeps 4 of its listings, not 1 (owner's New Balance 530, 2026-11-06)", () => {
+  const p = (id, sold, reviewCount) => ({ product_id: id, short_he: "ניו באלאנס 530", reviewCount, avgStars: 4.9, lastest_volume: String(sold), match: "exact", evaluate_rate: "98%" });
+  const found = [p("1", 318, 48), p("2", 124, 17), p("3", 90, 9), p("4", 60, 8), p("5", 20, 2), p("6", 10, 1)];
+  const card = orderCard(found, { context: "נעלי סניקרס ניו באלאנס דגם 530", style: true, limit: 4 }).slice(0, 4);
+  assert.equal(card.length, 4);
+  const twins = [p("1", 318, 4926), { ...p("2", 300, 4920) }, p("3", 90, 9)];
+  assert.ok(!orderCard([...twins, p("4", 60, 8), p("5", 20, 2)], { context: "ניו באלאנס 530", style: true, limit: 4 }).some((x) => x.product_id === "2"), "the same listing twice still goes");
+});
+
 test("orderCard: the same plain name with nearly the same review count is one product in two listings", async () => {
   const { orderCard } = await import("../bot.js");
   const p = (id, short_he, reviewCount, sold) => ({ product_id: id, short_he, reviewCount, avgStars: 4.9, lastest_volume: String(sold), match: "exact", evaluate_rate: "98%" });
