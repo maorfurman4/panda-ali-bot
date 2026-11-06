@@ -799,7 +799,7 @@ test("🎯/🐼: anyone votes once per card; counts and the 🐼 searches show i
   assert.match(report, /חיפושים שקיבלו 🐼 לא זה[\s\S]*מגפיים לבנות/);
 });
 
-test("not_allowed (weapons, adult, spy cams…): a polite refusal, no search; natural requests and bare names stay silent", async () => {
+test("not_allowed (weapons, toilet cameras…): a polite refusal, no search; natural requests and bare names stay silent", async () => {
   const understand = async () => intent({ status: "not_allowed", keywords_en: "" });
   const direct = await run("חפש לי מצלמה נסתרת לשירותים", { understand, search: async () => assert.fail("no search") });
   assert.deepEqual(direct.sent().map((m) => m.body), [NOT_ALLOWED]);
@@ -821,8 +821,19 @@ test("sensitive items are refused even when the AI is down, and through /advice 
   assert.deepEqual(down.sent().map((m) => m.body), [NOT_ALLOWED]);
   const fine = await run("חפש לי סכין שף", { understand: async () => null });
   assert.equal(fine.sent()[0].method, "sendPhoto", "ordinary items still search when the AI is down");
-  const advice = await run("/advice מצלמה נסתרת", { understand: async () => intent({ status: "not_allowed", keywords_en: "" }), advise: async () => assert.fail("no advisor") }, { chat: "private" });
+  const advice = await run("/advice מצלמה נסתרת למקלחת", { understand: async () => intent({ status: "not_allowed", keywords_en: "" }), advise: async () => assert.fail("no advisor") }, { chat: "private" });
   assert.deepEqual(advice.sent().map((m) => m.body), [NOT_ALLOWED]);
+});
+
+test("adult products and home hidden cameras are searched (owner, 2026-11-06); a camera for toilets or showers stays blocked", async () => {
+  for (const t of ["חפש לי ויברטור", "חפש לי מצלמה נסתרת לבית", "חפש לי מצלמת ריגול לבייביסיטר", "חפש לי vibrator"]) {
+    const ok = await run(t, { understand: async () => null });
+    assert.equal(ok.sent()[0]?.method, "sendPhoto", t);
+  }
+  for (const t of ["חפש לי מצלמה נסתרת לשירותים", "חפש לי מצלמה קטנה למקלחת", "חפש לי מצלמת ריגול לתא הלבשה", "חפש לי טייזר"]) {
+    const no = await run(t, { understand: async () => null, search: async () => assert.fail("no search") });
+    assert.deepEqual(no.sent().map((m) => m.body), [NOT_ALLOWED], t);
+  }
 });
 
 test("the verb without 'לי' ('חפש מטען') searches when the AI sees a product; otherwise silent, no warning", async () => {

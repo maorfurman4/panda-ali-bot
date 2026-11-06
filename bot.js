@@ -179,7 +179,9 @@ const HELP_WORDS = /^(?:עזרה|הסבר|הוראות|מדריך|איך (?:זה
 // A link or a bare web address ("google.com", "s.click.aliexpress.com"): never searched as a product.
 const LINKISH = /https?:\/\/|www\.|t\.me\/|(?:^|\s)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|il|co|io|me|app|ly|ru|cn|info|biz|us)(?:\/\S*)?(?=\s|$)/i;
 // Backup for the AI's "not_allowed" when the AI is unavailable: the most obvious Hebrew/English words only.
-const BLOCKED_WORDS = /סכין קפיצית|אגרופן|טייזר|ויברטור|דילדו|סיגרי(?:ה|ות) אלקטרוני|וייפ|מצלמ(?:ה|ת) (?:נסתרת|ריגול)|switchblade|brass knuckles|taser|vibrator|dildo|\bvape\b|hidden camera|spy cam/i;
+// Adult products and home hidden cameras are searched (owner, 2026-11-06); a camera aimed at toilets, showers or changing
+// rooms stays blocked: filming people there is a crime, not a product use.
+const BLOCKED_WORDS = /סכין קפיצית|אגרופן|טייזר|סיגרי(?:ה|ות) אלקטרוני|וייפ|switchblade|brass knuckles|taser|\bvape\b|(?:מצלמ|camera|\bcam\b)[^\n]{0,30}(?:שירותים|מקלחת|חדר(?:י)? הלבשה|תא(?:י)? הלבשה|toilet|bathroom|shower|changing room)/i;
 // A short reply that refines your own search; thanks, laughs and questions aren't refinements.
 const REFINE_MAX = 60;
 const NOT_REFINE = /^(?:תודה|תודה רבה|תנקס|אחלה|מעולה|מושלם|יופי|וואו|סבבה|אוקיי|אוקי|ok|לא|כן|חח+|ח+|👍|🙏|❤️|😂)[\s!.?]*$|\?$/i;
