@@ -636,8 +636,8 @@ test("natural request that needs clarifying shows the question", async () => {
   assert.match(ctx.sent()[0].body, /איזו מתנה\?/);
 });
 
-test("natural phrases in a served private chat are searched as-is", async () => {
-  assert.deepEqual((await run("מישהו מכיר אוזניות?", {}, { chat: "private" })).queries, ["מישהו מכיר אוזניות?"]);
+test("natural phrases in a served private chat are searched as-is (a trailing '?' dropped, 2026-11-06)", async () => {
+  assert.deepEqual((await run("מישהו מכיר אוזניות?", {}, { chat: "private" })).queries, ["מישהו מכיר אוזניות"]);
 });
 
 
@@ -1825,4 +1825,13 @@ test("a named color: a variant-confirmed best seller stays even if the photo loo
   const ctx = setup({ search: async (q) => (q === "evening dress" ? big : small), live: true, look, skus, pickPhoto: async (_r, p) => p.map(() => null), understand: async () => intent({ corrected_he: "שמלת ערב סגולה", keywords_en: "purple evening dress" }), collage: async (urls) => ((collaged = urls), null) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי שמלת ערב סגולה"));
   assert.ok(collaged.includes("https://ae01.alicdn.com/kf/v-purple.jpg"));
+});
+
+test("a trailing question mark or emoji isn't searched: 'חפש לי מקרן?' reads the same as 'חפש לי מקרן'", async () => {
+  const asked = [];
+  for (const text of ["חפש לי מקרן?", "חפש לי מקרן 📽️"]) {
+    const ctx = setup({ search: async () => SIX, understand: async (t) => (asked.push(t), null) });
+    await ctx.bot.handleUpdate(textUpdate(text));
+  }
+  assert.deepEqual(asked, ["מקרן", "מקרן"]);
 });

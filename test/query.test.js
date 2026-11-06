@@ -663,3 +663,20 @@ test("namesLook: beige typed without the geresh ('סוודר בז') is a color, 
   const { namesLook } = await import("../query.js");
   for (const t of ["סוודר בז", "סוודר בז'", "סוודר בז׳"]) assert.equal(namesLook(t), true, t);
 });
+
+test("slangHints: a key with a geresh matches it written with ׳, ’ or without it; a multi-word key with two spaces", async () => {
+  const { slangHints } = await import("../query.js");
+  for (const t of ["ג'ינס לגבר", "ג׳ינס לגבר", "ג’ינס לגבר", "גינס לגבר"]) assert.equal(slangHints(t).some((h) => h.startsWith('"ג\'ינס"')), true, t);
+  assert.equal(slangHints("נטילת  ידיים").length > 0, true);
+});
+
+test("whiteOrKids: a trailing emoji doesn't hide 'לבנות'", async () => {
+  const { whiteOrKids } = await import("../query.js");
+  assert.equal(whiteOrKids("נעלי ספורט לבנות 👟"), "לבנות");
+});
+
+test("slangHints: one or two yods/vavs (גופיה/גופייה, טיץ/טייץ) find the same hint", async () => {
+  const { slangHints } = await import("../query.js");
+  assert.ok(slangHints("גופיה לנשים").length > 0);
+  assert.ok(slangHints("טיץ ספורט").length > 0);
+});

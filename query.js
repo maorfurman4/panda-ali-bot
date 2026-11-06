@@ -38,7 +38,9 @@ const CACHE_TTL_MS = 24 * 60 * 60_000;
 // matching word adds one line to the request, so the reading knows what it is ("מוט פינוק" got "לא הבנתי", 2026-11-03).
 // Whole words only, with a Hebrew prefix letter allowed ("למוט פינוק"); "מגב" must not match "מגבת".
 const SLANG = Object.entries(JSON.parse(readFileSync(new URL("./slang.json", import.meta.url), "utf8"))).filter(([k]) => !k.startsWith("_"))
-  .map(([he, en]) => ({ he, en, re: new RegExp(`(?<![א-ת])[ולהבמשכ]?${he.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![א-ת])`) }));
+  // The geresh may be written ׳ or ’ or left out ("גינס" for "ג'ינס"), words may be apart by more than one space, and a
+  // double yod or vav may be single ("גופיה" for "גופייה").
+  .map(([he, en]) => ({ he, en, re: new RegExp(`(?<![א-ת])[ולהבמשכ]?${he.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/'/g, "['׳’]?").replace(/ /g, "\\s+").replace(/(יי|וו)/g, (d) => `${d[0]}${d[0]}?`)}(?![א-ת])`) }));
 export const slangHints = (text) => SLANG.filter((s) => s.re.test(text)).map((s) => `"${s.he}" (Israeli usage) = ${s.en}`);
 
 // The look description never rules out a kind the bot searches for: "a spray…; not a scraper" while one wording was
@@ -229,7 +231,7 @@ export function statedPrice(text) {
 // Clothes, shoes or bags ending in "לבנות"/"לבנים" with nothing else saying color or age: white, or for girls/boys?
 const WEARABLE = /(?:^|\s)(?:נעל|נעלי|נעליים|סניקרס|סנדל|כפכפ|מגפ|חולצ|טישירט|מכנס|ג'ינס|שמל|חצאי|מעיל|ג'קט|סווטשירט|קפוצ|טייץ|פיג'מ|בגד|גרבי|תיק|כובע)/;
 export function whiteOrKids(text = "") {
-  const t = String(text).replace(/[.!?,\s]+$/, "");
+  const t = String(text).replace(/(?:[.!?,\s\uFE0F]|\p{Extended_Pictographic})+$/u, "");
   if (forWhom(t)) return null; // the grammar says who it is for: no question
   const m = t.match(/\s(לבנות|לבנים)$/);
   if (!m || !WEARABLE.test(t) || /צבע|גיל|\d|קטנ|נוער|בנות\s|בנים\s|ילד/.test(t.slice(0, m.index))) return null;

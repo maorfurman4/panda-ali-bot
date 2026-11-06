@@ -347,26 +347,50 @@ export const singleForSet = (title, request = "") => SET_REQUEST.test(request) &
 const SELF_STOP = new Set("חפש תחפש מצא תמצא לי של עם את על בשביל עבור גם כולל איכותי איכותית איכותיים מעוצב מעוצבת חדש חדשה זול זולה הכי טוב טובה יפה גדול גדולה קטן קטנה שיכול להכיל או וגם".split(" "));
 const unsuffix = (w) => (w.length > 4 ? w.replace(/(יות|ים|ות|ית)$/, "") : w).replace(/(?<=..[א-ת])[הת]$/, "");
 // Both the word and the word without a one-letter prefix (ו/ל/ה/ב from 4 letters, מ/ש/כ from 5), suffixes trimmed.
-// roots() drops the geresh ("ג'ינס" -> "גינס"), so titles are compared without it too.
-const noGeresh = (t) => (t ?? "").replace(/["'׳״]/g, "");
+// roots() drops the geresh ("ג'ינס" -> "גינס"), so titles are compared without it too (every way it is written).
+const noGeresh = (t) => (t ?? "").replace(/["'׳״’‘`´”“\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g, "");
+// Full and defective spelling (אוזניות/אזניות, סוודר/סודר) and ז'/ג' (ז'קט/ג'קט) compare by their skeleton: the
+// letters without a geresh and without ו/י/א after the first (spelling audit, 2026-11-06).
+const skel = (w = "") => w.replace(/ז['׳]/g, "ג'").replace(/["'׳״’‘`´”“]/g, "").replace(/(?<=[א-ת])[ויא]/g, "");
+const single = (w = "") => w.replace(/(י|ו)\1/g, "$1"); // "טייץ" -> "טיץ": short words whose skeleton is too short
+const wordHas = (word, r) => word.includes(r) || single(word).includes(single(r)) || (skel(r).length >= 3 && skel(word).includes(skel(r)));
+// Words of a request: split at anything that isn't a letter, a digit or a geresh ("ג'ינס?" is the word "ג'ינס").
+const wordsOf = (t = "") => t.split(/[^\p{L}\p{N}"'׳״]+/u).filter(Boolean);
 const roots = (w) => { const c = w.replace(/["'׳״]/g, ""); const bare = c.length >= 5 || (c.length >= 4 && /^[ולהב]/.test(c)) ? c.replace(/^[ולהבמשכ]/, "") : c; return [...new Set([unsuffix(c), unsuffix(bare)])].filter((r) => r.length >= 3); };
 export function titleShare(request = "", products = [], top = 30) {
-  const ws = request.split(/[\s,.\-/]+/).filter((w) => /^[א-ת"'׳״]{2,}$/.test(w) && !SELF_STOP.has(w)).map(roots);
+  const ws = wordsOf(request).filter((w) => /^[א-ת"'׳״]{2,}$/.test(w) && !SELF_STOP.has(w)).map(roots);
   const list = products.slice(0, top);
   if (!ws.length || !list.length) return 1; // nothing to compare (an English request, no products): never alarms
-  return list.filter((p) => ws.some((rs) => rs.some((r) => noGeresh(p.product_title).includes(r)))).length / list.length;
+  return list.filter((p) => { const tw = wordsOf(p.product_title ?? ""); return ws.some((rs) => rs.some((r) => noGeresh(p.product_title).includes(r) || tw.some((x) => wordHas(x, r)))); }).length / list.length;
 }
 export const SELF_CHECK = 0.2;
+// One form for the ways the same request is typed (text audit, 2026-11-06: 62 matcher readings changed with the writing):
+// copied text carries invisible direction marks; the geresh comes as ׳, ’ or `; gershayim as ״; the maqaf ־; no-break and
+// double spaces; niqqud. Punctuation and emoji stay: "?" marks a question, "👍" alone is thanks.
+export const normalizeText = (t = "") => String(t)
+  .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
+  .replace(/[\u05F3\u2019\u2018`\u00B4]/g, "'")
+  .replace(/[\u05F4\u201C\u201D]/g, '"')
+  .replace(/\u05BE/g, "-")
+  .replace(/[\u0591-\u05BD\u05BF-\u05C7]/g, "")
+  .replace(/[\u00A0\u2007\u202F\t]/g, " ")
+  .replace(/ {2,}/g, " ")
+  .trim();
 // The request's item (its first word) near the start of the title. The color-free best sellers skip the judges, and a
 // variant color proves the color, not the kind: "Beige" Lolita shoes for "שמלה ניוד", a "Black" bottle bag for "כוס
 // תרמית שחורה" (free check, 2026-11-06).
 // An accessory names the item after "for" ("נרתיק לאוזניות", "כיסוי ל-"): that isn't the item.
 const ACCESSORY_BEFORE = /(?:^|\s)(?:כיסוי|נרתיק|מגן|רצועה|רצועת|מחזיק|מעמד|תיק|קופסה|מארז|חלקי|עבור|תואם|מתאים|for)(?:\s|$)/i;
 export function namesItem(title = "", request = "") {
-  const w = request.split(/[\s,.\-/]+/).find((x) => /^[א-ת"'׳״]{2,}$/.test(x) && !SELF_STOP.has(x));
+  const w = wordsOf(request).find((x) => /^[א-ת"'׳״]{2,}$/.test(x) && !SELF_STOP.has(x));
   if (!w) return false;
   const head = noGeresh(title).slice(0, 30); // lingerie titles name a dress later on
-  return roots(w).some((r) => { const i = head.indexOf(r); return i >= 0 && !ACCESSORY_BEFORE.test(head.slice(0, i).replace(/[ל-]+$/, "").trim()); });
+  const raw = title.slice(0, 32);
+  return roots(w).some((r) => {
+    let i = head.indexOf(r);
+    if (i < 0) { const word = wordsOf(raw).find((x) => wordHas(x, r)); i = word ? noGeresh(raw).indexOf(noGeresh(word)) : -1; }
+    return i >= 0 && !ACCESSORY_BEFORE.test(head.slice(0, i).replace(/[ל-]+$/, "").trim());
+  });
 }
 
 export const fakeLuxury = (title, request = "") => LUXURY.test(title ?? "") && !LUXURY.test(request);
@@ -516,7 +540,7 @@ export const OVER_BUDGET_NOTE = "קצת מעל התקציב";
 // says the model is picked on the product page (owner, 2026-11-04). Chinese makes added from the owner's AliExpress feed
 // (BYD Atto 3, Seagull, MG..., 2026-11-05).
 const DEVICES = /(?:אייפון|iphone|גלקסי|galaxy|סמסונג|samsung|שיאומי|xiaomi|רדמי|redmi|פיקסל|pixel|וואווי|huawei|אייפד|ipad|אפל\s?ווטש|apple\s?watch|שעון\s?אפל|איירפודס|airpods|מקבוק|macbook|טויוטה|toyota|קורולה|corolla|מאזדה|mazda|יונדאי|hyundai|קיה|kia|טסלה|tesla|סקודה|skoda|פולקסווגן|volkswagen|ניסאן|nissan|הונדה|honda|שברולט|chevrolet|סובארו|subaru|מיצובישי|mitsubishi|פיג'ו|peugeot|רנו|renault|סוזוקי|suzuki|מרצדס|mercedes|אאודי|audi|פורד|ford|bmw|ב\.?מ\.?וו|byd|בי ?וואי ?די|ביי ?די|אטו ?3|atto ?3|סיגל|seagull|דולפין|dolphin|יואן|yuan|ג'יקו|jaecoo|אומודה|omoda|צ'רי|chery|טיגו|tiggo|ג'ילי|geely|זיקר|zeekr|אקספנג|xpeng|\bmg\b|אם ג'י)/;
-export const namesModel = (text = "") => new RegExp(`(?:(?<![א-ת])ל-?|של\\s+|\\bfor\\s+)${DEVICES.source}`, "i").test(text); // "ל-BYD" too
+export const namesModel = (text = "") => new RegExp(`(?:(?<![א-ת])ל(?:-|\\s)?|של\\s+|\\bfor\\s+)${DEVICES.source}`, "i").test(text); // "ל-BYD" too
 export const MODELS_NOTE = "📱 רוב המוצרים מגיעים לכמה דגמים: בדף המוצר בחרו את הדגם שלכם";
 export const COLORS_NOTE = "🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם";
 // A brand search with few items of the brand: other brands fill the card, and the card says so (owner: always 4, 2026-11-03).

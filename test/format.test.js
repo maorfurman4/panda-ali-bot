@@ -648,3 +648,37 @@ test("titleShare and namesItem: a word with a geresh (ג'ינס, ז'קט) matche
   assert.equal(namesItem("ג'ינס גברים ישר", "ג'ינס שחור לגבר"), true);
   assert.equal(namesItem("ז'קט עור לגברים", "ז'קט שחור"), true);
 });
+
+// The text audit (2026-11-06): the same request written another common way must be read the same.
+test("normalizeText: invisible direction marks, curly or Hebrew geresh, maqaf, no-break and double spaces, niqqud", async () => {
+  const { normalizeText } = await import("../format.js");
+  assert.equal(normalizeText("‏ג׳ינס  שחור"), "ג'ינס שחור");
+  assert.equal(normalizeText("ג’ינס ‎לגבר"), "ג'ינס לגבר");
+  assert.equal(normalizeText("בקבוק 500 מ״ל"), 'בקבוק 500 מ"ל');
+  assert.equal(normalizeText("שעון בפחות מ־200"), "שעון בפחות מ-200");
+  assert.equal(normalizeText("שָׁלוֹם"), "שלום");
+  assert.equal(normalizeText("יש עוד צבעים?"), "יש עוד צבעים?", "punctuation stays: a question isn't a refine");
+  assert.equal(normalizeText("👍"), "👍");
+});
+
+test("titleShare and namesItem: a trailing question mark or a curly geresh don't change the reading", async () => {
+  const { titleShare, namesItem } = await import("../format.js");
+  const titles = [{ product_title: "ג'ינס גברים ישר" }];
+  assert.equal(titleShare("ג'ינס?", titles), 1);
+  assert.equal(namesItem("ג'ינס גברים ישר", "ג'ינס?"), true);
+  assert.equal(namesItem("ג’ינס גברים ישר", "ג'ינס"), true, "a curly geresh in the title");
+});
+
+test("namesModel: 'ל BYD' with a space counts like 'ל-BYD'", async () => {
+  const { namesModel } = await import("../format.js");
+  assert.equal(namesModel("מטען לרכב ל BYD"), true);
+});
+
+test("namesItem and titleShare: full or defective spelling (אזניות/אוזניות, סודר/סוודר, טלויזיה/טלוויזיה, ג'קט/ז'קט) reads the same", async () => {
+  const { namesItem, titleShare } = await import("../format.js");
+  for (const [req, title] of [["אזניות אלחוטיות", "אוזניות בלוטות' אלחוטיות"], ["סודר לנשים", "סוודר לנשים סרוג"], ["טלויזיה", "טלוויזיה חכמה"], ["ג'קט עור", "ז'קט מעור לגברים"], ["פיג'אמה לנשים", "פיג'מה לנשים סאטן"], ["חלצה לבנה", "חולצה לבנה לנשים"], ["טיץ ספורט", "טייץ ספורט לנשים"]]) {
+    assert.equal(namesItem(title, req), true, req);
+    assert.equal(titleShare(req, [{ product_title: title }]), 1, req);
+  }
+  assert.equal(namesItem("נרתיק לאוזניות רך", "אזניות"), false, "still not an accessory");
+});

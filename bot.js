@@ -20,6 +20,7 @@ import {
   babyOnly,
   colorVariant,
   namesItem,
+  normalizeText,
   inColors,
   trustedFirst,
   sameReviews,
@@ -824,7 +825,8 @@ export function createBot({
   }
 
   async function runSearch(ctx, rawQuery) {
-    const query = rawQuery.trim();
+    // A trailing "?", "!" or emoji isn't part of the item ("מקרן?" read and paid for apart from "מקרן", text audit 2026-11-06).
+    const query = rawQuery.replace(/(?:[\s?!.,;:…\uFE0F]|\p{Extended_Pictographic})+$/u, "").trim() || rawQuery.trim();
     if (!query) return reply(ctx, EMPTY_QUERY);
     if (!(await allow(ctx))) return;
     // "מטען לרכב וגם כבל לאייפון": two items, a card for each (at most two; "מטען וכבל" stays one, it is often a set).
@@ -1198,7 +1200,7 @@ export function createBot({
   bot.on("callback_query:data", (ctx) => ctx.answerCallbackQuery()); // never leave a button spinning
 
   bot.on("message:text", async (ctx) => {
-    const text = ctx.msg.text;
+    const text = normalizeText(ctx.msg.text); // one form for the ways the same request is typed (see format.js)
     if (text.startsWith("/")) return; // commands for other bots, or unknown commands
     const username = ctx.me.username;
     const isPrivate = ctx.chat.type === "private";
@@ -1216,7 +1218,7 @@ export function createBot({
     // A reply to your own search adds to it ("חפש לי מתקן לכוסות חד פעמי" + "לתליה על הקיר"): the two are searched
     // together (owner, 2026-11-05, seen in another deals bot). Thanks and chatter stay conversation.
     const own = ctx.msg.reply_to_message;
-    const before = own && own.from?.id === ctx.from?.id && typeof own.text === "string" ? (parseTrigger(own.text, username) ?? (isPrivate ? own.text : null)) : null;
+    const before = own && own.from?.id === ctx.from?.id && typeof own.text === "string" ? (parseTrigger(normalizeText(own.text), username) ?? (isPrivate ? normalizeText(own.text) : null)) : null;
     if (before && text.length <= REFINE_MAX && !NOT_REFINE.test(text.trim())) return runSearch(ctx, `${before} ${text.trim()}`);
     if (isPrivate) return runSearch(ctx, text);
     if (isSoftRequest(text)) return runSoftSearch(ctx, text);
