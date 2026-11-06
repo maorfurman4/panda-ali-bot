@@ -45,7 +45,7 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - the API's sales count is recent (likely 30 days), not the site's lifetime "1K+ sold"
    - a collage of colors as a coat's main photo
    - ✅ SKU API approved 2026-11-06: color searches use the variants (live; /trace shows the owner how a card was made)
-   - ⬜ the link opens the asked variant (free commission check first)
+   - ✅ the link opens the asked variant (s.click link keeps skuId and the affiliate parameters; live 2026-11-06)
 6. ⬜ **Small leftovers:**
    - the Shabbat lamp still lets in a monitor light bar
    - a 3-sold set came first for "כלים למנגל"
