@@ -375,9 +375,11 @@ const unsuffix = (w) => (w.length > 4 ? w.replace(/(יות|ים|ות|ית)$/, ""
 const noGeresh = (t) => (t ?? "").replace(/["'׳״’‘`´”“\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g, "");
 // Full and defective spelling (אוזניות/אזניות, סוודר/סודר) and ז'/ג' (ז'קט/ג'קט) compare by their skeleton: the
 // letters without a geresh and without ו/י/א after the first (spelling audit, 2026-11-06).
-const skel = (w = "") => w.replace(/ז['׳]/g, "ג'").replace(/["'׳״’‘`´”“]/g, "").replace(/(?<=[א-ת])[ויא]/g, "");
-const single = (w = "") => w.replace(/(י|ו)\1/g, "$1"); // "טייץ" -> "טיץ": short words whose skeleton is too short
-const wordHas = (word, r) => word.includes(r) || single(word).includes(single(r)) || (skel(r).length >= 3 && skel(word).includes(skel(r)));
+// Final letters compare as regular ones: "שטיחונ" (a root) is in "שטיחון" (500-search check, 2026-11-06).
+const unfinal = (w = "") => w.replace(/ך/g, "כ").replace(/ם/g, "מ").replace(/ן/g, "נ").replace(/ף/g, "פ").replace(/ץ/g, "צ");
+const skel = (w = "") => unfinal(w).replace(/ז['׳]/g, "ג'").replace(/["'׳״’‘`´”“]/g, "").replace(/(?<=[א-ת])[ויא]/g, "");
+const single = (w = "") => unfinal(w).replace(/(י|ו)\1/g, "$1"); // "טייץ" -> "טיץ": short words whose skeleton is too short
+const wordHas = (word, r) => word.includes(r) || unfinal(word).includes(unfinal(r)) || single(word).includes(single(r)) || (skel(r).length >= 3 && skel(word).includes(skel(r)));
 // Words of a request: split at anything that isn't a letter, a digit or a geresh ("ג'ינס?" is the word "ג'ינס").
 const wordsOf = (t = "") => t.split(/[^\p{L}\p{N}"'׳״]+/u).filter(Boolean);
 const roots = (w) => { const c = w.replace(/["'׳״]/g, ""); const bare = c.length >= 5 || (c.length >= 4 && /^[ולהב]/.test(c)) ? c.replace(/^[ולהבמשכ]/, "") : c; return [...new Set([unsuffix(c), unsuffix(bare)])].filter((r) => r.length >= 3); };
@@ -413,8 +415,11 @@ export const normalizeText = (t = "") => String(t)
 // תרמית שחורה" (free check, 2026-11-06).
 // An accessory names the item after "for" ("נרתיק לאוזניות", "כיסוי ל-"): that isn't the item.
 const ACCESSORY_BEFORE = /(?:^|\s)(?:כיסוי|נרתיק|מגן|רצועה|רצועת|מחזיק|מעמד|תיק|קופסה|מארז|חלקי|עבור|תואם|מתאים|for)(?:\s|$)/i;
+const GENERIC_HEAD = /^(?:סט|ערכת|ערכה|זוג|מארז|חבילת)$/;
 export function namesItem(title = "", request = "") {
-  const w = wordsOf(request).find((x) => /^[א-ת"'׳״]{2,}$/.test(x) && !SELF_STOP.has(x));
+  // A short or generic first word ("סט מברגים", "סל כביסה", "מד לחץ") names the kind by the next one too.
+  const ws = wordsOf(request).filter((x) => /^[א-ת"'׳״]{2,}$/.test(x) && !SELF_STOP.has(x));
+  const w = ws[0] && (ws[0].length < 3 || GENERIC_HEAD.test(ws[0])) && ws[1] ? ws[1] : ws[0];
   if (!w) return false;
   const head = noGeresh(title).slice(0, 30); // lingerie titles name a dress later on
   const raw = title.slice(0, 32);

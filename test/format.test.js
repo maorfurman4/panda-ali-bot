@@ -721,3 +721,14 @@ test("headerOf: the AI's corrected Hebrew cut mid-word ('חולצת פולו מ�
   assert.equal(headerOf("", "מקרן"), "מקרן");
   assert.equal(headerOf("שמלה", "שמלה שחורה"), "שמלה", "a whole word: the AI's reading, not a cut");
 });
+
+test("namesItem: a short first word (סט, סל, מד, פס, שק) gives way to the next; final letters match (שטיחונים/שטיחון, מזרנים/מזרן)", async () => {
+  const { namesItem, titleShare } = await import("../format.js");
+  assert.equal(namesItem("סט מברגים דיגיטלי 24 ב-1", "סט מברגים מדויק"), true);
+  assert.equal(namesItem("סל כביסה נייד מתקפל", "סל כביסה"), true);
+  assert.equal(namesItem("מד לחץ צמיגים דיגיטלי", "מד לחץ אוויר לצמיגים"), true);
+  assert.equal(namesItem("שטיחון לרצפת הרכב, דגם Y", "שטיחונים לטסלה מודל Y"), true);
+  assert.equal(namesItem("מזרן יוגה ספורטיבי EVA", "מזרנים ליוגה"), true);
+  assert.equal(namesItem("סט מגבות למלון", "סט סירים"), false, "the next word decides");
+  assert.equal(titleShare("שטיחונים לטסלה", [{ product_title: "שטיחון לרצפת הרכב" }]), 1);
+});

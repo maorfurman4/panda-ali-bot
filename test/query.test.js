@@ -727,3 +727,17 @@ test("slangHints: wordings from the 33-category final check (2026-11-06)", async
   has("שואב אבק רובוטי עם שטיפה", /smart robot vacuum/);
   has("רובוט שואב", /smart robot vacuum/);
 });
+
+test("slangHints: wordings from the 500-search check (2026-11-06)", async () => {
+  const { slangHints } = await import("../query.js");
+  const has = (t, re) => assert.match(slangHints(t).join(" "), re, t);
+  has("רצועה לאפל ווטש", /apple watch band/);
+  has("חצאית ג'ינס", /denim skirt/);
+  has("צמיד כושר", /smart band fitness tracker/);
+  has("מרקרים צבעוניים", /highlighter markers/);
+  has("ילקוט לבית ספר", /kids school backpack/);
+  has("יומן מתכנן", /daily planner notebook/);
+  has("בד קנבס לציור", /blank canvas for painting/);
+  has("פס שקעים עם USB", /eu power strip/);
+  has("רסברי פאי 5", /raspberry pi 5 board/);
+});
