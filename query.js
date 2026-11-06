@@ -256,8 +256,11 @@ export function validateIntent(o) {
   // here in code, since the model answered "white" without asking. "boys slides kids" found toddler slides that sold 6-26
   // ("girls sneakers": 46 sold 300+ of the 72 vs 25 with "kids"), so the boys/girls option has no "kids".
   const ambiguous = status !== "not_product" && status !== "not_allowed" && whiteOrKids(base.corrected_he);
-  if (ambiguous && /[a-z]/i.test(base.keywords_en)) {
-    const item = base.keywords_en.replace(/\b(?:white|girls?|boys?|kids?|children|women|men)\b/gi, " ").replace(/\s+/g, " ").trim();
+  // The model sometimes asks itself, with empty keywords and a button that doesn't match ("לבנים" with "👧 לבנות", live
+  // 2026-11-06): the item then comes from its options, and the question and buttons are always ours.
+  const itemWords = /[a-z]/i.test(base.keywords_en) ? base.keywords_en : (Array.isArray(o.options) ? o.options : []).map((x) => clean(x?.keywords_en, 100)).find((k) => /[a-z]/i.test(k ?? "")) ?? "";
+  if (ambiguous && itemWords) {
+    const item = itemWords.replace(/\b(?:white|girls?|boys?|kids?|children|women|men)\b/gi, " ").replace(/\s+/g, " ").trim();
     const boys = ambiguous === "לבנים";
     return { ...base, status: "clarify", clarify_question_he: boys ? "בצבע לבן או לבנים?" : "בצבע לבן או לבנות?",
       options: [{ label_he: "⚪ בצבע לבן", keywords_en: `white ${item}` }, { label_he: boys ? "👦 לבנים" : "👧 לבנות", keywords_en: `${boys ? "boys" : "girls"} ${item}` }] };

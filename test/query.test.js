@@ -685,3 +685,12 @@ test("slangHints: one or two yods/vavs (גופיה/גופייה, טיץ/טייץ
   assert.ok(slangHints("גופיה לנשים").length > 0);
   assert.ok(slangHints("טיץ ספורט").length > 0);
 });
+
+test("validateIntent: the model's own white-or-boys question is replaced by ours, so the buttons always match it", async () => {
+  // Seen live 2026-11-06: "בצבע לבן או לבנים?" with a "👧 לבנות" button (the model asked, with empty keywords).
+  const out = validateIntent({ status: "clarify", corrected_he: "כפכפים לבנים", keywords_en: "", clarify_question_he: "בצבע לבן או לבנים?",
+    options: [{ label_he: "⚪ בצבע לבן", keywords_en: "white slides" }, { label_he: "👧 לבנות", keywords_en: "girls slides" }] });
+  assert.equal(out.clarify_question_he, "בצבע לבן או לבנים?");
+  assert.deepEqual(out.options.map((o) => o.label_he), ["⚪ בצבע לבן", "👦 לבנים"]);
+  assert.deepEqual(out.options.map((o) => o.keywords_en), ["white slides", "boys slides"]);
+});
