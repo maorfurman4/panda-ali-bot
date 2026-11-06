@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { AsyncLocalStorage } from "node:async_hooks";
 // AI query understanding with OpenAI (Responses API): fixes typos, turns Hebrew into AliExpress English keywords,
 // extracts a shekel price cap, or asks to clarify. Fail-open: any problem returns null and the caller
 // searches the raw query. Only the query text is sent — never user/chat IDs, names or other messages.
@@ -16,6 +17,9 @@ const API_URL = "https://api.openai.com/v1/responses";
 const PRICES = { "gpt-5.4": [2.5, 15], "gpt-5.4-mini": [0.75, 4.5], "gpt-5.5": [5, 30], "claude-haiku-5-5": [0.1, 0.5], "claude-sonnet-5-5": [2, 10] };
 // Claude, when ANTHROPIC_API_KEY is set: the backup for a slow or failed OpenAI call, and the second judge of the product
 // check. Each OpenAI model has its Claude counterpart (same JSON schema, same instructions).
+// The running search's AI spend (bot.js opens one per Telegram update): the owner's /trace shows what each search cost.
+export const aiSpend = new AsyncLocalStorage();
+const spend = (usd) => { stats.count("aiCost", usd); const s = aiSpend.getStore(); if (s) s.usd += usd; };
 const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 const CLAUDE_FOR = { "gpt-5.4": "claude-sonnet-5-5", "gpt-5.5": "claude-sonnet-5-5" }; // anything else: Haiku
 const claudeFor = (model) => CLAUDE_FOR[model] ?? "claude-haiku-5-5";
@@ -211,7 +215,7 @@ const CATEGORY_IDS = new Set([6, 7, 13, 15, 18, 21, 26, 30, 34, 36, 39, 44, 66, 
 // Validates the model's JSON in code before anything uses it; returns null when it can't be trusted.
 // Prices written in the request, read by code so they never depend on the AI ("עד 30 ש"ח", "עד 20 דולר", "בין 80 ל-150").
 // shortcut: dollars use a fixed rate; fine for a price cap, update USD_ILS if the shekel moves a lot.
-const USD_ILS = 3.7;
+export const USD_ILS = 3.7;
 const CURRENCY = String.raw`(ש"ח|ש״ח|שח|שקלים|שקל|₪|nis|ils|דולרים|דולר|\$|usd)`;
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
 const UNIT_AFTER = /^\s*(?:ק"ג|קג|קילו|גרם|ס"מ|סמ|מ"מ|מטר|מ"ל|מל|ליטר|אינץ|ואט|וואט|וולט|שעות|ימים|יום|אחוז|%|[a-z])/i;
@@ -341,7 +345,7 @@ async function requestClaude({ fetch, env, model, instructions, content, schema,
     onUsage({ input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens });
     const [pin, pout] = PRICES[model] ?? PRICES["claude-sonnet-5-5"];
     const { input_tokens: fresh = 0, cache_creation_input_tokens: written = 0, cache_read_input_tokens: read = 0, output_tokens: out = 0 } = data.usage;
-    stats.count("aiCost", (fresh * pin + written * pin * 2 + read * CLAUDE_CACHE_READ[model] + out * pout) / 1e6);
+    spend((fresh * pin + written * pin * 2 + read * CLAUDE_CACHE_READ[model] + out * pout) / 1e6);
   }
   const text = data.content?.find((c) => c.type === "text")?.text;
   if (data.stop_reason === "max_tokens" || !text) throw new Error(`claude ${data.stop_reason ?? "no output"}`);
@@ -381,7 +385,7 @@ async function requestOnce({ fetch, env, model, instructions, content, name, sch
     // OpenAI caches a repeated prompt start by itself and bills it at 10% (≈70% of our input, measured 2026-11-02).
     const [pin, pout] = PRICES[model] ?? PRICES["gpt-5.4"];
     const cached = data.usage.input_tokens_details?.cached_tokens ?? 0;
-    stats.count("aiCost", ((data.usage.input_tokens - cached) * pin + cached * pin * 0.1 + data.usage.output_tokens * pout) / 1e6);
+    spend(((data.usage.input_tokens - cached) * pin + cached * pin * 0.1 + data.usage.output_tokens * pout) / 1e6);
   }
   if (data.status !== "completed") throw new Error(`status ${data.status}`);
   const part = data.output?.find((o) => o.type === "message")?.content?.[0];

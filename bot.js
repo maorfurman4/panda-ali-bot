@@ -8,7 +8,7 @@ import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
-import { createUnderstander, claudeCheck, namesLook } from "./query.js";
+import { createUnderstander, claudeCheck, namesLook, aiSpend, USD_ILS } from "./query.js";
 import {
   shortTitle,
   soldText,
@@ -774,6 +774,7 @@ export function createBot({
   // served (to try searches without the group seeing, 2026-11-01); everyone else gets /myid and an invitation to the group.
   const isOwner = (ctx) => Boolean(adminId) && String(ctx.from?.id) === String(adminId);
   let traceOn = false;
+  bot.use((ctx, next) => aiSpend.run({ usd: 0 }, next)); // each update counts its own AI spend (the owner's /trace)
   bot.use(async (ctx, next) => {
     const type = ctx.chat?.type;
     if (type === "group" || type === "supergroup") return groupId == null || String(ctx.chat.id) === String(groupId) ? next() : undefined;
@@ -973,7 +974,12 @@ export function createBot({
     const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice
     const sent = await sendCard(ctx, shown, { header, replyToId, reasons, rest: found.slice(limit), style });
     // The owner, in a private chat, also gets how the card was made (one short line per step), to see where products drop.
-    if (traceOn && isOwner(ctx) && ctx.chat.type === "private" && trace?.length) await ctx.reply(`🔧 ${trace.join("\n")}`).catch(() => {});
+    if (traceOn && isOwner(ctx) && ctx.chat.type === "private" && trace?.length) {
+      // This update's AI calls so far (reading, judges, photo looks, names); after a question button, the part after the press.
+      const usd = aiSpend.getStore()?.usd ?? 0;
+      const cost = `💰 עלות החיפוש: ${(usd * 100).toFixed(2)}¢ ≈ ${(usd * USD_ILS * 100).toFixed(1)} אגורות`;
+      await ctx.reply(`🔧 ${[...trace, cost].join("\n")}`).catch(() => {});
+    }
     return sent;
   }
 

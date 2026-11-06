@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnderstander, validateIntent, statedPrice } from "../query.js";
+import { aiSpend, createUnderstander, validateIntent, statedPrice } from "../query.js";
 
 const ENV = { OPENAI_API_KEY: "sk-test" };
 const OK = { status: "ok", corrected_he: "אוזניות", keywords_en: "wireless earbuds", max_price_ils: null };
@@ -181,6 +181,16 @@ test("onUsage receives token counts for each AI call (used by the eval for cost)
   const api = openai(STRICT_OK, { usage: { input_tokens: 612, output_tokens: 37 } });
   await createUnderstander({ fetch: api.fetch, env: ENV, onUsage: (u) => seen.push(u) })("אושניות");
   assert.deepEqual(seen, Array(3).fill({ input_tokens: 612, output_tokens: 37 }));
+});
+
+test("aiSpend: every AI call inside a search adds its dollar cost to that search only (the owner's /trace line)", async () => {
+  const api = openai(STRICT_OK, { usage: { input_tokens: 1000, output_tokens: 100 } });
+  const spent = { usd: 0 };
+  await aiSpend.run(spent, () => createUnderstander({ fetch: api.fetch, env: ENV })("אושניות"));
+  assert.ok(spent.usd > 0, "the three readings were counted");
+  const other = { usd: 0 };
+  await aiSpend.run(other, async () => {});
+  assert.equal(other.usd, 0, "another search's calls don't leak in");
 });
 
 test("validateIntent normalizes and checks each status (nulls from strict mode are fine)", () => {
