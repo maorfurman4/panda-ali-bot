@@ -416,7 +416,13 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
         .sort((a, b) => (Number(b.lastest_volume) || 0) - (Number(a.lastest_volume) || 0)).slice(0, COLOR_SKU_CHECK);
       const found = await photoInColor(left, COLOR_POOL_PICK, { withMain: true });
       colorPooled = left.length > 0;
-      exact = exact.concat(left.flatMap((p) => (found.has(keyOf(p)) ? [{ ...p, product_main_image_url: found.get(keyOf(p)).url, colorPick: true, ...(found.get(keyOf(p)).variant ? { variant: found.get(keyOf(p)).variant } : {}) }] : [])));
+      // The color is proven; the kind is not: these skipped the judges, so a sprayer head came in for "ברז נשלף למטבח
+      // שחור" and T-shirts for a white button-down shirt (final check, 2026-11-06). One titles-only check of the few found.
+      const matched = left.filter((p) => found.has(keyOf(p)));
+      const verdict = matched.length ? await relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, matched).catch(() => null) : null;
+      const fits = verdict ? new Set((Array.isArray(verdict) ? verdict : [...(verdict.exact ?? []), ...(verdict.near ?? []), ...(verdict.partial ?? [])]).map(keyOf)) : new Set(matched.map(keyOf));
+      if (matched.length) trace.push(`צבע: ${fits.size} מתוך ${matched.length} עברו את השופטים`);
+      exact = exact.concat(matched.filter((p) => fits.has(keyOf(p))).map((p) => ({ ...p, product_main_image_url: found.get(keyOf(p)).url, colorPick: true, ...(found.get(keyOf(p)).variant ? { variant: found.get(keyOf(p)).variant } : {}) })));
     }
     // Second chance: too few matches -> search the AI's other wording and check only the new candidates (one more AI call,
     // only for weak searches: "baby pacifier" returned clips, "silicone orthodontic pacifier" returns pacifiers).

@@ -1704,7 +1704,7 @@ test("a named color: the item is searched without it too, and a best seller pict
   const queries = [];
   const search = async (q) => (queries.push(q), q === "dress women" ? big : small);
   const understand = async () => intent({ corrected_he: "שמלה שחורה", keywords_en: "black dress women" });
-  const relevant = async (_r, p) => ({ exact: p.filter((x) => /שחורה/.test(x.product_title)), partial: [] }); // 8 and 9 pictured red
+  const relevant = async (_r, p) => ({ exact: p, partial: [] }); // all dresses (the kind); 8 and 9 are pictured red
   const asked = [];
   const pickPhoto = async (_r, p) => (asked.push(p.map((x) => x.promotion_link.slice(-1))), p.map((x) => (x.promotion_link.endsWith("8") ? x.product_small_image_urls.string[2] : null)));
   let collaged;
@@ -1857,4 +1857,19 @@ test("white or boys: after '👦 לבנים' the judges read 'for boys', not whi
     assert.match(judged[0], want, buttons[i].text);
     assert.doesNotMatch(judged[0], /לבנים/, "the ambiguous word is gone");
   }
+});
+
+test("a named color: best sellers found by their variant color still pass the judges (a sprayer head for 'ברז נשלף למטבח שחור', T-shirts for a button-down shirt)", async () => {
+  const gallery = (n) => ({ string: [`https://ae01.alicdn.com/kf/img${n}.jpg`] });
+  const small = Array.from({ length: 5 }, (_, i) => product(i + 1, { lastest_volume: String(40 - i), product_title: `ברז מטבח שחור ${i + 1}`, product_small_image_urls: gallery(i + 1) }));
+  const big = [product(8, { lastest_volume: "9000", product_title: "ברז מטבח נשלף", product_small_image_urls: gallery(8) }), product(9, { lastest_volume: "8000", product_title: "ברז ראש ריסוס נשלף", product_small_image_urls: gallery(9) })];
+  const skus = async (ids) => new Map(ids.map((id) => [id, [{ skuId: "1", color: "Black", photo: `https://ae01.alicdn.com/kf/v-${id}.jpg` }]]));
+  const judged = [];
+  const relevant = async (_r, p) => (judged.push(p.map((x) => x.promotion_link.slice(-1))), { exact: p.filter((x) => !/ריסוס/.test(x.product_title)), partial: [] });
+  let collaged;
+  const ctx = setup({ search: async (q) => (/black/.test(q) ? small : big), live: true, relevant, skus, pickPhoto: async (_r, p) => p.map(() => null), understand: async () => intent({ corrected_he: "ברז נשלף למטבח שחור", keywords_en: "black pull out kitchen faucet" }), collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי ברז נשלף למטבח שחור"));
+  assert.ok(judged.some((j) => j.includes("8") && j.includes("9")), "the variant-matched ones were judged");
+  assert.ok(!collaged.some((u) => /v-.*9|img9/.test(u)), "the sprayer head stays out");
+  assert.ok(collaged.some((u) => /v-.*8/.test(u)), "the real faucet comes in, in its black variant");
 });

@@ -718,3 +718,12 @@ test("slangHints: Jewish code words decoded into the plain product (owner, 2026-
   has("מגש לחלות", /wooden serving tray/);
   has('סכו"ם לשבת', /cutlery set/);
 });
+
+test("slangHints: wordings from the 33-category final check (2026-11-06)", async () => {
+  const { slangHints } = await import("../query.js");
+  const has = (t, re) => assert.match(slangHints(t).join(" "), re, t);
+  has("לגו טכני", /technic car building blocks/);
+  has("מדף קיר צף מעץ", /wooden floating shelf/);
+  has("שואב אבק רובוטי עם שטיפה", /smart robot vacuum/);
+  has("רובוט שואב", /smart robot vacuum/);
+});
