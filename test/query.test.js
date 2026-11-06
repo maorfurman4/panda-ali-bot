@@ -550,7 +550,7 @@ test("validateIntent: 'כפכפים לבנים' asks white or for boys, with cle
   assert.equal(boys.clarify_question_he, "בצבע לבן או לבנים?");
   assert.deepEqual(boys.options.map((o) => o.label_he), ["⚪ בצבע לבן", "👦 לבנים"]);
   assert.match(boys.options[0].keywords_en, /white slides/);
-  assert.match(boys.options[1].keywords_en, /boys slides/);
+  assert.equal(boys.options[1].keywords_en, "boys slides", "no 'kids': it found toddler slides that sold 6-26");
   const girls = validateIntent({ status: "ok", corrected_he: "נעלי ספורט לבנות", keywords_en: "white sneakers women" });
   assert.deepEqual(girls.options.map((o) => o.label_he), ["⚪ בצבע לבן", "👧 לבנות"]);
   assert.equal(whiteOrKids("חולצות לבנים"), null, "shirts can't be 'לבנים' white: for boys");
