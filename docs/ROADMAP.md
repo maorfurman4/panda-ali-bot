@@ -49,8 +49,8 @@ Updated 2026-11-05. ✅ done · ⬜ next.
 6. ✅ **Judaica checked 2026-11-06** (102 items, `docs/judaica-check-2026-11-06.txt`: 25 fine, 8 wording fixes, most real Judaica barely sold on AliExpress).
 7. ⬜ **Small leftovers:**
    - ✅ the Shabbat lamp: motion/touch/app/screen lights move down for a Shabbat light request (2026-11-06)
-   - a 3-sold set came first for "כלים למנגל"
-   - the heading "משי ק" was cut short
+   - "כלים למנגל" (a 3-sold set first): kept by design - a real match leads close ones even with few sales (two tests pin it; changing it would put generic earbuds before "noise cancelling" ones)
+   - ✅ the heading "משי ק": a cut AI correction falls back to what was typed (2026-11-06)
 8. ⬜ **Final check of all 33 categories** against the bar above.
 
 ## Rules for every change
