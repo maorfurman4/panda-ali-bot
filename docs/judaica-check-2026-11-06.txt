@@ -156,3 +156,39 @@ same חנוכייה חשמלית: "electric menorah" 0/1 → best "hanukkah chan
 מזוזה: "mezuzah case" 45 real, best 266, 20+: 19 · "mezuzah case modern" 25 real, best 55, 20+: 4 · "judaica mezuzah" 50 real, best 133, 20+: 11
 סביבון: "dreidel" 14 real, best 11, 20+: 0 · "hanukkah dreidel" 14 real, best 11, 20+: 0 · "dreidels hanukkah" 14 real, best 11, 20+: 0
 רעשן לפורים: "grogger" 1 real, best 0, 20+: 0 · "purim grogger" 0 real, best 0, 20+: 0 · "purim noisemaker" 0 real, best 0, 20+: 0
+
+## Jewish code words decoded, 2026-11-06 (literal vs decoded; strict title check; strong = 100+ sold)
+GAIN מפה לקידוש: "kiddush tablecloth" 0/0 → "white tablecloth" 12/20 · 2394 יפה רב תכליתית צבעוני זר מפת תחרה 
+GAIN מפה לשבת: "shabbat tablecloth" 7/37 → "white tablecloth" 12/20 · 2394 יפה רב תכליתית צבעוני זר מפת תחרה 
+same מפת חג: "holiday tablecloth" 13/28 → "white tablecloth" 12/20 · 2394 יפה רב תכליתית צבעוני זר מפת תחרה 
+GAIN חולצה לבנה לשבת: "white shabbat shirt" 4/24 → "men white dress shirt" 57/61 · 2000 חולצת עסקים קלאסית בסיסית צמודה לג
+GAIN חולצת שבת לבנה לילד: "boys white shabbat shirt" 0/0 → "kids white shirt" 18/57 · 764 חולצת כותנה קצרה לילדים בצבעים לבן
+GAIN שטנדר: "shtender" 0/4 → "book stand" 25/25 · 3889 תמיכת מעמד לטאבלט Xnyocn עם ספוג מ
+same סטנדר: "stender" 9/34 → "wooden book stand" 3/31 · 212 4 יחידות מעמד תצוגת ספרים אקרילי ש
+same כיפה סרוגה (hint now): "knitted kippah" 2/60 → "knitted kippah" 2/60 · 135 כיפה יהודית חדשה בצורת עיגול, נושמ
+same כיפה שחורה (hint now): "black kippah" 0/14 → "black velvet kippah" 0/11 · 68 כיפה יהודית חדשה בצורת עיגול, נושמ
+same מגבעת: "fedora hat" 66/66 → "black fedora hat men" 21/51 · 1402 כובעים גדולים חדשים לגברים ונשים ל
+GAIN כובע שבת: "shabbat hat" 0/2 → "black fedora hat" 25/49 · 1402 כובעים גדולים חדשים לגברים ונשים ל
+same גרביונים 70 דניר: "70 denier tights" 66/66 → "opaque tights women" 63/64 · 2623 גרביונים אטומים בצבע חום קפה לנשים
+GAIN גרביונים עבים: "thick tights" 59/59 → "opaque tights women" 63/64 · 2623 גרביונים אטומים בצבע חום קפה לנשים
+same חליפה לבר מצווה: "bar mitzvah suit" 0/0 → "boys black suit" 2/39 · 175 חליפות ילדים צבעוניות חליפות רשמיו
+same נרות נשמה: "memorial candles" 11/38 → "long burning candle" 10/35 · 571 נרות להבות צבעוניות מרובות צבעים, 
+GAIN נר 24 שעות: "24 hour candle" 2/51 → "long burning candle" 10/35 · 571 נרות להבות צבעוניות מרובות צבעים, 
+GAIN פתילות לחנוכה: "hanukkah wicks" 0/4 → "oil lamp wicks" 18/31 · 2083 פתילי נרות ללא עשן בעלי ליבת כותנה
+same כוסיות לשמן: "oil cups" 13/13 → "glass tealight cups" 3/51 · 110 2 יחידות מחזיקי נרות זכוכית טילייט
+same כוסיות לחנוכייה: "menorah glass cups" 0/1 → "small glass candle cups" 2/46 · 110 2 יחידות מחזיקי נרות זכוכית טילייט
+GAIN מלחייה לשבת (hint now): "shabbat salt shaker" 0/2 → "salt shaker" 4/19 · 225 מפיץ תבלינים נייד מלח פלפל ניתן למ
+GAIN קערה לנטילה: "netilat yadayim bowl" 0/0 → "wash basin bowl" 5/48 · 266 כיור פלסטיק משולב משולש מותקן על ה
+GAIN מגש לחלות: "challah tray" 0/12 → "wooden serving tray" 8/46 · 280 1 יחידה מגשי עץ אובליים מגשי עץ מג
+GAIN סכו"ם לשבת: "shabbat cutlery" 0/1 → "flatware set" 55/65 · 2941 TYRY.HU – סט של 4 יחידות, מוצץ סיל
+GAIN נייר כסף לפסח: "passover aluminum foil" 0/0 → "aluminum foil" 24/24 · 7250 32/40 אינץ' בלון סרט אלומיניום אדו
+GAIN סל לפורים: "purim basket" 2/22 → "candy gift box" 25/25 · 1244 10-30 יחידות קופסת הפתעה בצבעי סוכ
+same כלי הגשה לחג: "holiday serving dishes" 0/61 → "ceramic serving dishes" 2/52 · 189 צלחת רוטב קרמיקה בסגנון יפני עם דו
+GAIN פמוטי כסף: "silver candlesticks" 13/48 → "candle holder metal" 27/35 · 1722 סט של 3 פמוטים אלגנטיים ממתכת ואלו
+GAIN שעון עם ברכת הדרך: "travelers prayer keychain" 0/7 → "hebrew keychain" 32/55 · 1635 מחזיק מפתחות משובץ ביהלומים וחרוזי
+# strict recheck
+GAIN סכו"ם לשבת (hint now): "shabbat cutlery" 0/0 → "stainless steel cutlery set" 51/51 · 1666 סט כלי אוכל לילדים בעל 3 חלקים מפל
+GAIN נייר כסף לפסח: "passover aluminum foil" 0/0 → "aluminum foil roll" 16/29 · 3989 גליל בידוד נייר אלומיניום דביק עצמ
+GAIN מגש לחלות (hint now): "challah tray" 0/12 → "wooden serving tray" 8/46 · 280 1 יחידה מגשי עץ אובליים מגשי עץ מג
+GAIN פמוטי כסף (hint now): "silver candlesticks" 13/47 → "candle holder metal" 27/35 · 1722 סט של 3 פמוטים אלגנטיים ממתכת ואלו
+GAIN כובע שבת (hint now): "shabbat hat" 0/2 → "black fedora hat" 25/49 · 1402 כובעים גדולים חדשים לגברים ונשים ל

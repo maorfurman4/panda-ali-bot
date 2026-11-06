@@ -705,3 +705,16 @@ test("slangHints: Judaica wordings from the free check (2026-11-06)", async () =
   has("פמוטים לשבת", /candlestick holder set/);
   has("מדבקות בשרי וחלבי", /kitchen labels stickers/);
 });
+
+test("slangHints: Jewish code words decoded into the plain product (owner, 2026-11-06)", async () => {
+  const { slangHints } = await import("../query.js");
+  const has = (t, re) => assert.match(slangHints(t).join(" "), re, t);
+  has("מפה לקידוש", /white tablecloth/);
+  has("מפת חג", /white tablecloth/);
+  has("חולצת שבת לילד", /white dress shirt/);
+  has("כובע שבת", /black fedora hat/);
+  has("סל לפורים", /candy gift box/);
+  has("פמוטי כסף", /candle holder metal/);
+  has("מגש לחלות", /wooden serving tray/);
+  has('סכו"ם לשבת', /cutlery set/);
+});
