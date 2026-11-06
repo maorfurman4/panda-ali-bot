@@ -240,14 +240,29 @@ export async function optionSales(search, keywords, { minIls = null, maxIls = nu
 // A brand-and-model request also searches the brand and the model alone: "access point Aruba AP22" finds nothing on
 // AliExpress, "Aruba AP22" finds the AP22 (owner's comparison, 2026-11-03). The model = the words after the brand that are
 // capitalized or carry a digit ("Aruba AP22", "Xiaomi Redmi Note 13"); null when there is none or it is the whole search.
-export function brandModel(brand, keywords) {
+function splitBrand(brand, keywords) {
   if (typeof brand !== "string" || !keywords) return null;
   const words = keywords.split(/\s+/);
-  const at = words.findIndex((w) => w.toLowerCase() === brand.toLowerCase());
+  const b = brand.toLowerCase().split(/\s+/); // "New Balance" is two words
+  const at = words.findIndex((_, i) => b.every((w, j) => words[i + j]?.toLowerCase() === w));
+  const rest = at < 0 ? words : words.slice(at + b.length);
   const model = [];
-  for (const w of words.slice(at + 1)) if (/\d|^[A-Z]/.test(w)) model.push(w); else if (model.length) break;
-  const short = model.length ? `${brand} ${model.join(" ")}` : null;
+  for (const w of rest) if (/\d|^[A-Z]/.test(w)) model.push(w); else if (model.length) break;
+  return { model: model.join(" "), kind: [...(at < 0 ? [] : words.slice(0, at)), ...rest.filter((w) => !model.includes(w))].join(" ") };
+}
+
+export function brandModel(brand, keywords) {
+  const s = splitBrand(brand, keywords);
+  const short = s?.model ? `${brand} ${s.model}` : null;
   return short && short.toLowerCase() !== keywords.toLowerCase() ? short : null;
+}
+
+// Brand study (2026-11-06, 1,002 free searches over 80 brands): best sellers often carry the model without the brand
+// (F91W watches 2,128 sold, the best Casio-titled one 72; "Classic Wayfarer" 1,706), and "New Balance sneakers" finds
+// the 318-sold 530 that "New Balance 530" ranks out. Best 4 per brand +28% in sales; the judges drop dance shoes for "Samba".
+export function brandWordings(brand, keywords) {
+  const s = splitBrand(brand, keywords);
+  return s?.model && s.kind ? [`${s.model} ${s.kind}`, `${brand} ${s.kind}`] : [];
 }
 
 // The pool the AI judges (non-style searches): the top POOL_EACH of every list in turn, so every wording, meaning and brand
@@ -329,7 +344,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // weren't in a pool led by ₪5 no-name ones (2026-11-01).
   const brandWords = new Set(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`));
   const shortModel = brandModel(brandOnly, keywords);
-  const wordings = live ? [...new Set([shortModel, alt, ...terms, ...brandWords].filter((t) => t && t !== keywords))] : [];
+  const wordings = live ? [...new Set([shortModel, ...brandWordings(brandOnly, keywords), alt, ...terms, ...brandWords].filter((t) => t && t !== keywords))] : [];
   const plain = live && namesLook(context) && withoutColor(keywords) !== keywords && withoutColor(keywords) ? withoutColor(keywords) : null;
   // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
   // no second ask, which would only wait 1.2 s.

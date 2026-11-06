@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, styleFloor, withoutColor, medalsBySales, orderCard } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, brandWordings, styleFloor, withoutColor, medalsBySales, orderCard } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, NO_ADULT, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -1550,6 +1550,22 @@ test("brand and model alone: the words after the brand that are capitalized or c
   assert.equal(brandModel("Baseus", "Baseus solar security camera"), null, "no model");
   assert.equal(brandModel("Soundcore", "Soundcore Liberty 4 Pro"), null, "already the whole search");
   assert.equal(brandModel(false, "wireless earbuds"), null);
+  assert.equal(brandModel("New Balance", "New Balance 530 sneakers"), "New Balance 530", "a two-word brand");
+});
+
+test("brand and model: the model with the item kind, and the brand with the item kind, are searched too", async () => {
+  assert.deepEqual(brandWordings("New Balance", "New Balance 530 sneakers"), ["530 sneakers", "New Balance sneakers"]);
+  assert.deepEqual(brandWordings("Casio", "Casio F91W watch"), ["F91W watch", "Casio watch"]);
+  assert.deepEqual(brandWordings("Aruba", "access point Aruba AP22"), ["AP22 access point", "Aruba access point"]);
+  assert.deepEqual(brandWordings("Baseus", "Baseus solar security camera"), [], "no model");
+  assert.deepEqual(brandWordings("Soundcore", "Soundcore Liberty 4 Pro"), [], "no item kind");
+  assert.deepEqual(brandWordings(false, "wireless earbuds"), []);
+  // F91W watches sell 2,128 times without "Casio" in the title, the best Casio-titled one 72 (brand study, 2026-11-06).
+  const searched = [];
+  const search = async (q) => (searched.push(q), [product(1, { product_title: `${q} item` })]);
+  const ctx = setup({ search, live: true, understand: async () => intent({ corrected_he: "שעון קסיו F91W", keywords_en: "Casio F91W watch", brand: "Casio" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שעון קסיו F91W"));
+  for (const q of ["Casio F91W", "F91W watch", "Casio watch"]) assert.ok(searched.includes(q), q);
 });
 
 test("brand slot: a brand item selling under 10% of the product it would push out of the card doesn't get the slot", async () => {

@@ -55,13 +55,15 @@ Updated 2026-11-05. ✅ done · ⬜ next.
 9. ✅ **500-search check, 2026-11-06** (`docs/check-500-2026-11-06.txt`: 15 per category, free, a strict automatic judge; 419 → 439 OK (84% → 88%) after the matcher fix and 10 wording hints; read by hand ~94% right and available, the rest market limits). Open: the 65W-charger price flag false alarm; wording for פס לד 12V, ארגז כלים, סט לק ג'ל.
 10. ✅ **1,000-search check, 2026-11-06** (`docs/check-1000-2026-11-06.txt`: 1,000 never-checked searches over AliExpress's 524 sub-categories; automatic 79% → 80% after 20 hints; by hand ~88% right and selling, ~96% the right item; 18 wrong-item searches left for the AI judges; 23 not really on AliExpress). Also 50 formerly blocked searches: hidden cameras 17/18, lingerie fine, sex toys absent from AliExpress's affiliate search (a message says so).
 
+11. ✅ **Brand study, 2026-11-06** (`docs/brands-study-2026-11-06.txt`: 1,002 free searches over 80 brands). Original Nike/Adidas/NB sneakers barely sell on AliExpress; best sellers often carry the model without the brand (F91W, Wayfarer). A brand-and-model request now also searches "model kind" and "brand kind".
+
 ## Rules for every change
 - One change at a time. Free checks before every upload:
   - unit tests
   - the judges' 72 before vs after
   - the 130 fixed searches untouched
 - Broad rules in the AI's fixed instructions are avoided: they are read on every search and can only be checked in Telegram. Words go to the slang file, which acts only when its word appears.
-- Look-alikes stay look-alikes: the same style, never a fake logo or a disguised brand name. No brand-by-brand sweep of the whole market; a brand is added only when a real user asked for it.
+- Look-alikes stay look-alikes: the same style, never a fake logo or a disguised brand name. Brands: the owner asked for the 80-brand sweep (2026-11-06); further brand words still need a real request.
 
 ## Owner actions
 - ⬜ Check each upload in Telegram (the list comes with each upload).
