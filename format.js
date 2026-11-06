@@ -113,9 +113,11 @@ export function forWhom(text = "") {
   const adult = /עבודה|משרד|אירוע|חתונה|ערב|נשף|כלה|אמא|אבא|אישה|נשים|גבר/.test(text);
   return m[1] === "לבנות" ? (adult ? "women" : "girls") : adult ? "men" : "boys";
 }
+// "לבנות"/"לבנים" counts as white only when it can only be the color (whiteByGrammar): after the shopper chose "👦 לבנים",
+// blue kids' slides were marked another color and the card said "comes in colors" (owner's test, 2026-11-06).
 const named = (text) => {
   const t = (text ?? "").replace(NOT_A_COLOR, "");
-  return Object.keys(COLORS).filter((c) => COLORS[c].test(forWhom(t) ? t.replace(WHO_WORD, "") : t));
+  return Object.keys(COLORS).filter((c) => COLORS[c].test(whiteByGrammar(t) ? t : t.replace(new RegExp(WHO_WORD.source, "g"), "")));
 };
 // A listing in several colors, the asked one among them ("כחול, ירוק, שחור, צהוב…" for "שחורה", 2026-11-02).
 export const inColors = (title, request) => named(request).some((c) => named(title).includes(c)) && named(title).length > 1;

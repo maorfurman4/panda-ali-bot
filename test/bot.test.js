@@ -1837,3 +1837,24 @@ test("a trailing question mark or emoji isn't searched: 'חפש לי מקרן?' 
   }
   assert.deepEqual(asked, ["מקרן", "מקרן"]);
 });
+
+test("orderCard (style): a baby item for a child's request goes after every child item, even selling 20 times more", () => {
+  const p = (n, sold, title, extra = {}) => product(n, { lastest_volume: String(sold), product_title: title, evaluate_rate: "97.0%", reviewCount: 500, avgStars: 4.8, ...extra });
+  const found = [p(1, 4904, "נעלי סניקרס לתינוקות", { match: "partial", titleOff: true }), p(2, 219, "נעלי ספורט לילדות"), p(3, 627, "נעלי ילדים לבנות"), p(4, 300, "נעלי ריצה לילדות")];
+  const out = orderCard(found, { context: "נעלי ספורט לבנות (👧 לבנות)", style: true, limit: 4 });
+  assert.equal(out.at(-1).lastest_volume, "4904");
+});
+
+test("white or boys: after '👦 לבנים' the judges read 'for boys', not white; after '⚪ בצבע לבן' they read the color", async () => {
+  const { validateIntent } = await import("../query.js");
+  const asked = validateIntent({ status: "ok", corrected_he: "כפכפים לבנים", keywords_en: "white slides" });
+  for (const [i, want] of [[1, /לילדים בנים/], [0, /בצבע לבן/]]) {
+    const judged = [];
+    const ctx = setup({ search: async () => SIX, live: true, understand: async () => asked, relevant: async (r, p) => (judged.push(r.he), { exact: p, partial: [] }) });
+    await ctx.bot.handleUpdate(textUpdate("חפש לי כפכפים לבנים", { chat: "private" }));
+    const buttons = ctx.sent()[0].reply_markup.inline_keyboard.flat();
+    await press(ctx, buttons[i]);
+    assert.match(judged[0], want, buttons[i].text);
+    assert.doesNotMatch(judged[0], /לבנים/, "the ambiguous word is gone");
+  }
+});

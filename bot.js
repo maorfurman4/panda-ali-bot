@@ -683,7 +683,7 @@ export function orderCard(found, { context, style = false, cheapest = false, lim
     // dress the photo look called "close" sat on the "עוד" page behind a 79-sold, 5-review one (owner, 2026-11-02).
     const rated = (p, n) => (p.reviewCount ? p.reviewCount >= n && p.avgStars >= 4.5 : !(parseFloat(p.evaluate_rate) < TRUSTED_FEEDBACK));
     const sold = (p) => Number(p.lastest_volume) || 0;
-    const strong = (p) => !p.offColor && sold(p) >= STYLE_MIN_SOLD && rated(p, STRONG_REVIEWS);
+    const strong = (p) => !p.offColor && !p.titleOff && sold(p) >= STYLE_MIN_SOLD && rated(p, STRONG_REVIEWS); // titleOff: another color, or a baby item for a child
     const decent = (p) => !strong(p) && !p.titleOff && sold(p) >= PROVEN_SALES && rated(p, DECENT_REVIEWS);
     // A decent one the photo look called only "close" (maybe another shade) follows the decent right-looking ones.
     const bySold = (list) => list.sort((a, b) => sold(b) - sold(a));
@@ -1055,7 +1055,11 @@ export function createBot({
     const header = [session.request, ...session.history.map((h) => h.a)].join(" · "); // every choice, e.g. "מתנה לאמא · עגילים · מעל 400 ₪"
     if (edit) await ctx.editMessageText(chosenText(header), { parse_mode: "HTML" }).catch(() => {}); // no reply_markup = buttons removed
     const advice = session.history.length ? { request: session.request, history: session.history } : null;
-    const context = advice ? `${session.request} (${session.history.map((h) => h.a).join(", ")})` : session.request;
+    // White or for boys/girls, answered: the judges get the plain meaning, not the ambiguous word ("👦 לבנים" kept 0 of 6
+    // kids' slides: they read white; owner's test, 2026-11-06).
+    const who = whiteOrKids(session.request), pick = session.history[0]?.a ?? "";
+    const plainRequest = who && pick ? session.request.replace(/(לבנות|לבנים)(?=[\s.!?]*$)/, /⚪/.test(pick) ? "בצבע לבן" : /👦/.test(pick) ? "לילדים בנים" : "לילדות") : null;
+    const context = plainRequest ?? (advice ? `${session.request} (${session.history.map((h) => h.a).join(", ")})` : session.request);
     return withTyping(ctx, async () => {
       // The full understanding of what was chosen (sellers' wordings, the look), as every direct search gets; the advisor's
       // own words stay the main search.

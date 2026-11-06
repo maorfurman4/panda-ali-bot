@@ -492,7 +492,8 @@ test("a card for 'תיק לעבודה לבנות' has no colors note: 'לבנו�
   const { formatCard } = await import("../format.js");
   const p = { product_title: "Women work bag", target_sale_price: "50", target_sale_price_currency: "ILS", promotion_link: "https://s.click.aliexpress.com/e/_x" };
   assert.doesNotMatch(formatCard([p], { query: "תיק לעבודה לבנות" }).caption, /מבחר צבעים/);
-  assert.match(formatCard([p], { query: "נעליים לבנות" }).caption, /מבחר צבעים/, "white shoes keep the note");
+  assert.match(formatCard([p], { query: "נעליים לבנות · ⚪ בצבע לבן" }).caption, /מבחר צבעים/, "white shoes (chosen) keep the note");
+  assert.match(formatCard([p], { query: "סניקרס לבנים לנשים" }).caption, /מבחר צבעים/, "clear from the request: the note");
 });
 
 test("family 3: a search for something that fits a named device or car gets the 'pick your model' note", async () => {
@@ -690,4 +691,15 @@ test("colorVariant: silver and gold, and an agreeing 'לבנים' as white", asy
   assert.equal(colorVariant(vs, "עגילי זהב לנשים").variant.color, "Gold");
   assert.equal(colorVariant(vs, "סניקרס לבנים לנשים").variant.color, "White");
   assert.equal(colorVariant(vs, "כפכפים לבנים").variant, null, "asked first");
+});
+
+test("after choosing '👦 לבנים' / '👧 לבנות', 'לבנים' isn't the color: no off-color, no colors note (owner's test, 2026-11-06)", async () => {
+  const { offColor, inColors, formatCard } = await import("../format.js");
+  assert.equal(offColor("כפכפי ילדים כחולים", "כפכפים לבנים (👦 לבנים)"), false);
+  assert.equal(offColor("נעלי ספורט ורודות לילדות", "נעלי ספורט לבנות (👧 לבנות)"), false);
+  assert.equal(offColor("נעלי ספורט ורודות", "נעלי ספורט לבנות (⚪ בצבע לבן)"), true, "chose white: still the color");
+  assert.equal(offColor("סניקרס ורודות", "סניקרס לבנים לנשים"), true, "clear from the request: the color");
+  assert.equal(inColors("נעלי ספורט כחול, לבן, ורוד", "נעלי ספורט לבנות (👧 לבנות)"), false);
+  const card = formatCard([{ product_title: "כפכפי ילדים", target_sale_price: "20", target_sale_price_currency: "ILS", lastest_volume: "500", promotion_link: "https://s.click.aliexpress.com/e/x" }], { query: "כפכפים לבנים · 👦 לבנים" }).caption;
+  assert.doesNotMatch(card, /מגיעים במבחר צבעים/);
 });
