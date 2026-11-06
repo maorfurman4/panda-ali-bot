@@ -1,0 +1,111 @@
+# Judaica check, 2026-11-06 (free: AliExpress API, stub judges; pool of 72)
+# first = the wording the reading most likely writes (a hint's when one fires); best = the strongest of 2-3 sellers' wordings
+# strong/real/pool; strong = 50+ sold. OK 6+ strong, MID 2-5, WEAK <2, ACC <30% real
+
+MID  [שבת] פמוטים לשבת: "shabbat candlesticks" 4/51/72 · best "candlestick holder set" 9/57 (OK) · 430 3 יח'\\סט מחזיקי נרות מתכת בסג
+WEAK [שבת] כוס קידוש: "kiddush cup" 0/61/72 · 41 מגש אקרילי שקוף עם שישה כוסות 
+WEAK [שבת] גביע קידוש עם מגש: "kiddush cup set with tray" 0/15/15 · 3 סט קידוש אלגנטי מזכוכית קריסטל
+MID  [שבת] כיסוי לחלה: "challah cover" 2/35/42 · 118 2 יחידות כיסוי לחלה עם קצוות ג
+WEAK [שבת] קרש לחלה: "challah board" 1/26/29 · 169 לוח חלה מעץ במבוק חרוט עם רימו
+WEAK [שבת] סכין לחלה: "challah knife" 0/0/0 · best "bread knife" 47/47 (OK) · 899 סכין מפרידה לבצק וקינוחים מפלד
+MID  [שבת] נטלה: "netilat yadayim cup" 2/71/72 · 68 כוס שטיפה אקרילית שקופה, כוס י
+ACC  [שבת] מגבת לנטילת ידיים: "netilat yadayim cup" 0/0/72 · best "hand towel embroidered" 11/47 (OK) · 5695 מגבת ידיים סופגת למטבח מגבת רכ
+WEAK [שבת] סט הבדלה: "havdalah set" 0/16/18 · best "havdalah candle" 1/12 (WEAK) · 105 תבנית סיליקון לנר חווֹדָלָה יה
+ACC  [שבת] נר הבדלה: "havdalah set" 0/0/18 · best "braided candle" 1/47 (WEAK) · 334 פטיש נר מתולתל 200 רגל גלגל כו
+ACC  [שבת] קופסת בשמים: "spice box" 20/20/72 · 1489 קופסת תבלינים מבמבוק, קופסת אח
+WEAK [שבת] פלטת שבת: "shabbat hot plate" 0/0/0 · best "food warming tray" 4/68 (MID) · 111 צלחת חימום חשמלית מחממת מזון מ
+WEAK [שבת] מיחם לשבת: "electric hot water urn" 0/28/54 · best "water boiler dispenser" 0/46 (WEAK) · 37 Lujinxun DN25/32mm דוד, 1.0 "ח
+OK   [שבת] שעון שבת: "mechanical timer switch" 31/58/60 · best "plug in timer socket" 65/65 (OK) · 6315 שקע חכם Tuya 20A WiFi תואם לתק
+OK   [שבת] מנורת לילה לשבת: "night light" 29/29/72 · best "plug in night light" 49/49 (OK) · 16300 1/10 יחידות מנורת לילה מיני US
+WEAK [שבת] מפת שבת: "shabbat tablecloth" 0/8/12 · best "white tablecloth" 25/27 (OK) · 259 עננים לבנים שמיים כחולים צד מס
+OK   [שבת] נרות שבת: "shabbat candles" 10/33/72 · 355 תבנית סיליקון לשלט ברכת נרות ש
+MID  [שבת] מחזיק גפרורים: "match box holder" 3/42/72 · 156 קופסת עץ בצורת לב בצבע שחור-זה
+WEAK [ראש השנה] צלחת לדבש: "honey dish" 0/30/62 · best "honey pot with dipper" 0/54 (WEAK) · 30 צנצנת דבש מזכוכית עם מקל דבש ו
+MID  [ראש השנה] צלחת סימנים לראש השנה: "rosh hashanah plate" 2/32/46 · 56 תבנית סיליקון לסט מגש דבש לראש
+WEAK [ראש השנה] שופר: "shofar" 0/26/72 · 13 רוקסברוקס mtb אופניים ריכות קר
+OK   [ראש השנה] רימון דקורטיבי: "decorative pomegranate" 6/41/72 · 204 ענף ארוך מלאכותי חדש של רימון,
+ACC  [ראש השנה] קישוטים לראש השנה: "rosh hashanah decorations" 3/14/72 · 75 תבנית סיליקון מלבנית לקישוט רו
+WEAK [ראש השנה] כרטיסי ברכה לשנה טובה: "shana tova cards" 0/0/0 · best "jewish new year greeting cards" 0/1 (WEAK) · 0 10 יחידות כרטיס ברכה לחנוכה שק
+OK   [יום כיפור] נעלי בד ליום כיפור: "canvas shoes" 61/61/72 · 3160 נעלי בלט רכות מבד קנבס לילדות,
+OK   [יום כיפור] בגדים לבנים לחג: "white linen shirt men" 8/54/60 · best "white shirt" 66/66 (OK) · 2075 חולצה לבנה נשים בלוזות שרוול ק
+WEAK [סוכות] קישוטים לסוכה: "sukkah decorations" 0/15/36 · 15 סוכות גג חיצוני עמיד למים לקיש
+OK   [סוכות] סכך: "bamboo mat" 20/33/72 · 1328 תחתית כוס מוזאיקה עשויה בעבודת
+OK   [סוכות] שרשרת נורות לסוכה: "fairy lights string" 62/62/72 · best "led string lights outdoor" 65/65 (OK) · 9530 מחרוזת תאורה LED 1/2/3/5/10 מט
+WEAK [סוכות] נרתיק לאתרוג: "etrog box" 0/0/0 · best "etrog holder" 0/1 (WEAK) · 0 מחזיק נרות פירות קרמיקה: אתרוג
+WEAK [סוכות] נרתיק ללולב: "lulav case" 0/0/0 · -
+MID  [חנוכה] חנוכייה: "hanukkah menorah" 2/26/33 · 109 תבנית סיליקון לפמוט חנוכיה, תב
+WEAK [חנוכה] חנוכייה חשמלית: "electric menorah" 0/1/2 · best "led hanukkah menorah" 0/2 (WEAK) · 0 מנורת חנוכה בעיצוב ייחודי בצור
+ACC  [חנוכה] סביבון: "dreidel" 0/11/43 · best "wooden dreidel" 0/26 (WEAK) · 11 2/4/6 יחידות דריידלים לחנוכה, 
+MID  [חנוכה] נרות חנוכה: "hanukkah candles" 3/13/43 · 77 תבנית סיליקון למחזיק נרות מניו
+ACC  [חנוכה] קישוטים לחנוכה: "hanukkah decorations" 3/6/45 · 286 1 יחידה קישוט קיר בצורת צלב עץ
+OK   [חנוכה] תבנית לסופגניות: "donut pan" 11/45/72 · 668 תבנית סיליקון מיני לעוגת דונאט
+WEAK [חנוכה] מגש לחנוכייה: "menorah drip tray" 0/0/0 · best "candle drip tray" 0/35 (WEAK) · 11 מגש זכוכית עמיד בחום לקליטת שע
+OK   [פורים] תחפושת לפורים: "kids costume" 35/35/72 · best "halloween costume kids" 39/39 (OK) · 1868 תחפושת "מגזרת החיים" לפורים או
+OK   [פורים] תחפושת לפורים למבוגרים: "adult costume" 29/29/72 · best "halloween costume adult" 42/42 (OK) · 1696 4 יחידות / 1 יחידה חגורת עור ל
+OK   [פורים] משלוח מנות: "gift basket" 23/23/72 · best "candy gift box" 34/34 (OK) · 1244 10-30 יחידות קופסת הפתעה בצבעי
+ACC  [פורים] רעשן: "noise maker" 3/3/69 · 560 צלילה מתחת למים יוצרת רעשן אות
+WEAK [פורים] מגילת אסתר: "megillah" 0/0/0 · -
+OK   [פורים] פאות לתחפושת: "costume wig" 23/23/72 · best "party wig colorful" 24/28 (OK) · 629 פאות סינתטיות ארוכות וישרות לנ
+OK   [פורים] מסכות לפורים: "masquerade mask" 39/39/70 · 1969 1F-2 יחידות – סט מסכות תחרה שח
+WEAK [פסח] קערת פסח: "seder plate" 0/52/72 · 7 תבנית סיליקון לצלחת סדר ראש הש
+WEAK [פסח] כיסוי למצות: "matzah cover" 0/1/1 · 0 כיסוי מצה רקום בעבודת יד מעולה
+WEAK [פסח] מגש למצות: "matzah tray" 0/1/1 · 1 מגש Matzah Passover של Kosher 
+ACC  [פסח] הגדה של פסח: "passover haggadah" 0/1/4 · 0 חג פסחא שמח - משפחת הלוחש בהגד
+OK   [פסח] כלים חד פעמיים לפסח: "disposable plates" 27/27/72 · best "disposable tableware set" 28/28 (OK) · 1442 סט פיקניק כלי שולחן ניתן לשטיפ
+WEAK [פסח] כוס אליהו: "elijah cup" 0/12/15 · best "kiddush goblet" 0/25 (WEAK) · 21 סט גביעי קודש קריסטל עם צלחת, 
+ACC  [שבועות] זר פרחים לשבועות: "flower crown" 14/14/72 · best "floral headband" 31/31 (OK) · 3568 כתר נוצץ בסגנון "נסיכה", כתרי 
+WEAK [שבועות] תחפושת חקלאי לילדים: "kids farmer costume" 0/25/29 · best "straw hat kids" 10/46 (OK) · 370 כובע קש בנות עם קשת חמודה לאבי
+WEAK [ל"ג בעומר] ערכת קמפינג למדורה: "campfire roasting sticks" 0/17/24 · best "marshmallow roasting sticks" 2/59 (MID) · 119 LMETJMA 8 יחידות מקלות ברביקיו
+ACC  [יום העצמאות] דגל ישראל: "israel flag" 0/0/1 · best "israeli flag" 0/2 (WEAK) · 3 חולצת כדורגל לגברים עם דוגמת ד
+WEAK [יום העצמאות] דגל ישראל לרכב: "israel car flag" 0/3/8 · best "car window flag" 29/61 (OK) · 575 סגסוגת אלומיניום מתכת דגל אמרי
+MID  [יום העצמאות] פטיש פלסטיק: "inflatable hammer" 5/46/72 · 206 10pcs חמוד 3d מתנפחים פטיש עם 
+ACC  [יום העצמאות] קישוטים כחול לבן: "blue white party decorations" 16/16/72 · best "blue and white balloons" 21/23 (OK) · 1229 5/10/12/18 אינץ' בלון ירוק ג'ו
+WEAK [ברית] כרית לברית: "brit milah pillow" 0/0/0 · best "baby christening pillow" 0/14 (WEAK) · 37 50 יחידות קופסאות מתנה בצורת כ
+WEAK [ברית] בגד לברית: "baby boy christening outfit" 0/47/55 · best "baby boy white outfit" 3/36 (MID) · 71 0-3 שנים תינוק בן בן 2 חתיכות 
+WEAK [בר מצווה] תיק לטלית ותפילין: "tallit tefillin bag" 0/0/0 · best "tallit bag" 0/1 (WEAK) · 3 Talit/Tefillin תיק סט PU יהודי
+WEAK [בר מצווה] טלית: "tallit prayer shawl" 0/30/40 · 19 טלית תפילה לגברים נשים מספריים
+MID  [בר מצווה] כיפה: "kippah" 4/64/72 · 102 כובעי תפילה מסרוגים לגברים מוס
+WEAK [בר מצווה] כיפות מודפסות לאירוע: "custom kippah" 0/59/64 · 25 כיפות, קיפא, ירמולקה |   כיפות
+ACC  [בר מצווה] קישוטים לבר מצווה: "bar mitzvah decorations" 5/12/72 · best "bar mitzvah party decorations" 5/13 (ACC) · 112 קישוטים לבר מצווה, יום הולדת 1
+ACC  [בת מצווה] קישוטים לבת מצווה: "bat mitzvah decorations" 0/14/71 · 42 קישוטי שולחן למסיבת בט מיצווה,
+OK   [בת מצווה] שרשרת מגן דוד לבת מצווה: "star of david necklace women" 17/46/47 · 772 שרשרת תליון כוכב דוד בעברית לנ
+OK   [חתונה] חופה: "wedding arch" 23/23/72 · 1160 1 יחידה מכסה עמיד לקשת חתונה פ
+WEAK [חתונה] כוס לשבירה בחתונה: "wedding glass breaking" 0/5/8 · 3 זכוכית בורוסיליקט צבעונית עם ת
+WEAK [חתונה] כתובה: "ketubah" 0/0/0 · best "wedding certificate frame" 0/23 (WEAK) · 5 מסגרת תצוגה מגנטית לקיר בגודל 
+OK   [חתונה] טבעות נישואין: "wedding bands couple" 67/67/72 · 5766 טבעת חלקה מפלדת אל-חלד לנשים ו
+OK   [חתונה] הינומה: "bridal veil" 41/41/72 · 1296 צעיף כלה אלגנטי עם מסרק, באורך
+ACC  [חתונה] קישוטים לחתונה: "wedding decorations" 9/9/72 · best "wedding party decorations" 17/17 (ACC) · 4552 6 יחידות ספוגבוב קישוט למיכל ד
+ACC  [חתונה] מתנות לאורחים בחתונה: "wedding favors for guests" 14/14/72 · 727 ערכת משחק דיג פלסטיק מתנות למס
+WEAK [חינה] תלבושת לחינה: "moroccan kaftan" 0/58/72 · 42 הודו הודו השמלה המוסלמי נשים א
+ACC  [חינה] קישוטים למסיבת חינה: "henna party decorations" 0/7/72 · best "moroccan party decorations" 0/19 (ACC) · 25 ערבית מרוקאית לילה קישוט מסיבת
+WEAK [תפילה] סידור: "siddur" 0/0/0 · -
+WEAK [תפילה] כריכה לסידור: "siddur cover" 0/0/0 · best "prayer book cover" 0/40 (WEAK) · 2 כיסוי גדול לספר תנ"ך וספר תפיל
+ACC  [תפילה] תפילין: "tefillin" 1/9/72 · 82 50 יחידות עיצוב ייחודי שחור זה
+WEAK [תפילה] ציצית: "tzitzit" 1/36/72 · 54 4 יחידות / מערכת חוט באורך 32 
+WEAK [תפילה] יד לספר תורה: "torah pointer yad" 0/18/20 · best "torah pointer" 1/54 (WEAK) · 99 BRTAGG יד טורה פוינטר עם קייס 
+WEAK [תפילה] ספר תהילים קטן: "small book of psalms" 0/0/0 · best "tehillim" 0/14 (WEAK) · 14 חבילת עור טהילה גודל ספר השלמי
+OK   [בית] מזוזה: "mezuzah case" 10/54/72 · best "mezuzah" 12/50 (OK) · 168 תבנית סיליקון מלבנית לארון מזו
+WEAK [בית] מזוזה לרכב: "car mezuzah" 0/11/13 · 16 מזוזה לרכב, מארז מתכת TwistFli
+MID  [בית] חמסה: "hamsa wall decor" 3/55/72 · best "hamsa hand" 47/58 (OK) · 462 עץ חרוז עץ קקטוס צמידים יד חמס
+WEAK [בית] חמסה לרכב: "hamsa car hanging" 1/45/50 · best "evil eye car charm" 3/62 (MID) · 139 יופי כחול עין רעה דתי תמונה עג
+WEAK [בית] ברכת הבית: "jewish home blessing" 1/37/72 · 61 תבנית סיליקון לשלט ברכת בית בע
+OK   [בית] תמונה של ירושלים: "jerusalem wall art" 6/60/72 · 471 אמנות קיר מתכתית של חומת ירושל
+WEAK [בית] קופת צדקה: "tzedakah box" 1/34/40 · best "charity box" 1/46 (WEAK) · 83 קופסת צדקה, קופסת צדקה יהודית,
+MID  [בית] נר נשמה: "memorial candle" 5/37/72 · 195 מחזיק נרות קריסטל מותאם אישית 
+WEAK [בית] שלט שבת שלום: "shabbat shalom sign" 0/2/2 · best "hebrew wall sign" 6/37 (OK) · 508 שלט דלת חמסה בהתאמה אישית, שלט
+OK   [תכשיטים] שרשרת מגן דוד: "star of david necklace" 27/46/48 · 772 שרשרת תליון כוכב דוד בעברית לנ
+OK   [תכשיטים] שרשרת מגן דוד לגבר: "star of david necklace men" 16/37/41 · 772 שרשרת תליון כוכב דוד בעברית לנ
+OK   [תכשיטים] שרשרת חמסה: "hamsa necklace" 14/56/72 · best "hamsa pendant" 26/52 (OK) · 399 תליון עין הרע יד חמסה פטימה לפ
+MID  [תכשיטים] שרשרת שם בעברית: "hebrew name necklace" 3/67/72 · 171 שרשרת שמות עברית מותאמת אישית 
+OK   [תכשיטים] צמיד חוט אדום: "red string bracelet" 67/67/72 · 1424 2 יחידות צמידי מחרוזת אדומה שח
+MID  [תכשיטים] טבעת עם כיתוב בעברית: "hebrew ring" 5/43/72 · 360 טבעת מכתב עברית זה גם עובר טבע
+MID  [תכשיטים] תליון מזוזה: "mezuzah pendant" 3/14/18 · 170 שרשרת מתכת נירוסטה בצורת הקסדה
+WEAK [מטבח] סט סכינים לבשרי וחלבי: "color coded knife set" 0/1/1 · best "kitchen knife set colorful" 5/59 (MID) · 366 סט סכיני קרמיקה למטבח, סכיני ש
+WEAK [מטבח] קרשי חיתוך בצבעים: "color coded cutting boards" 0/23/23 · best "cutting board set" 24/53 (OK) · 774 11 יחידות/סט ערכת כלים לחיתוך 
+WEAK [מטבח] מדבקות בשרי חלבי: "meat dairy stickers" 0/5/5 · best "kitchen labels stickers" 46/68 (OK) · 3266 120 יחידות / גליל 3 סגנונות מד
+MID  [מטבח] ספוגים בצבעים לבשרי וחלבי: "colored dish sponges" 3/48/63 · best "kitchen sponges colorful" 10/57 (OK) · 1933 ספוגי ניקוי חדשים לשנת 2027, ע
+
+## Shabbat night lamp pool: motion/touch/app lights
+"night lamp": 72 in the pool, 34 screen/sensor/touch/app lights:
+"night light": 72 in the pool, 23 screen/sensor/touch/app lights:
+"plug in night light": 72 in the pool, 37 screen/sensor/touch/app lights:

@@ -694,3 +694,14 @@ test("validateIntent: the model's own white-or-boys question is replaced by ours
   assert.deepEqual(out.options.map((o) => o.label_he), ["⚪ בצבע לבן", "👦 לבנים"]);
   assert.deepEqual(out.options.map((o) => o.keywords_en), ["white slides", "boys slides"]);
 });
+
+test("slangHints: Judaica wordings from the free check (2026-11-06)", async () => {
+  const { slangHints } = await import("../query.js");
+  const has = (t, re) => assert.match(slangHints(t).join(" "), re, t);
+  has("סכין לחלה", /bread knife/);
+  has("מפת שבת", /white tablecloth/);
+  has("חמסה", /hamsa hand/);
+  has("מגבת לנטילת ידיים", /hand towel/);
+  has("פמוטים לשבת", /candlestick holder set/);
+  has("מדבקות בשרי וחלבי", /kitchen labels stickers/);
+});

@@ -18,6 +18,7 @@ import {
   strength,
   offColor,
   babyOnly,
+  notForShabbat,
   colorVariant,
   namesItem,
   normalizeText,
@@ -458,7 +459,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   exact = exact.filter((p) => !wrongColor(p));
   near = near.filter((p) => !wrongColor(p));
   // A baby item for a child's request is close, never a real match (style searches too).
-  const baby = (p) => babyOnly(p.product_title, context);
+  const baby = (p) => babyOnly(p.product_title, context) || notForShabbat(p.product_title, context); // and a sensor light for Shabbat
   partial = [...partial, ...[...exact, ...near].filter(baby).map((p) => ({ ...p, titleOff: true }))];
   exact = exact.filter((p) => !baby(p));
   near = near.filter((p) => !baby(p));

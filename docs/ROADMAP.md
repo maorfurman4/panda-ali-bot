@@ -46,11 +46,12 @@ Updated 2026-11-05. ✅ done · ⬜ next.
    - a collage of colors as a coat's main photo
    - ✅ SKU API approved 2026-11-06: color searches use the variants (live; /trace shows the owner how a card was made)
    - ✅ the link opens the asked variant (s.click link keeps skuId and the affiliate parameters; live 2026-11-06)
-6. ⬜ **Small leftovers:**
-   - the Shabbat lamp still lets in a monitor light bar
+6. ✅ **Judaica checked 2026-11-06** (102 items, `docs/judaica-check-2026-11-06.txt`: 25 fine, 8 wording fixes, most real Judaica barely sold on AliExpress).
+7. ⬜ **Small leftovers:**
+   - ✅ the Shabbat lamp: motion/touch/app/screen lights move down for a Shabbat light request (2026-11-06)
    - a 3-sold set came first for "כלים למנגל"
    - the heading "משי ק" was cut short
-7. ⬜ **Final check of all 33 categories** against the bar above.
+8. ⬜ **Final check of all 33 categories** against the bar above.
 
 ## Rules for every change
 - One change at a time. Free checks before every upload:

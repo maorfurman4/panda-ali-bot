@@ -168,6 +168,13 @@ export function babyOnly(title = "", request = "") {
   const t = title.replace(BABY_GIRL, " תינוק ");
   return (t.match(BABY_WORDS)?.length ?? 0) > (t.match(CHILD_WORDS)?.length ?? 0);
 }
+// For a Shabbat request, a light that switches by motion, sound, touch or an app, or a screen light bar, isn't the item: 30
+// of the 72 for "מנורת לילה לשבת" were motion-sensor lights (free check, 2026-11-06). A light (dusk) sensor stays.
+const SHABBAT = /שבת/;
+const SWITCHED = /חיישן\s*(?:תנועה|קול|מגע)|תנועה\s*חיישן|מגע|חכמ|אפליקצי|wi-?fi|בלוטו|קולי|מסך|מוניטור|\b(?:motion|touch|app|smart|monitor|screen)\b/i;
+// Lights only: a Shabbat timer ("שעון שבת") may well be a digital or smart plug timer, set before Shabbat.
+const LIGHT_REQ = /מנור|תאור|נורה|נורת|(?<![א-ת])אור(?![א-ת])/;
+export const notForShabbat = (title = "", request = "") => SHABBAT.test(request) && LIGHT_REQ.test(request) && SWITCHED.test(title);
 export function offColor(title, request) {
   const asked = named(request);
   if (!asked.length) return false;

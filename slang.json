@@ -133,8 +133,8 @@
  "אטמי אוזניים": "sellers title it \"earplugs for sleeping\" or \"noise cancelling earplugs\" (word for word \"ear seals\" found 1 strong in the judges' 72, these 31; free check 2026-11-05)",
  "עץ לכוסות": "sellers title it \"mug tree stand\" or \"cup holder rack\" (word for word \"cups tree\" found 1 strong in the judges' 72, these 36; free check 2026-11-05)",
  "קוביה הונגרית": "sellers title it \"rubik cube\" or \"speed cube 3x3\" (word for word \"hungarian cube\" found 0 strong in the judges' 72, these 27; free check 2026-11-05)",
- "נטלה": "Judaica; search it as sellers title it, \"netilat yadayim cup\" or \"jewish hand washing cup\" (in the judges' 72, the item 0->44 with this as the main search; word for word found other things; free check 2026-11-05)",
- "נטילת ידיים": "Judaica; search it as sellers title it, \"netilat yadayim cup\" or \"jewish hand washing cup\" (in the judges' 72, the item 0->44 with this as the main search; word for word found other things; free check 2026-11-05)",
+ "נטלה": "Judaica; search it as sellers title it, \"netilat yadayim cup\" or \"jewish hand washing cup\" (in the judges' 72, the item 0->44 with this as the main search; word for word found other things; free check 2026-11-05); a towel for it (מגבת לנטילת ידיים) is a hand towel, not the cup",
+ "נטילת ידיים": "Judaica; search it as sellers title it, \"netilat yadayim cup\" or \"jewish hand washing cup\" (in the judges' 72, the item 0->44 with this as the main search; word for word found other things; free check 2026-11-05); a towel for it (מגבת לנטילת ידיים) is a hand towel, not the cup",
  "כוס קידוש": "Judaica; search it as sellers title it, \"kiddush cup\" or \"kiddush cup set\" (in the judges' 72, the item 0->45 with this as the main search; word for word found other things; free check 2026-11-05)",
  "כיפה": "Judaica; search it as sellers title it, \"kippah\" or \"yarmulke\" (in the judges' 72, the item 14->53 with this as the main search; word for word found other things; free check 2026-11-05)",
  "כיסוי לחלה": "Judaica; search it as sellers title it, \"challah cover\" or \"shabbat challah cover\" (in the judges' 72, the item 1->30 with this as the main search; word for word found other things; free check 2026-11-05)",
@@ -144,7 +144,7 @@
  "קערת סדר": "Judaica; search it as sellers title it, \"seder plate\" or \"passover seder plate\" (in the judges' 72, the item 0->31 with this as the main search; word for word found other things; free check 2026-11-05)",
  "סביבון": "Judaica; search it as sellers title it, \"dreidel\" or \"wooden dreidel\" (in the judges' 72, the item 1->5 with this as the main search; word for word found other things; free check 2026-11-05)",
  "קישוטים לסוכה": "Judaica; search it as sellers title it, \"sukkah decorations\" or \"sukkot hanging decorations\" (in the judges' 72, the item 1->24 with this as the main search; word for word found other things; free check 2026-11-05)",
- "פמוטים": "Judaica; search it as sellers title it, \"shabbat candlesticks\" or \"candlesticks set\" (in the judges' 72, the item 7->42 with this as the main search; word for word found other things; free check 2026-11-05)",
+ "פמוטים": "Judaica; search it as sellers title it, \"candlestick holder set\" or \"shabbat candlesticks\" (in the judges' 72, the item 7->42 with this as the main search; word for word found other things; free check 2026-11-05); 2026-11-06: \"candlestick holder set\" 9 sold 50+ vs 4",
  "טיימר שבת": "Judaica; search it as sellers title it, \"mechanical timer switch\" or \"plug in timer socket\" (in the judges' 72, the item 0->62 with this as the main search; word for word found other things; free check 2026-11-05)",
  "שעון שבת": "Judaica; search it as sellers title it, \"mechanical timer switch\" or \"plug in timer socket\" (in the judges' 72, the item 0->62 with this as the main search; word for word found other things; free check 2026-11-05)",
  "בגאז'": "the car trunk (Israeli usage); \"מארגן לבגאז'\" is a \"car trunk organizer\" (word for word \"baggage organizer\" found 1 strong in the judges' 72, \"car trunk organizer\" 27; free check of the owner's feed 2026-11-05)",
@@ -216,5 +216,11 @@
  "חליפת טרנינג": "a matching sweatshirt-and-sweatpants set: \"tracksuit set\" with the gender",
  "חצאית": "a skirt: sellers title it \"a line skirt women\" or \"pleated skirt women\"; keep a length or style the shopper names (\"long skirt women\", \"mini skirt women\") (\"women skirt\" also brought skirt-shorts: 6 strong of the judges' 48 vs 16)",
  "טישל": "a tichel, the wrapped head covering: \"turban head wrap women\" (\"tichel head scarf\" found nothing)",
- "חולצת פלנל": "a flannel shirt: sellers title it \"plaid shirt men\" / \"plaid shirt women\" (\"men flannel shirt\": 0 sold 300+ of 39 vs 9)"
+ "חולצת פלנל": "a flannel shirt: sellers title it \"plaid shirt men\" / \"plaid shirt women\" (\"men flannel shirt\": 0 sold 300+ of 39 vs 9)",
+ "סכין לחלה": "a bread knife: \"bread knife\" (\"challah knife\" found nothing; 47 sold 50+ of the judges' 72)",
+ "מפת שבת": "a festive white tablecloth: \"white tablecloth\" (\"shabbat tablecloth\": 0 sold 50+ vs 25)",
+ "חמסה": "a hamsa: sellers title it \"hamsa hand\", plus what it is when named (\"hamsa hand necklace\", \"hamsa hand wall decor\") (\"hamsa wall decor\" 3 sold 50+ vs 47)",
+ "מגבת לנטילת ידיים": "a hand towel for netilat yadayim, not the cup: \"hand towel embroidered\" (11 sold 50+ vs none)",
+ "בשרי וחלבי": "kosher kitchen sets in two colors: search the item as sellers title it, \"cutting board set\", \"kitchen labels stickers\", \"kitchen sponges colorful\", \"kitchen knife set colorful\" (\"meat dairy stickers\" found 0 sold 50+ vs 46)",
+ "שלט שבת שלום": "a Hebrew wall or door sign: \"hebrew wall sign\" (\"shabbat shalom sign\" found 2 items)"
 }
