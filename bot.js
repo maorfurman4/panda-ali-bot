@@ -557,7 +557,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const ok = keys([...(seen?.exact ?? []), ...(seen?.near ?? []), ...(seen?.partial ?? [])]), plain = keys(seen?.plain), same = keys(seen?.same);
     for (const p of seen?.banner ?? []) banners.add(keyOf(p));
     // The same item from another listing (one POEDAGAR watch twice, 2026-11-01) is dropped like a photo that isn't the item.
-    const kept = head.filter((p) => ok.has(keyOf(p)) && !same.has(keyOf(p)));
+    // A variant-confirmed one (the SKU API says it comes in the asked color) stays even if the photo look leaves it out:
+    // "שמלת ערב סגולה" lost its one purple best seller that way, the look kept 11 of 12 (owner's /trace, 2026-11-06).
+    const kept = head.filter((p) => (ok.has(keyOf(p)) && !same.has(keyOf(p))) || p.variant);
     trace.push(`מבט בתמונות: ${kept.length} מתוך ${head.length}${seen ? "" : " (לא ענה)"}`);
     if (seen) dropIn(head, (p) => ok.has(keyOf(p)) || same.has(keyOf(p)));
     if (kept.length) {
@@ -594,7 +596,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       for (const k of close) otherColor.add(k);
       // A fill item of another brand (a brand search with few items of the brand) stays: the photo look drops it for "not
       // Aruba", though both title judges called it the same kind of item (the AP22 card came out with 1 product, 2026-11-03).
-      const kept = head.filter((p) => ok.has(keyOf(p)) || p.brandFill);
+      const kept = head.filter((p) => ok.has(keyOf(p)) || p.brandFill || p.variant); // variant-confirmed: see the style look
       trace.push(`מבט בתמונות: ${kept.length} מתוך ${head.length}`);
       dropIn(head, (p) => ok.has(keyOf(p)) || p.brandFill);
       const rest = shown.slice(head.length);

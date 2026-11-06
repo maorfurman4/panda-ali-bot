@@ -1814,3 +1814,15 @@ test("/trace: the owner gets how the card was made under his searches; off by de
   assert.ok(line, "a trace after turning it on");
   assert.match(line.text, /בכרטיס: 4/);
 });
+
+test("a named color: a variant-confirmed best seller stays even if the photo look leaves it out", async () => {
+  const gallery = (n) => ({ string: [`https://ae01.alicdn.com/kf/img${n}.jpg`] });
+  const small = Array.from({ length: 5 }, (_, i) => product(i + 1, { lastest_volume: String(40 - i), product_title: `שמלת ערב סגולה ${i + 1}`, product_small_image_urls: gallery(i + 1) }));
+  const big = [product(8, { lastest_volume: "221", product_title: "שמלת ערב ארוכה", product_small_image_urls: gallery(8) })];
+  const look = async (_r, p) => ({ exact: p.filter((x) => x.promotion_link.slice(-1) !== "8"), partial: [] }); // the look drops it
+  const skus = async (ids) => new Map(ids.map((id) => [id, [{ skuId: "1", color: "Purple", photo: "https://ae01.alicdn.com/kf/v-purple.jpg" }]]));
+  let collaged;
+  const ctx = setup({ search: async (q) => (q === "evening dress" ? big : small), live: true, look, skus, pickPhoto: async (_r, p) => p.map(() => null), understand: async () => intent({ corrected_he: "שמלת ערב סגולה", keywords_en: "purple evening dress" }), collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שמלת ערב סגולה"));
+  assert.ok(collaged.includes("https://ae01.alicdn.com/kf/v-purple.jpg"));
+});
