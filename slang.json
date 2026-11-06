@@ -252,6 +252,5 @@
  "פס שקעים": "a power strip with EU sockets: \"eu power strip usb\" (\"power strip with usb\" also brought USB charging stations)",
  "רסברי פאי": "the Raspberry Pi board itself: \"raspberry pi 5 board\" (or the model asked), not its accessories unless named (\"raspberry pi 5\" alone brought fans and power supplies)",
  "ארגז כלים": "a portable tool box to keep tools in: \"plastic tool box with handle\" (\"tool box\" alone brought car trunk organizers)",
- "טוסטר לחיצה": "a sandwich press toaster: \"sandwich toaster\" (44 of 50 right; \"sandwich maker\" brought silicone molds and sandwich cutters)",
- "פס לד": "an LED strip roll; with 12V or 24V named: \"led strip 12v 2835\" (\"12v led strip\" brought power supplies and car ambient lights); with RGB named: \"rgb led strip\""
+ "טוסטר לחיצה": "a sandwich press toaster: \"sandwich toaster\" (44 of 50 right; \"sandwich maker\" brought silicone molds and sandwich cutters)"
 }
