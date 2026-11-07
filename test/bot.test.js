@@ -2040,3 +2040,22 @@ test("a size search: an insole from the size-free search isn't lifted by its siz
   const insoleOut = out.find((p) => p.promotion_link.endsWith("2"));
   assert.notEqual(insoleOut?.match, "exact", "stays close");
 });
+
+test("createLimiter: at most 2 jobs at once, the others in arrival order; a failed job frees its slot", async () => {
+  const { createLimiter } = await import("../bot.js");
+  const limit = createLimiter(2);
+  let running = 0, most = 0;
+  const started = [];
+  const job = (n, fail = false) => limit(async () => {
+    started.push(n);
+    most = Math.max(most, ++running);
+    await new Promise((r) => setTimeout(r, 5));
+    running--;
+    if (fail) throw new Error("x");
+    return n;
+  });
+  const out = await Promise.allSettled([job(1), job(2, true), job(3), job(4), job(5)]);
+  assert.equal(most, 2);
+  assert.deepEqual(started, [1, 2, 3, 4, 5]);
+  assert.deepEqual(out.map((r) => r.status), ["fulfilled", "rejected", "fulfilled", "fulfilled", "fulfilled"]);
+});

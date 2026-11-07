@@ -311,6 +311,23 @@ export function namesItemEn(title, noun) {
   return at >= 0 && (forAt < 0 || at < forAt);
 }
 
+// Runs at most max jobs at once; the others wait in arrival order. A finished job hands its slot straight to the next one.
+export function createLimiter(max) {
+  let active = 0;
+  const waiting = [];
+  return async (job) => {
+    if (active < max) active++;
+    else await new Promise((resolve) => waiting.push(resolve));
+    try {
+      return await job();
+    } finally {
+      const next = waiting.shift();
+      if (next) next();
+      else active--;
+    }
+  };
+}
+
 export function strongPool(lists, size, keyOf = (p) => p.product_id ?? p.promotion_link, late = () => false) {
   const head = [], seen = new Set();
   for (let i = 0; i < POOL_EACH && head.length < size; i++) {
@@ -875,6 +892,7 @@ export function createBot({
   typingEveryMs = 4000,
   now = Date.now,
   cooldownMs = 10_000,
+  searchSlots = 2, // searches running at once; the others wait in line (owner, 2026-11-07)
   doubleTapMs = 1500, // a second tap right after a question changed in place lands on the new question's button
   groupId = process.env.GROUP_CHAT_ID ?? OUR_GROUP_ID, // null = any group (tests)
   privateChat = false, // tests only: serve private chats like the group
@@ -896,6 +914,7 @@ export function createBot({
   });
   bot.use(moderation.middleware); // spam is removed before any search logic sees it
   bot.on("message:new_chat_members", moderation.onJoin);
+  const searchSlot = createLimiter(searchSlots); // shortcut: per process, fine for a single instance
   const cooldowns = new Map(); // shortcut: in-memory, resets on restart; fine for a single instance
   const groupHelpAt = new Map();
   const guidedAt = new Map(); // last "write חפש לי" hint per user (same in-memory shortcut)
@@ -1055,11 +1074,16 @@ export function createBot({
         // The self-check's second reading tells the AI what the first one searched (cached like any reading).
         const reread = (words) => understand(rawHeader, { wrong: words }).then((i) => (i?.status === "ok" ? { keywords: i.keywords_en, alt: i.alt_en ?? null, terms: i.terms_en ?? [], fallback: i.fallback_en, looks: i.looks_like ?? null } : null));
         const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto, skus }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
-        found = await pick(minPriceIls);
-        if (!found.length && floorOnly) found = await pick(null); // the AI's price floor found nothing: better cheaper than empty
+        // At most searchSlots searches at once (the rest wait their turn): each sends 10-15 AliExpress calls, and 3 at once
+        // already hit AppCallLimit (owner, 2026-11-07: 2 at a time).
+        const [got, [linked, names, rated]] = await searchSlot(async () => {
+          let f = await pick(minPriceIls);
+          if (!f.length && floorOnly) f = await pick(null); // the AI's price floor found nothing: better cheaper than empty
+          // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
+          return [f, await Promise.all([shorten(f).catch(() => f), title(context, f).catch(() => null), stars(f).catch(() => null)])];
+        });
+        found = got;
         trace = found.trace ?? null;
-        // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
-        const [linked, names, rated] = await Promise.all([shorten(found).catch(() => found), title(context, found).catch(() => null), stars(found).catch(() => null)]);
         found = linked.map((p, i) => ({ ...p, ...(names?.[i] ? { short_he: names[i] } : {}), ...(rated?.[i]?.reviewCount ? { avgStars: rated[i].avgStars, reviewCount: rated[i].reviewCount } : {}) }));
         found = orderCard(found, { context, style, cheapest, limit });
         // After the final order (twins out, reviews, ✨, extras up): the owner saw 346 sold in the trace and 950 in the card.
