@@ -764,3 +764,12 @@ test("short names on a car or device search read the seller's English title, whi
   await createTitler({ fetch: plain.fetch, env: ENV })("כיסוי למפתח", products);
   assert.doesNotMatch(JSON.stringify(plain.requests[0]), /Corolla/, "other searches keep the Hebrew title");
 });
+
+test("the judges see the seller's English title next to a Hebrew one that lost the asked model", async () => {
+  const api = openai({ exact: [0, 1], partial: [] });
+  const products = [{ product_title: "מעטפת מפתח עבור טויוטה פריוס", title_en: "Key Case For Toyota Prius Corolla" }, { product_title: "כיסוי מפתח לטויוטה קורולה", title_en: "Key Case Toyota Corolla Silicone" }];
+  await createRelevanceFilter({ fetch: api.fetch, env: ENV })({ he: "כיסוי למפתח של קורולה", en: "Toyota Corolla key case" }, products);
+  const sent = JSON.stringify(api.requests[0]);
+  assert.match(sent, /Prius Corolla/);
+  assert.doesNotMatch(sent, /Silicone/, "a Hebrew title that names the model goes alone");
+});

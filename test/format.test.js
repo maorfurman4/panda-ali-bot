@@ -851,3 +851,13 @@ test("a car search without a year whose products name years: the card says to ad
   assert.ok(!formatCard([car(1, "שטיחונים לקורולה 2007-2013")], { query: "שטיחונים לקורולה 2012" }).caption.includes("שנת הרכב"), "the year is given");
   assert.ok(!formatCard([car(1, "מגב אוניברסלי")], { query: "מגב לקורולה" }).caption.includes("שנת הרכב"), "no years on the card");
 });
+
+test("needsEnTitle: the English title goes to the judges only when the Hebrew one lost the asked model", async () => {
+  const { needsEnTitle } = await import("../format.js");
+  const req = { he: "כיסוי למפתח של קורולה", en: "Toyota Corolla key case" };
+  assert.equal(needsEnTitle("מעטפת מפתח עבור טויוטה פריוס camry C-HR", "Key Case For Toyota Prius Camry Corolla C-HR", req), true);
+  assert.equal(needsEnTitle("כיסוי מפתח לטויוטה קורולה", "Key Case For Toyota Corolla", req), false, "the Hebrew names it");
+  assert.equal(needsEnTitle("כיסוי מפתח Corolla", "Key Case For Toyota Corolla", req), false, "in Latin letters too");
+  assert.equal(needsEnTitle("כיסוי מפתח לפריוס", "Key Case For Toyota Prius", req), false, "not for the asked model at all");
+  assert.equal(needsEnTitle("אוזניות", "Wireless Earbuds", { he: "אוזניות", en: "wireless earbuds" }), false, "not a device search");
+});

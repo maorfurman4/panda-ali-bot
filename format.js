@@ -676,6 +676,15 @@ export function titleYears(title = "") {
 // A title that names years, none of them the car's: it doesn't fit. A title without years (a universal one) does.
 export const wrongYear = (title = "", year = null) => Boolean(year) && ((r) => r.length > 0 && !r.some(([a, b]) => a <= year && year <= b))(titleYears(title));
 export const YEAR_NOTE = "💡 רוב החלקים מתאימים לשנים מסוימות: הוסיפו לחיפוש את שנת הרכב (למשל 2019) ויוצג רק מה שמתאים";
+// A car or device search whose listing's Hebrew title lost the asked model in machine translation (Corolla dropped or
+// written "קולולה"; owner's test, 2026-11-07) while the seller's English title names it: the judges get the English one too.
+const lastDevice = (text = "") => [...text.matchAll(new RegExp(DEVICES.source, "gi"))].at(-1)?.[0] ?? null;
+export function needsEnTitle(title = "", titleEn = "", request = {}) {
+  if (!titleEn || !namesModel(request.he ?? "")) return false;
+  const [he, en] = [lastDevice(request.he), lastDevice(request.en ?? "")];
+  const has = (t, w) => Boolean(w) && t.toLowerCase().includes(w.toLowerCase());
+  return !has(title, he) && !has(title, en) && has(titleEn, en);
+}
 export const MODELS_NOTE = "📱 רוב המוצרים מגיעים לכמה דגמים: בדף המוצר בחרו את הדגם שלכם";
 export const COLORS_NOTE = "🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם";
 // A brand search with few items of the brand: other brands fill the card, and the card says so (owner: always 4, 2026-11-03).

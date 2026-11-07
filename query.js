@@ -10,7 +10,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
 import { stats } from "./stats.js";
-import { isPartFor, forWhom, namesModel, manySizes, whiteByGrammar, whiteOrKids } from "./format.js";
+import { isPartFor, forWhom, namesModel, needsEnTitle, manySizes, whiteByGrammar, whiteOrKids } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
 // USD per 1M tokens [input, output], for the owner's daily cost line (unknown models are priced as gpt-5.4).
@@ -684,7 +684,7 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const head = `Request: "${clean(request.he, 60)}" (${clean(request.en, 100)})` + (also.length ? `\nAlso searched as: ${also.join("; ")}` : "") + (request.looks ? `\nLooks like: ${clean(request.looks, 200)}` : "");
     // A device or car search sees the whole title: sellers list every model, and the asked one came after the 120th character
     // in ~7% of the top sellers (cases, bands, protectors; 2026-11-04).
-    const lines = products.map((p, i) => `${i}. ${clean(p.product_title, namesModel(request.he) ? 250 : 120)}`);
+    const lines = products.map((p, i) => `${i}. ${clean(p.product_title, namesModel(request.he) ? 250 : 120)}${needsEnTitle(p.product_title, p.title_en, request) ? ` (${clean(p.title_en, 250)})` : ""}`);
     // The final photo look gets 350 px photos: at 220 a dark brown dress passed as black (2026-11-01). Same price on gpt
     // ("low" is one 512 px tile either way); ~160 tokens each on Claude.
     const size = photos && !pick ? "350x350" : "220x220"; // style looks stay as they were at 17:30 (owner, 2026-11-01)

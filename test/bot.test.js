@@ -2017,3 +2017,14 @@ test("each product carries the seller's English title, for the card's model name
   const out = await pickProducts({ search: async (_q, o = {}) => (o.lang === "EN" ? en : he), relevant: async (_r, p) => ({ exact: p, partial: [] }), live: true }, { keywords: "Toyota Corolla key case", context: "כיסוי למפתח של קורולה", limit: 4, extra: 0 });
   assert.equal(out[0].title_en, "Car Key Case For Toyota Prius Corolla");
 });
+
+test("a clothing or shoe size is searched without the size too; a spec like 65W is not", async () => {
+  const { withoutSize, pickProducts } = await import("../bot.js");
+  assert.equal(withoutSize("men sports shoes size 43"), "men sports shoes");
+  assert.equal(withoutSize("girls dress 116"), "girls dress");
+  assert.equal(withoutSize("fast charger 65w"), null);
+  assert.equal(withoutSize("name necklace 45cm"), null);
+  const asked = [];
+  await pickProducts({ search: async (q) => (asked.push(q), [product(1, { product_title: "Men Sports Shoes" })]), relevant: async (_r, p) => ({ exact: p, partial: [] }), live: true }, { keywords: "men sports shoes size 43", context: "נעלי ספורט לגברים מידה 43", limit: 4, extra: 0 });
+  assert.ok(asked.includes("men sports shoes"));
+});

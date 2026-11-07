@@ -456,7 +456,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const off = (p) => en.has(keyOf(p)) && !namesItemEn(en.get(keyOf(p)), noun); // English title known and not the item
     const itemFirst = (l) => (en.size ? [...l.filter((p) => !off(p)), ...l.filter(off)] : l);
     const lists = [...mainLists, ...otherLists].map(itemFirst).map(brandFirst);
-    const pool = style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf, off); // style searches as approved
+    const withEn = (p) => (en.has(keyOf(p)) ? { ...p, title_en: en.get(keyOf(p)) } : p); // see needsEnTitle
+    const pool = (style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf, off)).map(withEn); // style searches as approved
     // steady: the same verdict every time (temperature 0), on non-style searches only.
     const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();
