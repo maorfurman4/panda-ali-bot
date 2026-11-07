@@ -392,7 +392,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
   // no second ask, which would only wait 1.2 s.
   // The main words' pages with English titles, asked alongside (item first, see itemNoun); a failed ask skips the reordering.
-  const enTitles = noun ? Promise.allSettled([{}, { page: 2 }, { page: 3 }].map((v) => search(keywords, { minIls: minPriceIls, maxIls: cap, shorten: false, lang: "EN", askAgain: false, ...v }))) : Promise.resolve([]);
+  // The size-free search too: "men sports shoes" brings insoles (an insole sold 7,200 led to a card's 2nd place through its
+  // size 43 variant; owner's test, 2026-11-07), and the item check reads the English titles.
+  const enAsks = [...[{}, { page: 2 }, { page: 3 }].map((v) => [keywords, v]), ...(sizeFree ? [[sizeFree, {}]] : [])];
+  const enTitles = noun ? Promise.allSettled(enAsks.map(([q, v]) => search(q, { minIls: minPriceIls, maxIls: cap, shorten: false, lang: "EN", askAgain: false, ...v }))) : Promise.resolve([]);
   const [main, wide, wideColor, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), plain ? fetchLists(plain, LISTS) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [brandWords.has(t) ? { askAgain: false } : {}]))]);
   // The search fails only when every list failed: with AliExpress slow, the main words timed out at 10 s while other
   // wordings had come back, and the shopper got "תקלה בחיבור" (owner, 2026-11-03).

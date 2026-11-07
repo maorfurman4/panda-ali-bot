@@ -2028,3 +2028,15 @@ test("a clothing or shoe size is searched without the size too; a spec like 65W 
   await pickProducts({ search: async (q) => (asked.push(q), [product(1, { product_title: "Men Sports Shoes" })]), relevant: async (_r, p) => ({ exact: p, partial: [] }), live: true }, { keywords: "men sports shoes size 43", context: "נעלי ספורט לגברים מידה 43", limit: 4, extra: 0 });
   assert.ok(asked.includes("men sports shoes"));
 });
+
+test("a size search: an insole from the size-free search isn't lifted by its size variant (the item check reads its English title)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const shoe = (lang) => product(1, { lastest_volume: "900", product_title: lang === "EN" ? "Men Sports Shoes Size 43" : "נעלי ספורט לגברים מידה 43" });
+  const insole = (lang) => product(2, { lastest_volume: "7200", product_title: lang === "EN" ? "Orthopedic Sports Insoles For Shoes" : "מדרסים אורטופדיים לספורט" });
+  const search = async (q, o = {}) => (q === "men sports shoes" ? [insole(o.lang)] : [shoe(o.lang)]);
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => /43/.test(x.product_title)), partial: p.filter((x) => !/43/.test(x.product_title)) });
+  const skus = async (ids) => new Map(ids.map((id) => [id, [{ skuId: "43", props: { Size: "43" } }]]));
+  const out = await pickProducts({ search, relevant, skus, live: true }, { keywords: "men sports shoes size 43", context: "נעלי ספורט לגברים מידה 43", limit: 4, extra: 0 });
+  const insoleOut = out.find((p) => p.promotion_link.endsWith("2"));
+  assert.notEqual(insoleOut?.match, "exact", "stays close");
+});
