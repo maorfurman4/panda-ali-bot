@@ -98,3 +98,13 @@ Bot fixes:
 Left weak, by hand: exact sizes sellers don't title (snowboard 150cm, girls' sportswear 128, furniture cover 200x150,
 fire pit 60cm, 30L aquarium), rare colors (orange camping lantern, beige bedding set, blue horse rug), small markets
 (bowling shoes, horse helmets, judo gi, beekeeping suits, a sauna suit XL, a kids' Hanukkah menorah).
+
+## Family 5: Beauty & Health (45 sub-categories) and Appliances (40), 170 searches
+Before: OK 85%, weak 12%, miss 4%, 72 right 74%, best-4 sales 4.17M. After: OK 86%, weak 11%, miss 4%, 72 right 75%,
+best-4 sales 4.29M (+3%). Beauty 83% -> 86%, Appliances 86% -> 86%.
+(A first comparison showed brands 39% -> 89%: the before rows had been measured without the brand-free fallback. Rerun
+with the same check both ways: 89% -> 89%. The family runner now reruns brand and size rows too.)
+No new fix. Left weak, by hand: sex toys and condoms (absent from AliExpress's partner search; the bot already says so
+for toys), big appliances (a 12,000 BTU air conditioner, a 55" TV, an 80L boiler, dishwashers, ovens: shipping; the
+search brings their accessories), exact sizes rarely titled (back belt L, 560W disposer), rare colors (pink handcuffs,
+white foot spa, black range hood), kids' hair straightening cream, an iPhone scalp camera.
