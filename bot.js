@@ -486,7 +486,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       colorPooled = left.length > 0;
       // The color is proven; the kind is not: these skipped the judges, so a sprayer head came in for "ברז נשלף למטבח
       // שחור" and T-shirts for a white button-down shirt (final check, 2026-11-06). One titles-only check of the few found.
-      const matched = left.filter((p) => found.has(keyOf(p)));
+      // The judges see each listing in the asked color: on its first photo (another variant) they dropped 10 of 11 burgundy
+      // sweaters for "another color in the photo" (owner's test, 2026-11-07).
+      const matched = left.filter((p) => found.has(keyOf(p))).map((p) => ({ ...p, product_main_image_url: found.get(keyOf(p)).url }));
       const verdict = matched.length ? await relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, matched).catch(() => null) : null;
       const fits = verdict ? new Set((Array.isArray(verdict) ? verdict : [...(verdict.exact ?? []), ...(verdict.near ?? []), ...(verdict.partial ?? [])]).map(keyOf)) : new Set(matched.map(keyOf));
       if (matched.length) trace.push(`צבע: ${fits.size} מתוך ${matched.length} עברו את השופטים`);

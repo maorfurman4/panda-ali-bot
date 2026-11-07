@@ -1969,3 +1969,14 @@ test("a named color: best sellers found by their variant color still pass the ju
   assert.ok(!collaged.some((u) => /v-.*9|img9/.test(u)), "the sprayer head stays out");
   assert.ok(collaged.some((u) => /v-.*8/.test(u)), "the real faucet comes in, in its black variant");
 });
+
+test("a named color: the judges of a color-free best seller see its photo in the asked color, not its first photo", async () => {
+  const big = [product(8, { lastest_volume: "9000", product_title: "סוודר לנשים", product_small_image_urls: { string: ["https://ae01.alicdn.com/kf/img8.jpg", "https://ae01.alicdn.com/kf/x8.jpg"] } })];
+  const small = Array.from({ length: 5 }, (_, i) => product(i + 1, { lastest_volume: String(40 - i), product_title: `סוודר בורדו ${i + 1}` }));
+  const seen = [];
+  const relevant = async (_r, p) => (p.forEach((x) => x.promotion_link.endsWith("8") && seen.push(x.product_main_image_url)), { exact: p, partial: [] });
+  const skus = async (ids) => new Map(ids.map((id) => [id, [variant("Burgundy", 1), variant("Beige", 2)]]));
+  const ctx = setup({ search: async (q) => (q === "sweater women" ? big : small), live: true, relevant, skus, pickPhoto: async (_r, p) => p.map(() => null), understand: async () => intent({ corrected_he: "סוודר בורדו", keywords_en: "burgundy sweater women" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי סוודר בורדו"));
+  assert.ok(seen.includes("https://ae01.alicdn.com/kf/v-Burgundy.jpg"), `judged on ${seen}`);
+});
