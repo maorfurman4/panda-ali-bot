@@ -749,3 +749,9 @@ test("specOf and sizeVariant: the size or spec a request names, found in a listi
   assert.equal(sizeVariant(vs({ Length: "145cm" }), specOf("belt 45cm")), null);
   assert.equal(sizeVariant(vs({ Power: "30W" }), specOf("power station 300w")), null);
 });
+
+test("colorAlsoLine: a thermometer (מדחום) names no brown", async () => {
+  const { colorAlsoLine } = await import("../format.js");
+  assert.equal(colorAlsoLine("מדחום לחדר"), null, "family 4, 2026-11-07");
+  assert.match(colorAlsoLine("סוודר חום"), /בחום/);
+});

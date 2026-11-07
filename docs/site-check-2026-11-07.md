@@ -82,3 +82,19 @@ No new fix: plain searches 98-99%, colors 100%, brands 95%.
 Left weak, by hand: big desktop monitors (shipping: the search brings arms and accessories; a 24" monitor sells little),
 Jabra speakerphones and Kensington locks (only "for" accessories), exact sizes sellers rarely title (easel 170cm,
 business cards 90x50, cork board 60x40, 850W power supply), a presentation clicker "for MacBook" (no such listing).
+
+## Family 4: Sports & Outdoors (41 sub-categories) and Home & Living (60), 202 searches
+Before: OK 89%, weak 10%, miss 1%, 72 right 76%, best-4 sales 3.86M. After: OK 89%, weak 10%, miss 1%, 72 right 77%,
+best-4 sales 4.20M (+9%). Sports 85% -> 85% (sales +10%); Home 92% -> 92%.
+Four searches looked worse in the first after run (orange cones, olive cushions, black frame 30x40, round tablecloth
+150); rerun back to back twice they are identical both ways: the SKU checks time out when several runs share
+AliExpress's call limit. Results from parallel runs are rechecked this way before any conclusion.
+
+Bot fixes:
+1. The item noun drops a size ("knee brace size L" named "size"). bot.js itemNoun. Knee brace: 58 -> 65 of the 72 right.
+2. "מדחום" (thermometer) named no brown: format.js askedColor could add "comes in brown too". The check had the same
+   slip (two thermometer searches looked like misses); both fixed.
+
+Left weak, by hand: exact sizes sellers don't title (snowboard 150cm, girls' sportswear 128, furniture cover 200x150,
+fire pit 60cm, 30L aquarium), rare colors (orange camping lantern, beige bedding set, blue horse rug), small markets
+(bowling shoes, horse helmets, judo gi, beekeeping suits, a sauna suit XL, a kids' Hanukkah menorah).

@@ -1555,6 +1555,10 @@ test("item first in the judges' pool: the item noun from the English words", () 
   assert.equal(itemNoun("Tesla accessories"), null, "a general request: no reordering");
   assert.equal(itemNoun("women modest two piece set"), null);
   assert.equal(itemNoun("women black abaya"), "abaya");
+  // Family 4 (2026-11-07): "knee brace size L" took "size" as the item, and real braces went last.
+  assert.equal(itemNoun("knee brace size L"), "brace");
+  assert.equal(itemNoun("ski pants size L"), "pants");
+  assert.equal(itemNoun("men shoes size 43"), "shoes");
   assert.equal(namesItemEn("Kitchen Garlic Press Crusher Stainless", "press"), true);
   assert.equal(namesItemEn("Silicone Strap for Smart Watch", "watch"), false, "an accessory for the item");
   assert.equal(namesItemEn("Garlic Grater Ceramic", "press"), false);

@@ -287,7 +287,8 @@ const NOT_NOUN = /^(?:\d.*|black|white|red|blue|green|pink|purple|yellow|grey|gr
 // A general request names no item: "Tesla accessories" (every Tesla product titled "for Tesla" would go last).
 const GENERIC = /^(?:accessories|accessory|parts|supplies|products|gadgets?|equipment|stuff|items)$/i;
 export function itemNoun(keywords) {
-  const noun = (keywords ?? "").toLowerCase().split(/\s+/).filter((w) => w && !NOT_NOUN.test(w)).pop() ?? null;
+  // A size is a variant, not the item: "knee brace size L" named "size" (family 4, 2026-11-07).
+  const noun = (keywords ?? "").toLowerCase().replace(/\bsize\s+\S+/g, " ").split(/\s+/).filter((w) => w && !NOT_NOUN.test(w)).pop() ?? null;
   return noun && !GENERIC.test(noun) ? noun : null;
 }
 export function namesItemEn(title, noun) {
