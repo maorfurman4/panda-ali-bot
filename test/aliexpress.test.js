@@ -116,6 +116,9 @@ test("searchProducts live: requests IL/ILS/HE sorted by orders and reads both pr
   assert.equal(sent.sort, "LAST_VOLUME_DESC");
   assert.equal(sent.tracking_id, "panda_bot");
   assert.equal(sent.min_sale_price, undefined, "no range: no price params");
+  // AliExpress finds nothing when the words hold "%" ("mechanical keyboard 75%": 0, without it 50; 2026-11-07).
+  await searchProducts("mechanical keyboard 75%", { fetch, env: LIVE_ENV });
+  assert.equal(sent.keywords, "mechanical keyboard 75");
 
   await searchProducts("earbuds", { fetch, env: LIVE_ENV, minIls: 80, maxIls: 150.5 });
   assert.equal(sent.min_sale_price, "8000", "shekels -> agorot");

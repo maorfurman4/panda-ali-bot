@@ -64,7 +64,7 @@ export async function searchProducts(query, deps = {}) {
   const ask = () => apiCall(
     "aliexpress.affiliate.product.query",
     {
-      keywords: query,
+      keywords: query.replace(/\s*%/g, ""), // "mechanical keyboard 75%" finds nothing, "... 75" 50 (2026-11-07)
       tracking_id: env.ALI_TRACKING_ID,
       ship_to_country: "IL",
       target_currency: "ILS",

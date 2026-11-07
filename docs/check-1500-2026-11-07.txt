@@ -1,0 +1,56 @@
+# 1,500-search check, 2026-11-07 (free; 33 categories, 46 each, 1,512 after 6 cross-list repeats; none checked before)
+# Method as the 1,000 check (run1500.mjs): the real free pipeline, paid AI stubbed (the reading = the English given or the
+# first slang wording; judges keep all), a strict automatic judge on the Hebrew titles; plus the brand step (a brand found
+# in the English is passed as the shopper's brand).
+# Automatic: OK 1,052 (70%), SOLD 201, MISS 259, FAKE 3. Free pipeline: median 1.2 s, 90% under 2.1 s.
+# The 259 misses by hand: ~161 right items the automatic judge missed (Hebrew titles name them another way: "מטען נייד"
+#   for a power bank, "מגרדת שום" for a garlic press), ~40 the check's own errors (odd Hebrew from the list writer, vague
+#   gifts, a conditional slang hint taken word for word: "תווית למזוודה" -> kids suitcases; the bot gives the AI these hints
+#   with their condition), 23 not on AliExpress (Zara, CK, Alpinestars, Dainese, Aldo, Lacoste, Dr. Martens, tehillim,
+#   kids tallit, car-specific filters and pads), ~34 wrong items, 1 bug.
+# Bug: a "%" in the search words returns nothing ("mechanical keyboard 75%" 0, "... 75" 50; "100% cotton t shirt" 0).
+#   Fixed in aliexpress.js (the sign is dropped).
+# Estimate: right item and selling ~82%, right item at all ~96%, wrong ~2.3%, not on AliExpress ~1.6%.
+# The judges' pool: 104,032 products; the strict check calls 43% right. By hand, 37 of 80 products it rejected (drawn from
+#   each pool's 6 best sellers) were the right item, so about 60-67% of the 72 are the right item and a third is
+#   junk (other items, accessories "for" the item, another color or size) for the judges to drop.
+# Weakest by nature: Books & Culture (Judaica, books barely sold), Furniture (big items sell few), Kitchen and Home
+#   Appliances (appliances sell tens, not thousands), Shoes and Luggage (brands).
+# Wording retests (free, English titles, 30 wrong-looking misses): most old wordings already found the item (the miss was
+#   the Hebrew-title check); clear wins only for "women pant suit two piece" (4 -> 45 of 50), "3.5mm audio cable with
+#   microphone" (11 -> 38), "glass cutter tool diamond" (8 -> 25). Not added: the real reading writes its own English.
+#
+right & selling ~1213/1472 (82%), right item ~1414/1472 (96%), wrong 34 (2.3%), not on AliExpress 23
+Consumer Electronics     right&selling  87% · right item  96% · wrong 1 · absent 1 · pool right 48%
+Phones & Accessories     right&selling  93% · right item  96% · wrong 1 · absent 0 · pool right 51%
+Computer & Office        right&selling  82% · right item  98% · wrong 0 · absent 1 · pool right 40%
+Home Appliances          right&selling  75% · right item 100% · wrong 0 · absent 0 · pool right 46%
+Home & Garden            right&selling  87% · right item  96% · wrong 2 · absent 0 · pool right 37%
+Home Improvement         right&selling  91% · right item  95% · wrong 2 · absent 0 · pool right 40%
+Tools                    right&selling  91% · right item  96% · wrong 2 · absent 0 · pool right 40%
+Lights & Lighting        right&selling  78% · right item  96% · wrong 2 · absent 0 · pool right 38%
+Furniture                right&selling  53% · right item  96% · wrong 1 · absent 1 · pool right 43%
+Security & Protection    right&selling  93% · right item 100% · wrong 0 · absent 0 · pool right 48%
+Automobiles              right&selling  89% · right item  96% · wrong 1 · absent 1 · pool right 35%
+Motorcycle               right&selling  82% · right item  89% · wrong 2 · absent 3 · pool right 36%
+Sports & Entertainment   right&selling  78% · right item  96% · wrong 1 · absent 1 · pool right 42%
+Sports Clothing & Shoes  right&selling  83% · right item  98% · wrong 0 · absent 1 · pool right 62%
+Shoes                    right&selling  72% · right item  96% · wrong 0 · absent 2 · pool right 55%
+Women's Clothing         right&selling  82% · right item  91% · wrong 2 · absent 2 · pool right 39%
+Men's Clothing           right&selling  88% · right item  93% · wrong 0 · absent 3 · pool right 48%
+Underwear                right&selling  89% · right item  98% · wrong 0 · absent 1 · pool right 50%
+Apparel Accessories      right&selling  91% · right item  95% · wrong 2 · absent 0 · pool right 48%
+Jewelry                  right&selling  96% · right item 100% · wrong 0 · absent 0 · pool right 49%
+Watches                  right&selling  95% · right item 100% · wrong 0 · absent 0 · pool right 54%
+Luggage & Bags           right&selling  74% · right item  95% · wrong 1 · absent 1 · pool right 53%
+Beauty & Health          right&selling  78% · right item  96% · wrong 2 · absent 0 · pool right 37%
+Hair & Wigs              right&selling  89% · right item 100% · wrong 0 · absent 0 · pool right 32%
+Mother & Kids            right&selling  78% · right item  98% · wrong 1 · absent 0 · pool right 47%
+Toys & Hobbies           right&selling  80% · right item  91% · wrong 3 · absent 1 · pool right 40%
+Office & School          right&selling  93% · right item 100% · wrong 0 · absent 0 · pool right 50%
+Weddings & Events        right&selling  73% · right item  93% · wrong 3 · absent 0 · pool right 35%
+Novelty & Gifts          right&selling  76% · right item 100% · wrong 0 · absent 0 · pool right 45%
+Electronic Components    right&selling  93% · right item  96% · wrong 1 · absent 1 · pool right 31%
+Kitchen                  right&selling  70% · right item 100% · wrong 0 · absent 0 · pool right 39%
+Food                     right&selling  91% · right item  98% · wrong 1 · absent 0 · pool right 34%
+Books & Culture          right&selling  47% · right item  87% · wrong 3 · absent 3 · pool right 37%
