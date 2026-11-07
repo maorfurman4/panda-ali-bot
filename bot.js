@@ -431,6 +431,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     if (cands.length) trace.push(`צבע: ${cands.length} נבדקו, ${byVariant} לפי וריאציות (${variants.size} ענו), ${found.size - byVariant}/${toPicker.length} לפי תמונות`);
     return found;
   };
+  const en = new Map(); // the sellers' English titles of the main words' lists (filled on live searches)
   if (live) {
     // Every list (the main words' best sellers, page 2, relevance order and category lists; each other wording; the broader
     // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
@@ -440,7 +441,6 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // out of the pool ("מעמד טלפון לרכב של Baseus": 8 Baseus holders came back, none reached the AI, 2026-11-02).
     const named = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
     const brandFirst = (l) => (typeof brandOnly === "string" ? [...l.filter(named), ...l.filter((p) => !named(p))] : l);
-    const en = new Map();
     for (const r of await enTitles) if (r.status === "fulfilled") for (const p of r.value) en.set(keyOf(p), p.product_title ?? "");
     const off = (p) => en.has(keyOf(p)) && !namesItemEn(en.get(keyOf(p)), noun); // English title known and not the item
     const itemFirst = (l) => (en.size ? [...l.filter((p) => !off(p)), ...l.filter(off)] : l);
@@ -738,7 +738,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   if (hash && (banners.size || shown.some((p) => p.colorPick))) shown = await dedupeByPhoto(shown, hash);
   shown = sellerFirst(shown, limit); // one moved up when the photo check dropped the leader
   // A fake that would have led was moved down: every returned product carries it, so the card (and "עוד") can say why.
-  const out = shown.slice(0, limit + extra);
+  // The seller's English title goes with each product: the Hebrew machine translation drops or garbles model names ("for
+  // Toyota Prius Camry Corolla C-HR" came as "פריוס camry C-HR", "Corolla" as "קולולה"; owner's test, 2026-11-07).
+  const out = shown.slice(0, limit + extra).map((p) => (en.has(keyOf(p)) ? { ...p, title_en: en.get(keyOf(p)) } : p));
   const moved = ranked.find((p) => p.fakeMoved);
   return Object.assign(moved ? out.map((p) => ({ ...p, fakesSkipped: fakeExample(moved.product_title) })) : out, { trace });
 }

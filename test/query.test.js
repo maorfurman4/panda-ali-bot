@@ -753,3 +753,14 @@ test("slangHints: wordings from the 500-search check (2026-11-06)", async () => 
   has("פס שקעים עם USB", /eu power strip/);
   has("רסברי פאי 5", /raspberry pi 5 board/);
 });
+
+test("short names on a car or device search read the seller's English title, which keeps the model names", async () => {
+  // A Corolla key case was named "לפריוס": the Hebrew translation dropped "Corolla" (owner's test, 2026-11-07).
+  const products = [{ product_title: "מעטפת מפתח עבור טויוטה פריוס camry C-HR", title_en: "Car Key Case For Toyota Prius Camry Corolla C-HR RAV4" }];
+  const car = openai({ names: [{ i: 0, name: "כיסוי מפתח לקורולה" }] });
+  await createTitler({ fetch: car.fetch, env: ENV })("כיסוי למפתח של קורולה", products);
+  assert.match(JSON.stringify(car.requests[0]), /Prius Camry Corolla/);
+  const plain = openai({ names: [{ i: 0, name: "כיסוי מפתח" }] });
+  await createTitler({ fetch: plain.fetch, env: ENV })("כיסוי למפתח", products);
+  assert.doesNotMatch(JSON.stringify(plain.requests[0]), /Corolla/, "other searches keep the Hebrew title");
+});

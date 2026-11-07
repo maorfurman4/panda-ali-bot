@@ -2009,3 +2009,11 @@ test("a car's year: a listing for other years only goes after the ones that fit,
   const ids = shownIds(ctx.sent()[0]);
   assert.ok(ids.indexOf("1") > ids.indexOf("2") && ids.indexOf("1") > ids.indexOf("3"), `2019-2024 last: ${ids}`);
 });
+
+test("each product carries the seller's English title, for the card's model names", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const he = [product(1, { lastest_volume: "900", product_title: "מעטפת מפתח עבור טויוטה פריוס" })];
+  const en = [product(1, { lastest_volume: "900", product_title: "Car Key Case For Toyota Prius Corolla" })];
+  const out = await pickProducts({ search: async (_q, o = {}) => (o.lang === "EN" ? en : he), relevant: async (_r, p) => ({ exact: p, partial: [] }), live: true }, { keywords: "Toyota Corolla key case", context: "כיסוי למפתח של קורולה", limit: 4, extra: 0 });
+  assert.equal(out[0].title_en, "Car Key Case For Toyota Prius Corolla");
+});

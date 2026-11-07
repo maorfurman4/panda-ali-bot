@@ -954,7 +954,11 @@ export function createTitler({ fetch = globalThis.fetch, env = process.env, onUs
   const warn = (reason) => stats.failure("ai", reason) || console.warn(`AI titler failed (${reason}); showing seller titles`);
   return async function shortTitles(request, products) {
     if (!products.length || !env.OPENAI_API_KEY) return null;
-    const content = `Request: "${clean(request, 80)}"\nProducts:\n${products.map((p, i) => `${i}. ${priceOf(p) ? `₪${priceOf(p)} ` : ""}${clean(p.product_title, 160)}`).join("\n")}`;
+    // A device or car search: the seller's English title, whole, which keeps the model names the Hebrew translation loses
+    // (a Corolla key case was named "לפריוס" and "ל-C-HR": the Hebrew titles had no "קורולה"; owner's test, 2026-11-07).
+    const device = namesModel(request);
+    const titleOf = (p) => (device && p.title_en ? clean(p.title_en, 250) : clean(p.product_title, 160));
+    const content = `Request: "${clean(request, 80)}"\nProducts:\n${products.map((p, i) => `${i}. ${priceOf(p) ? `₪${priceOf(p)} ` : ""}${titleOf(p)}`).join("\n")}`;
     const once = async () => {
       const out = await requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions: TITLE_SYSTEM, content, name: "short_titles", schema: TITLE_SCHEMA, onUsage });
       const names = products.map(() => null);
