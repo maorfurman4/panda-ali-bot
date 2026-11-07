@@ -134,10 +134,10 @@ export function colorAlsoLine(request = "") {
 }
 // The shopper's color in the English names sellers give variants (SKU API). "Wine Red" is burgundy, not red.
 const VARIANT_EN = {
-  שחור: /\bblack\b/i, לבן: /\bwhite\b/i, אדום: /^(?!.*(?:wine|burgundy|claret)).*\bred\b/i, בורדו: /burgundy|\bwine\b|claret|maroon|bordeaux/i,
-  נייבי: /\bnavy\b|dark\s*blue/i, כחול: /\bblue\b|\bnavy\b/i, תכלת: /(?:light|sky|baby)\s*blue/i, ירוק: /\bgreen\b/i, צהוב: /\byellow\b/i,
-  ורוד: /\bpink\b/i, סגול: /purple|violet|lavender/i, חום: /\bbrown\b|coffee|camel/i, "בז'": /beige|apricot|khaki/i,
-  ניוד: /\bnude\b|beige|apricot|\bskin\b/i, חאקי: /khaki/i, אפור: /\bgr[ae]y\b/i, כתום: /\borange\b/i, כסוף: /silver/i, זהב: /\bgold(?:en)?\b/i,
+  שחור: /\bblack\b/i, לבן: /\bwhite\b/i, אדום: /^(?!.*(?:wine|burgundy|claret)).*\bred\b/i, בורדו: /burgundy|\bwine\b|wine\s?red|claret|maroon|bordeaux/i,
+  נייבי: /\bnavy\b|dark\s*blue/i, כחול: /\bblue\b|\bnavy\b/i, תכלת: /(?:light|sky|baby)\s*blue/i, ירוק: /\bgreen\b|\bolive\b|\bmint\b|avocado|\bsage\b/i, צהוב: /\byellow\b/i,
+  ורוד: /\bpink\b/i, סגול: /purple|violet|lavender/i, חום: /\bbrown\b|coffee|camel/i, "בז'": /beige|apricot|khaki|champagne/i,
+  ניוד: /\bnude\b|beige|apricot|\bskin\b/i, חאקי: /khaki|army\s?green/i, אפור: /\bgr[ae]y\b/i, כתום: /\borange\b/i, כסוף: /silver|(?<!black[\s-]?)chrome|stainless|nickel/i, זהב: /\bgold(?:en)?\b/i,
 };
 const CODE = /^[A-Z]\d?$|^\d+$|colou?r\s*\d/i;
 const SKU_CAP = 20; // the API returns at most 20 variants

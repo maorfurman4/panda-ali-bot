@@ -782,3 +782,15 @@ test("fakeCapacity: a car socket panel with a voltmeter sums its ports' watts; i
   assert.equal(fakeCapacity("96w כפול pd qc3.0 USB מטען motobike עם מתאם שקע מתח", "11.09"), false);
   assert.equal(fakeCapacity("מטען רכב USB PD 250W טעינה מהירה סוג C מתאם טלפון", "18.31"), true, "a plain 250W car charger at ₪18 still is");
 });
+
+test("colorVariant: more of the names sellers give the asked color", async () => {
+  // Free check of 31 color searches (2026-11-07): listings shown in the asked color 90 -> 112 of 616.
+  const { colorVariant } = await import("../format.js");
+  const vs = (...names) => names.map((c, i) => ({ skuId: String(i + 1), color: c }));
+  assert.equal(colorVariant(vs("Black", "WineRed"), "פיג'מה בורדו").variant.color, "WineRed");
+  assert.equal(colorVariant(vs("Blue", "Army Green"), "פונצ'ו חאקי").variant.color, "Army Green");
+  assert.equal(colorVariant(vs("Pink", "Champagne"), "עבאיה בז'").variant.color, "Champagne");
+  assert.equal(colorVariant(vs("Black", "Chrome"), "ברז כסוף").variant.color, "Chrome");
+  assert.equal(colorVariant(vs("touch-black-chrome"), "ברז כסוף").variant, null, "black chrome is black");
+  assert.equal(colorVariant(vs("Red", "Olive"), "מעיל ירוק").variant.color, "Olive");
+});
