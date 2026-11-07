@@ -45,3 +45,11 @@ What is left, and why (by hand):
 - Modest/traditional wear (abaya, modest sets, prayer dress, burkini): right items, low sales. Market.
 - GPS navigators: phones replaced them; the best sells 480. Market.
 - Brands absent from AliExpress (Shein, Zara, Meguiar's, Motul, Sparco, North Face): the fallback brings the plain item.
+
+Colors measured with the SKU API (the check now reads every pool candidate's variants, as the live bot does), the 56
+color searches of family 1:
+- title only (as first measured): OK 55%, weak 38%, miss 7%, 72 right 35%
+- with variants, before the fixes:  OK 82%, weak 16%, miss 2%, 72 right 51%
+- with variants, after the fixes:   OK 84%, weak 14%, miss 2%, 72 right 57%
+Still weak: burgundy pajamas/swimsuit, khaki poncho, mint bridesmaid dress, beige abaya, black burkini, white prayer
+garment, olive modest set, black Tesla Model 3 mats: few sellers or low sales in that color.
