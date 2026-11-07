@@ -647,6 +647,9 @@ export const OVER_BUDGET_NOTE = "קצת מעל התקציב";
 // (BYD Atto 3, Seagull, MG..., 2026-11-05).
 const DEVICES = /(?:אייפון|iphone|גלקסי|galaxy|סמסונג|samsung|שיאומי|xiaomi|רדמי|redmi|פיקסל|pixel|וואווי|huawei|אייפד|ipad|אפל\s?ווטש|apple\s?watch|שעון\s?אפל|איירפודס|airpods|מקבוק|macbook|טויוטה|toyota|קורולה|corolla|מאזדה|mazda|יונדאי|hyundai|קיה|kia|טסלה|tesla|סקודה|skoda|פולקסווגן|volkswagen|ניסאן|nissan|הונדה|honda|שברולט|chevrolet|סובארו|subaru|מיצובישי|mitsubishi|פיג'ו|peugeot|רנו|renault|סוזוקי|suzuki|מרצדס|mercedes|אאודי|audi|פורד|ford|bmw|ב\.?מ\.?וו|byd|בי ?וואי ?די|ביי ?די|אטו ?3|atto ?3|סיגל|seagull|דולפין|dolphin|יואן|yuan|ג'יקו|jaecoo|אומודה|omoda|צ'רי|chery|טיגו|tiggo|ג'ילי|geely|זיקר|zeekr|אקספנג|xpeng|\bmg\b|אם ג'י)/;
 export const namesModel = (text = "") => new RegExp(`(?:(?<![א-ת])ל(?:-|\\s)?|של\\s+|\\bfor\\s+)${DEVICES.source}`, "i").test(text); // "ל-BYD" too
+// The car or device a part is for isn't the part's brand: "מגב לטויוטה קורולה" read Toyota as the brand and said "מצאתי
+// מעט מוצרים של המותג שביקשתם" (owner's test, 2026-11-07).
+export const fitsDevice = (text = "", brand = "") => namesModel(text) && new RegExp(DEVICES.source, "i").test(brand);
 export const MODELS_NOTE = "📱 רוב המוצרים מגיעים לכמה דגמים: בדף המוצר בחרו את הדגם שלכם";
 export const COLORS_NOTE = "🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם";
 // A brand search with few items of the brand: other brands fill the card, and the card says so (owner: always 4, 2026-11-03).

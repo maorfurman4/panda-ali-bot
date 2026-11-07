@@ -22,6 +22,7 @@ import {
   notForShabbat,
   colorVariant,
   specOf,
+  fitsDevice,
   ageSpec,
   hasSpec,
   sizeVariant,
@@ -371,6 +372,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // for "מטהר אוויר לרכב", 2026-10-30/31). ONE AI call then judges the pool.
   // The trusted brands the AI names for the item are searched as "<brand> <item>" too (free): Baseus and Ugreen car chargers
   // weren't in a pool led by ₪5 no-name ones (2026-11-01).
+  if (typeof brandOnly === "string" && fitsDevice(context, brandOnly)) brandOnly = false; // a part for a Toyota isn't a Toyota
   const brandWords = new Set(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`));
   const shortModel = brandModel(brandOnly, keywords);
   const wordings = live ? [...new Set([shortModel, ...brandWordings(brandOnly, keywords), alt, ...terms, ...brandWords].filter((t) => t && t !== keywords))] : [];
