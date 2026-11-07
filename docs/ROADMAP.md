@@ -57,6 +57,8 @@ Updated 2026-11-05. ✅ done · ⬜ next.
 
 11. ✅ **Brand study, 2026-11-06** (`docs/brands-study-2026-11-06.txt`: 1,002 free searches over 80 brands). Original Nike/Adidas/NB sneakers barely sell on AliExpress; best sellers often carry the model without the brand (F91W, Wayfarer). A brand-and-model request now also searches "model kind" and "brand kind".
 
+12. ✅ **Site-category check, 2026-11-07** (`docs/site-check-2026-11-07.md`: 24 categories and 869 sub-categories from AliExpress's own menu, 1,735 free searches, before and after per family): OK 86% (plain 95%, colors 84%, brands 90%); 12 fixes, among them item first in the 72 and sizes from the variants. Open: kids' sizes in Telegram, a question for model-specific parts ("for which car?"), the 18 wrong-item searches of the 1,000 check, the fake-charger false alarm.
+
 ## Rules for every change
 - One change at a time. Free checks before every upload:
   - unit tests

@@ -139,3 +139,31 @@ nothing; the live reading's fallback is the plain item), a red babydoll (dolls c
   Kids' European sizes (116, 98, 74) looked like misses: the check wanted "116" in the title; sellers list 5-6Y, 6T or
   120. Read as the bot now reads them (next fix), the 11 kids' size searches are 91% OK both before and after; the fix
   matters on the card: a listing that has the size counts as exact and its link opens that size.
+
+## Family 12: Business, Industry & Science (38) and Books & Media (3), 82 searches
+OK 83% -> 83%. Industry 82%, Books 100%. Left weak: workshop furniture and big machines (workbenches, shelving racks,
+concrete mixers, three-phase motors: tens sold), Siemens LOGO and Intel NUC (few listings), a 38x38 heat press by size.
+
+## All 12 families (1,735 searches, 869 sub-categories, 24 categories)
+Before = the bot live this morning (item first already in it). After = all fixes of the day.
+- OK 86% -> 86%, weak 11% -> 11%, miss 3% -> 3%; 72 right 74% -> 75%; best-4 sales 37.97M -> 38.59M (+1.6%).
+- By kind (OK): plain 95% -> 95%, color 83% -> 84%, brand 90% -> 90%, size 61% -> 62%, kids 74% -> 74%, fits 59% -> 59%,
+  slang 97%, accessory 100%. 13 searches better, 3 worse in the totals; every worse one rerun back to back was the same.
+- The day's bigger step came before this check: item first in the 72 (79% -> 94% of the 72 naming the item, 1,784
+  searches over 446 sub-categories, right items with 100+ sales +13%).
+- Fashion gained most from the family fixes: women's clothing 72 right 63% -> 72%, men's 70% -> 83%.
+
+Fixes of the day (all with unit tests): "%" dropped from the search words; item first in the 72; item first in style
+searches too; the item noun skips "assembly", a size, a bare letter size; a general request ("accessories") isn't
+reordered; a size or spec read from the variants (SKU), the link opening that size; kids' European sizes read as ages
+and heights; "מדחום" names no brown; a size chart or parameter table counts as an ad photo.
+
+What AliExpress search taught (for the next checks):
+- The sellers' English titles are the truth; the Hebrew ones are machine-translated (a garlic press is "מגרדת שום").
+- Sorted by sales, AliExpress mixes in big sellers that only touch the words: the item named first is the fix.
+- Colors and sizes live in the variants, not the titles: read them (SKU API) before calling a listing "close".
+- Kids' sizes are ages (5-6Y, 6T) or round heights (120), never the European 116.
+- Big brands' originals sell little; the model code without the brand sells far more (F91W, Classic Wayfarer).
+- Long, exact searches ("dirndl dress M", "cash box a4 lock") find nothing: the core item as a second search saves them.
+- Market limits, not the bot: parts for one car, phone or bike model; big appliances and furniture; Judaica; phones;
+  sex toys and condoms (absent from the partner search); brands not sold there (Zara, Shein, Dr. Martens, Levi's 501).
