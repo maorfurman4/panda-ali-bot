@@ -272,7 +272,24 @@ export function brandWordings(brand, keywords) {
 // fewer, every list still in (owner, 2026-11-03).
 const POOL_EACH = 3;
 const PER_LIST = 0.15;
-export function strongPool(lists, size, keyOf = (p) => p.product_id ?? p.promotion_link) {
+
+// Item first (1,500 check, 2026-11-07, 152 searches): sorted by sales, AliExpress mixes in big sellers that only touch the
+// words (graters for "garlic press", straps for "smart watch"); 81% of the 72 named the item in their English title. Those
+// that do go first, an accessory "for" the item last: 97% with page 3, 100+-sold right items +12%. The Hebrew titles are
+// machine-translated, so the English ones (same products, same order) are asked for alongside.
+// shortcut: the noun is the last word of the English search that isn't a color, size, material or such; an AI field
+// naming the item would be exact, if this guess misfires in Telegram.
+const NOT_NOUN = /^(?:\d.*|black|white|red|blue|green|pink|purple|yellow|grey|gray|beige|brown|gold|golden|silver|navy|burgundy|small|large|mini|big|men|mens|women|womens|kids|girls|boys|baby|portable|slim|heavy|duty|electric|manual|wireless|led|smart|professional|adjustable|foldable|waterproof|elegant|summer|winter|long|short|set|kit|cm|mm|ml|l|kg|inch|xl|xxl|3xl|gift|cordless|rechargeable|stainless|steel|wooden|silicone|leather|cotton|plastic|metal|natural|cute|funny|retro|vintage|outdoor|home|car|usb|pro|max|plus|in|with|for|and|two|three|piece|pieces|pcs)$/i;
+export function itemNoun(keywords) {
+  return (keywords ?? "").toLowerCase().split(/\s+/).filter((w) => w && !NOT_NOUN.test(w)).pop() ?? null;
+}
+export function namesItemEn(title, noun) {
+  const at = title.search(new RegExp(`\\b${noun.replace(/(?:es|s)$/, "").replace(/[^a-z0-9]/g, ".")}`, "i"));
+  const forAt = title.search(/\b(?:for|compatible with|fits?|replacement)\b/i);
+  return at >= 0 && (forAt < 0 || at < forAt);
+}
+
+export function strongPool(lists, size, keyOf = (p) => p.product_id ?? p.promotion_link, late = () => false) {
   const head = [], seen = new Set();
   for (let i = 0; i < POOL_EACH && head.length < size; i++) {
     for (const l of lists) if (l[i] && !seen.has(keyOf(l[i])) && head.length < size) seen.add(keyOf(l[i])) && head.push(l[i]);
@@ -283,7 +300,7 @@ export function strongPool(lists, size, keyOf = (p) => p.product_id ?? p.promoti
     if (!seen.has(keyOf(p)) && !rest.has(keyOf(p))) rest.set(keyOf(p), p);
   }
   const weight = (p) => strength(p) * (1 + PER_LIST * (count.get(keyOf(p)) - 1));
-  return head.concat([...rest.values()].sort((a, b) => weight(b) - weight(a)).slice(0, size - head.length));
+  return head.concat([...rest.values()].sort((a, b) => late(a) - late(b) || weight(b) - weight(a)).slice(0, size - head.length));
 }
 
 // Every advisor button should lead to a strong card (owner, 2026-11-02). Each kind option is looked up on AliExpress: one
@@ -318,7 +335,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // them dresses, so only style searches keep them.
   const byDefault = style ? [{ sort: "relevance" }] : [];
   const inCategory = category ? [{ category }, ...(style ? [{ category, sort: "relevance" }] : [])] : [];
-  const LISTS = live ? [{}, { page: 2 }, ...byDefault, ...inCategory] : [{}];
+  const noun = live && !style ? itemNoun(keywords) : null;
+  const LISTS = live ? [{}, { page: 2 }, ...(noun ? [{ page: 3 }] : []), ...byDefault, ...inCategory] : [{}];
   // Each list ranked on its own (best sellers first), then lists mixed in turn: every list's top items get in.
   // Up to 10% over the budget is fine (owner, 2026-11-02): such a product says so on its card, at most one per card.
   const cap = maxPriceIls ? maxPriceIls * OVER_BUDGET : null;
@@ -348,6 +366,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const plain = live && namesLook(context) && withoutColor(keywords) !== keywords && withoutColor(keywords) ? withoutColor(keywords) : null;
   // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
   // no second ask, which would only wait 1.2 s.
+  // The main words' pages with English titles, asked alongside (item first, see itemNoun); a failed ask skips the reordering.
+  const enTitles = noun ? Promise.allSettled([{}, { page: 2 }, { page: 3 }].map((v) => search(keywords, { minIls: minPriceIls, maxIls: cap, shorten: false, lang: "EN", askAgain: false, ...v }))) : Promise.resolve([]);
   const [main, wide, wideColor, ...reworded] = await Promise.allSettled([fetchLists(keywords, LISTS), broader ? fetchLists(fallback, [{}]) : Promise.resolve([]), plain ? fetchLists(plain, LISTS) : Promise.resolve([]), ...wordings.map((t) => fetchLists(t, [brandWords.has(t) ? { askAgain: false } : {}]))]);
   // The search fails only when every list failed: with AliExpress slow, the main words timed out at 10 s while other
   // wordings had come back, and the shopper got "תקלה בחיבור" (owner, 2026-11-03).
@@ -405,8 +425,12 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // out of the pool ("מעמד טלפון לרכב של Baseus": 8 Baseus holders came back, none reached the AI, 2026-11-02).
     const named = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
     const brandFirst = (l) => (typeof brandOnly === "string" ? [...l.filter(named), ...l.filter((p) => !named(p))] : l);
-    const lists = [...mainLists, ...otherLists].map(brandFirst);
-    const pool = style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf); // style searches as approved
+    const en = new Map();
+    for (const r of await enTitles) if (r.status === "fulfilled") for (const p of r.value) en.set(keyOf(p), p.product_title ?? "");
+    const off = (p) => en.has(keyOf(p)) && !namesItemEn(en.get(keyOf(p)), noun); // English title known and not the item
+    const itemFirst = (l) => (en.size ? [...l.filter((p) => !off(p)), ...l.filter(off)] : l);
+    const lists = [...mainLists, ...otherLists].map(itemFirst).map(brandFirst);
+    const pool = style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf, off); // style searches as approved
     // steady: the same verdict every time (temperature 0), on non-style searches only.
     const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();

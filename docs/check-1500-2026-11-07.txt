@@ -54,3 +54,10 @@ Electronic Components    right&selling  93% · right item  96% · wrong 1 · abs
 Kitchen                  right&selling  70% · right item 100% · wrong 0 · absent 0 · pool right 39%
 Food                     right&selling  91% · right item  98% · wrong 1 · absent 0 · pool right 34%
 Books & Culture          right&selling  47% · right item  87% · wrong 3 · absent 3 · pool right 37%
+
+# Item first in the judges' 72 (bot.js itemNoun / namesItemEn), checked free on 152 of the 1,500 (every 10th):
+#   the main words' pages 1-3 are also asked for with English titles (same products, same order); products whose
+#   English title names the item go first in each list and in the strongest-of-all part, an accessory "for" it last.
+#   Before: 81% of the pool named the item; after: 95%. Right items with 100+ sales 5,587 -> 6,218 (+11%).
+#   122 searches more right, 0 fewer, 30 the same; no search's 10 best right sellers dropped. Free pipeline time
+#   median 1.3 -> 1.4 s, 90% 2.0 -> 2.3 s. Style (fashion) searches unchanged. AI cost unchanged (still 72).

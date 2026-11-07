@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setup, textUpdate, callbackUpdate } from "./helpers.js";
-import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, brandWordings, styleFloor, withoutColor, medalsBySales, orderCard } from "../bot.js";
+import { parseTrigger, isSoftRequest, startsWithSearchVerb, dedupeByPhoto, checkOptions, strongPool, brandModel, brandWordings, itemNoun, namesItemEn, styleFloor, withoutColor, medalsBySales, orderCard } from "../bot.js";
 import { RLM, EMPTY_QUERY, NO_RESULTS, SEARCH_ERROR, LINK_ERROR, HELP, PRIVATE_INVITE, NOT_PRODUCT, NOT_ALLOWED, OFF_TOPIC, SEARCHING, guideText, CLOSEST_NOTE, LINK_HELP, NO_FOOD, NO_ADULT, HOW_TO_SEARCH } from "../format.js";
 
 const product = (n, over = {}) => ({
@@ -989,13 +989,13 @@ test("the same search within 24 hours reuses the products: no new AliExpress or 
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 1 }));
   t += 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 2 }));
-  assert.deepEqual([searches, checks, ctx.sent().length], [2, 1, 2], "2 AliExpress lists once, then memory");
+  assert.deepEqual([searches, checks, ctx.sent().length], [6, 1, 2], "6 AliExpress lists once (pages 1-3, and their English titles), then memory");
   t += 22 * 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 3 }));
-  assert.deepEqual([searches, checks], [2, 1], "still memory after 23 hours");
+  assert.deepEqual([searches, checks], [6, 1], "still memory after 23 hours");
   t += 2 * 60 * 60_000;
   await ctx.bot.handleUpdate(textUpdate("חפש לי אוזניות", { userId: 4 }));
-  assert.deepEqual([searches, checks], [4, 2], "expired after 24 hours");
+  assert.deepEqual([searches, checks], [12, 2], "expired after 24 hours");
 });
 
 test("advisor: a tap within 1.5 s of the question changing is ignored (the second tap of a double tap)", async () => {
@@ -1185,7 +1185,7 @@ test("live search: best sellers and page 2 for the main words; a style search ad
     await ctx.bot.handleUpdate(textUpdate("חפש לי משהו"));
     return { seen: seen.map(String).sort(), checked: checked.sort() };
   };
-  assert.deepEqual(await run(false), { seen: ["2", "p1"], checked: ["1", "5"] }, "the default order isn't relevance (EV chargers for 'fast charger', 2026-11-02)");
+  assert.deepEqual(await run(false), { seen: ["2", "2", "3", "3", "p1", "p1"], checked: ["1", "5"] }, "the default order isn't relevance (EV chargers for 'fast charger', 2026-11-02)");
   const styled = await run(true);
   assert.deepEqual(styled.seen, ["2", "p1", "relevance"]);
   assert.ok(styled.checked.includes("9"), "a style search: the default-order item reaches the AI even with 3 sales");
@@ -1197,7 +1197,7 @@ test("with the AI's main category, two more lists search inside it; without a ca
   const checked = [];
   const ctx = setup({ search, live: true, understand: async () => intent({ category_id: 6 }), relevant: async (_r, p) => (checked.push(...p.map((x) => x.promotion_link.at(-1))), { exact: p, partial: [] }) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מיקרוגל"));
-  assert.deepEqual(seen.sort(), ["-/2", "-/vol", "6/vol"]);
+  assert.deepEqual(seen.sort(), ["-/2", "-/2", "-/3", "-/3", "-/vol", "-/vol", "6/vol"]); // pages 1-3 and their English titles
   assert.ok(checked.includes("7"), "items found only inside the category reach the AI");
 });
 
@@ -1542,6 +1542,31 @@ test("judge pool: the top 3 of every list, then the strongest of all lists, prod
   const pool = strongPool([a, b], 8).map((x) => x.product_id);
   assert.deepEqual(pool.slice(0, 6), ["a1", "b1", "a2", "b2", "a3", "b3"], "every list keeps a voice");
   assert.deepEqual(pool.slice(6), ["strong", "a6"], "found by 2 lists beats a slightly bigger seller found by one");
+});
+
+test("item first in the judges' pool: the item noun from the English words", () => {
+  assert.equal(itemNoun("garden hose nozzle"), "nozzle");
+  assert.equal(itemNoun("power bank 20000mAh slim"), "bank");
+  assert.equal(itemNoun("wireless earbuds white"), "earbuds");
+  assert.equal(itemNoun("women pant suit two piece"), "suit");
+  assert.equal(itemNoun("black"), null, "no noun: no reordering");
+  assert.equal(namesItemEn("Kitchen Garlic Press Crusher Stainless", "press"), true);
+  assert.equal(namesItemEn("Silicone Strap for Smart Watch", "watch"), false, "an accessory for the item");
+  assert.equal(namesItemEn("Garlic Grater Ceramic", "press"), false);
+});
+
+test("item first in the judges' pool: products whose English title names the item go before bigger-selling others", async () => {
+  // 1,500 check (2026-11-07): 81% of the 72 named the item in English; named first (and page 3) 97%.
+  const he = [product(1, { product_id: "junk", lastest_volume: "90000" }), ...Array.from({ length: 4 }, (_, i) => product(i + 2, { product_id: `ok${i}`, lastest_volume: String(500 - i) }))];
+  const en = (p) => ({ ...p, product_title: p.product_id === "junk" ? "Silicone Strap for Garlic Press" : "Garlic Press Crusher Stainless" });
+  const asked = [];
+  const search = async (q, o = {}) => (asked.push(o), o.lang === "EN" ? he.map(en) : he);
+  let pool;
+  const relevant = async (_r, p) => ((pool = p), { exact: p, partial: [] });
+  const ctx = setup({ search, live: true, relevant, understand: async () => intent({ corrected_he: "מסחטת שום", keywords_en: "garlic press" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מסחטת שום"));
+  assert.ok(asked.some((o) => o.lang === "EN" && o.page === 3), "English titles of the main words, pages 1-3");
+  assert.equal(pool.at(-1).product_id, "junk", "the 90,000-sold strap goes after the presses");
 });
 
 test("brand and model alone: the words after the brand that are capitalized or carry a digit", () => {

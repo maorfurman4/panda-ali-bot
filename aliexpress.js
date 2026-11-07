@@ -68,7 +68,7 @@ export async function searchProducts(query, deps = {}) {
       tracking_id: env.ALI_TRACKING_ID,
       ship_to_country: "IL",
       target_currency: "ILS",
-      target_language: "HE",
+      target_language: deps.lang ?? "HE", // "EN": the sellers' own titles, for the item check (bot.js itemNoun)
       ...(deps.sort === "relevance" ? {} : { sort: "LAST_VOLUME_DESC" }), // no sort param = AliExpress's own relevance order
       ...(deps.page > 1 ? { page_no: String(deps.page) } : {}),
       ...(deps.category ? { category_ids: String(deps.category) } : {}), // a main category: an extra list, never the only one
