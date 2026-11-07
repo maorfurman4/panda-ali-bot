@@ -630,9 +630,10 @@ off AliExpress). A close shade of the named color is partial, not left out (waln
 black, olive or sage for green). A clearly different color in the photo is left out, never partial, even when the title
 names the asked color (a light blue, red or orange dress for "שמלה שחורה": the listing's photo shows another variant).
 banner = (with photos only) kept products whose photo is mostly an ad rather than the item: big text, a price, sale or
-percent banner, spec callouts covering the product, a table or grid of coupon codes, a text-only infographic, a collage of
-usage scenes where the item itself is small ([] without photos). A coupon-code table showed as an LED strip's photo twice
-(owner's test, 2026-11-04).
+percent banner, spec callouts covering the product, a table or grid of coupon codes, a size chart or parameter table, a
+text-only infographic, a collage of usage scenes where the item itself is small ([] without photos). A coupon-code table
+showed as an LED strip's photo twice (owner's test, 2026-11-04); a size chart and a "Product Parameter" table as a
+sneaker's and a light switch's (2026-11-06/07).
 brand = the kept products of a well-known brand shoppers trust for quality (Baseus, Ugreen, Anker, Essager, Joyroom, Xiaomi,
 Redmi, QCY, Soundcore, Haylou, Lenovo, Logitech, Edifier, Vention, Orico…), by the brand the title says it IS (not a phone
 it is "for"); a seller's own made-up or store name doesn't count.

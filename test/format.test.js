@@ -755,3 +755,22 @@ test("colorAlsoLine: a thermometer (מדחום) names no brown", async () => {
   assert.equal(colorAlsoLine("מדחום לחדר"), null, "family 4, 2026-11-07");
   assert.match(colorAlsoLine("סוודר חום"), /בחום/);
 });
+
+test("kids' European sizes (height in cm): the size an AliExpress seller lists for it", async () => {
+  // Family 11 (2026-11-07): "חולצה לילד מידה 116" found almost nothing: Israeli kids' sizes are a height in cm (116 is
+  // 5-6 years), sellers list ages ("5-6Y", "6T"), months, or round heights ("120", the top of the range).
+  const { specOf, hasSpec, sizeVariant } = await import("../format.js");
+  assert.deepEqual(specOf("boys t-shirt 116"), { unit: "kids", num: "116", eu: 116, lo: 5, hi: 6, raw: "116" });
+  assert.deepEqual(specOf("girls dress size 98"), { unit: "kids", num: "98", eu: 98, lo: 2, hi: 3, raw: "size 98" });
+  assert.deepEqual([specOf("baby pajamas 74").lo, specOf("baby pajamas 74").hi], [0.5, 0.75], "6-9 months");
+  assert.equal(specOf("t-shirt 116"), null, "no child named: not a kids' size");
+  assert.equal(specOf("boys jeans size 30").unit, "size", "under 50: a plain size");
+  const vs = (...vals) => vals.map((v, i) => ({ skuId: String(i + 1), props: { Size: v } }));
+  assert.equal(sizeVariant(vs("4-5Y", "5-6Y", "7-8Y"), specOf("boys t-shirt 116")).skuId, "2");
+  assert.equal(sizeVariant(vs("110", "120", "130"), specOf("boys t-shirt 116")).skuId, "2", "120 fits a child up to 120 cm");
+  assert.equal(sizeVariant(vs("5T", "6T"), specOf("boys t-shirt 116")).skuId, "2", "6T is the top of 5-6");
+  assert.equal(sizeVariant(vs("6-9M", "9-12M"), specOf("baby pajamas 74")).skuId, "1");
+  assert.equal(sizeVariant(vs("2-3Y", "3-4Y"), specOf("boys t-shirt 116")), null);
+  assert.equal(hasSpec("Kids T-shirt Summer 2-8Y", specOf("boys t-shirt 116")), true, "a title's age range covers it");
+  assert.equal(hasSpec("Kids T-shirt 1-3Y", specOf("boys t-shirt 116")), false);
+});
