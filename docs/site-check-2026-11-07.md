@@ -131,7 +131,7 @@ Pro (phones barely sold via the partner search), furniture and colored furniture
 nothing; the live reading's fallback is the plain item), a red babydoll (dolls crowd it), a 75B bra.
 
 ## Families 10-11
-- 10, Bags & Luggage (43) and Motorcycles & Powersports (30), 146 searches: OK 88% -> 89% (two rows that looked worse,
+- 10, Bags & Luggage (43) and Motorcycles & Powersports (30), 146 searches: OK 88% -> 88% (two rows that looked worse,
   a black hand cart and a 48V battery, rerun back to back: no loss). Bags 94%, Motorcycles 80%.
   Left weak: parts for one bike model (TMAX top case, MT-07 crash bar, Grom seat: tens sold), Minn Kota motors, a pink
   luggage scale, amber turn signals by that name, scooter polish.
