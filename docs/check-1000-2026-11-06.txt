@@ -1219,3 +1219,13 @@ OK        [Hidden cameras (now open)] איתור GPS לרכב 11/71 · 6665 ₪1
 OK        [Hidden cameras (now open)] שעון איתור לילדים 59/72 · 3730 ₪25 שעון חכם חדש לגברים 2026 מתנה ל | 2660 ₪6 שעון ילדים מותג יוקרה חדש לבנים 
 OK        [Hidden cameras (now open)] גלאי מצלמות נסתרות 34/59 · 2891 ₪9 מצלמת אסאג'ר גלאי אינפרא אדום בט | 2755 ₪38 גלאי מצלמות נסתרות 6 ב-1 נגד רי
 OK        [Hidden cameras (now open)] מצלמת ריגול 4K 13/34 · 359 ₪24 מצלמת אבטחה אלחוטית חדשה 4K WiFi | 276 ₪99 מצלמת 4K HD מיני WiFi, תומכת בצפ
+
+## Recheck of the wrong-item searches, 2026-11-07 (free, today's bot, read by hand on the sellers' English titles)
+Fine now (item first in the 72): cat bed, smart watch, paint brush set, neck massager, women's boots.
+Wording hints added (slang.json), each measured on AliExpress (right titles of 50): מצבט 17 -> 42 ("f clamp
+woodworking"), משולש אזהרה/משולש לרכב 32 -> 43, פלטפורמה לכלב 38 -> 45, נעלי כושר לנשים 30 -> 49 (men's shoes before),
+חולצת סאטן 13 -> 46, מחממי אוזניים 18 -> 29 (headphone pads before), משחק זיכרון 18 -> 49, זר פרחים לראש 36 -> 45,
+מדבקות מצחיקות לרכב 32 -> 42.
+Market, no wording helps: an air purifier (the search brings HEPA filters; purifiers sell few), a small arc welder
+(sells single digits), a home tool set (no wording brings general sets), a filter water pitcher (pitchers sell ~50), a
+graduation cap (keychains with a cap charm), a pink baby beanie.
