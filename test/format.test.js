@@ -774,3 +774,11 @@ test("kids' European sizes (height in cm): the size an AliExpress seller lists f
   assert.equal(hasSpec("Kids T-shirt Summer 2-8Y", specOf("boys t-shirt 116")), true, "a title's age range covers it");
   assert.equal(hasSpec("Kids T-shirt 1-3Y", specOf("boys t-shirt 116")), false);
 });
+
+test("fakeCapacity: a car socket panel with a voltmeter sums its ports' watts; it isn't a fake", async () => {
+  // 1,000 check (2026-11-06): a ₪10-13 "117W" socket with a voltmeter, 10,000 sold, was flagged.
+  const { fakeCapacity } = await import("../format.js");
+  assert.equal(fakeCapacity("מטען רכב USB כפול PD כפול 117W עם מד וולטמטר מתאם יציאת חשמל עמיד למים", "13.09"), false);
+  assert.equal(fakeCapacity("96w כפול pd qc3.0 USB מטען motobike עם מתאם שקע מתח", "11.09"), false);
+  assert.equal(fakeCapacity("מטען רכב USB PD 250W טעינה מהירה סוג C מתאם טלפון", "18.31"), true, "a plain 250W car charger at ₪18 still is");
+});

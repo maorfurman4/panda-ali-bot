@@ -486,6 +486,7 @@ export const fakeLuxury = (title, request = "") => LUXURY.test(title ?? "") && !
 // shortcut: fixed ₪-per-unit lines from AliExpress prices in 2026-11; raise them if real items get caught.
 const STORAGE = /דיסק\s?און\s?קי|disk\s?on\s?key|זיכרון\s?נייד|כונן|כרטיס\s?זיכרון|כרטיס\s?SD|micro\s?sd|\bTF\b|\bSSD\b|flash\s?drive|pen\s?drive|usb\s?stick|memory\s?card/i;
 const POWER_BANK = /סוללה\s?ניידת|סוללת\s?גיבוי|מטען\s?נייד|power\s?bank|powerbank/i;
+const SOCKET_PANEL = /שקע|וולטמטר|מד\s?מתח|socket|outlet|panel|voltmeter/i;
 const smallest = (title, re) => Math.min(...[...title.matchAll(re)].map((m) => Number(m[1].replace(",", "")) * (m[2] && /tb/i.test(m[2]) ? 1024 : 1)));
 export function fakeCapacity(title = "", price) {
   const n = Number(price);
@@ -498,7 +499,8 @@ export function fakeCapacity(title = "", price) {
   // A cable says "מטען" too ("כבל ... מטען מהיר"): a real ₪10 Baseus 100W cable was moved down (owner's test, 2026-11-04).
   // The item is whichever word comes first; a charger "כולל כבל" is still a charger.
   const cable = t.search(/כבל|cable|(?:^|\s)(?:to|עד)\s+(?:usb|type|lightning)/i), charger = t.search(/מטען|charger/i);
-  if (charger >= 0 && !(cable >= 0 && cable < charger) && !POWER_BANK.test(t) && /\d{2,3}\s*W\b/i.test(t)) {
+  // A socket panel with a voltmeter (for a car or boat) adds up its ports' watts: a ₪10 "117W" one sold 10,000 (2026-11-07).
+  if (charger >= 0 && !(cable >= 0 && cable < charger) && !POWER_BANK.test(t) && !SOCKET_PANEL.test(t) && /\d{2,3}\s*W\b/i.test(t)) {
     const w = smallest(t, /(\d{2,3})\s*(W)\b/gi);
     // Under ₪1 per 4W: a ₪4.26 "65W" led "מטען מהיר" (a real 65W GaN costs ₪40+; owner's test, 2026-11-04).
     return w >= 40 && n < w / 4;
