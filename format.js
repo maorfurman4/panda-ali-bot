@@ -150,6 +150,27 @@ export function colorVariant(variants = [], request = "") {
   const variant = named.find((v) => re.test(v.color)) ?? null;
   return { variant, decided: Boolean(variant) || variants.length < SKU_CAP };
 }
+// The size or spec a request names in its English words: "45cm", "300w", "1kg", "17 inch", "size 43". Sellers often keep
+// it as a variant, not in the title (a name necklace in 37/45/50cm; site check 2026-11-07). A model number is not one.
+const UNIT = "cm|mm|m|w|v|gb|tb|mah|ml|l|kg|g|inch|in|pcs|pc|ton|t|a";
+const SAME_UNIT = { inch: "inch|in|\"|''", in: "inch|in|\"", pcs: "pcs|pc|pieces?", pc: "pcs|pc|pieces?", ton: "ton|t", t: "ton|t", l: "l|liter|litre", m: "m(?!m)|meter|metre" };
+export function specOf(keywords = "") {
+  const size = /\bsize\s+(\d{1,3}|x{0,3}[sl]|m|\d?xl)\b/i.exec(keywords);
+  if (size) return { num: size[1].toLowerCase(), unit: "size", raw: size[0].toLowerCase() };
+  const m = new RegExp(`(?<![\\w.])(\\d+(?:\\.\\d+)?)\\s*(${UNIT})\\b`, "i").exec(keywords);
+  return m ? { num: m[1], unit: m[2].toLowerCase(), raw: `${m[1]}${m[2].toLowerCase()}` } : null;
+}
+const specRe = (spec) => spec.unit === "size"
+  ? new RegExp(`(?<![\\w.])(?:eu\\s*|us\\s*|size\\s*)?${spec.num}(?![\\w.])`, "i")
+  : new RegExp(`(?<![\\d.])${spec.num.replace(".", "\\.")}\\s*(?:${SAME_UNIT[spec.unit] ?? spec.unit})(?![a-z])`, "i");
+export function hasSpec(title = "", spec) {
+  return Boolean(spec) && specRe(spec).test(title.replace(/,/g, ""));
+}
+export function sizeVariant(variants = [], spec) {
+  if (!spec) return null;
+  const re = specRe(spec);
+  return variants.find((v) => re.test(Object.values(v.props ?? {}).join(" "))) ?? null;
+}
 // A request for a child (ילדה, בנות, kids) and a title for a baby: "שמלה לילדה" showed three baby dresses, the judges let
 // them in (owner's test, 2026-11-05). Machine-translated baby titles name girls too ("לתינוקות בנות", "שמלת ילדה בת
 // תינוק", free check of 30 titles), so an age range decides when there is one (up to 3 years is a baby's), and otherwise

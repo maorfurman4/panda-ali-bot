@@ -53,3 +53,22 @@ color searches of family 1:
 - with variants, after the fixes:   OK 84%, weak 14%, miss 2%, 72 right 57%
 Still weak: burgundy pajamas/swimsuit, khaki poncho, mint bridesmaid dress, beige abaya, black burkini, white prayer
 garment, olive modest set, black Tesla Model 3 mats: few sellers or low sales in that color.
+
+## Family 2: Jewelry & Accessories (31 sub-categories) and Tools & Home Improvement (65), 192 searches
+Before (live bot; colors and sizes credited by SKU variants): OK 93%, weak 6%, miss 1%, 72 right 75%.
+After (family 1 fixes + size variants): OK 93%, weak 6%, miss 1%, 72 right 75%. No change: this family was already
+strong (plain 99% OK, colors 94%). Jewelry 97% OK, Tools 92%.
+Three rows that moved (silver bracelet, LED bulb E27, pink jewelry box) were rerun back to back twice: the differences
+are AliExpress's lists changing between calls (a direct pool comparison of the E27 bulb: 20 products without "27" in
+the live bot's 72, 8 in the new one).
+
+Bot fix (format.js specOf/hasSpec/sizeVariant, bot.js): a size or spec the request names is checked in the variants.
+Problem: "שרשרת עם שם 45 ס\"מ", "חגורה 120 ס\"מ": listings sold in several lengths name none in the title, so the judges
+call them close. Cause: the bot read variants only for colors. Fix: for a request with a size or spec (45cm, 300W,
+size 43), up to 30 judged candidates without it in the title have their variants read (SKU API, free); one with the
+asked size counts as exact and its link opens that size. Measured on the 53 size searches of families 1-2 (variants
+counted): OK 70% -> 74%; 120cm belt 16 -> 48 of the 72 right, 45cm necklace 7 -> 32, microfiber 40x40 14 -> 31.
+The card order itself is checked by a unit test and in Telegram (the free check doesn't run the judges).
+
+Left weak, by hand: building-automation controllers, Casio engraving, pocket camera detectors, Aqara curtain motors
+(few sellers or low sales), a 300W power station (top 68 sold), a green USB water pump (the color rarely sold).

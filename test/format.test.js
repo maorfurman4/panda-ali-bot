@@ -732,3 +732,20 @@ test("namesItem: a short first word (סט, סל, מד, פס, שק) gives way to 
   assert.equal(namesItem("סט מגבות למלון", "סט סירים"), false, "the next word decides");
   assert.equal(titleShare("שטיחונים לטסלה", [{ product_title: "שטיחון לרצפת הרכב" }]), 1);
 });
+
+test("specOf and sizeVariant: the size or spec a request names, found in a listing's variants", async () => {
+  const { specOf, hasSpec, sizeVariant } = await import("../format.js");
+  assert.deepEqual(specOf("name necklace 45cm"), { num: "45", unit: "cm", raw: "45cm" });
+  assert.deepEqual(specOf("power station 300w"), { num: "300", unit: "w", raw: "300w" });
+  assert.deepEqual(specOf("men shoes size 43"), { num: "43", unit: "size", raw: "size 43" });
+  assert.equal(specOf("wireless earbuds"), null);
+  assert.equal(specOf("Galaxy S24 case"), null, "a model number is not a size");
+  assert.equal(hasSpec("Custom Name Necklace 45cm Gold", specOf("necklace 45cm")), true);
+  assert.equal(hasSpec("Custom Name Necklace 145cm", specOf("necklace 45cm")), false);
+  const vs = (...props) => props.map((p, i) => ({ skuId: String(i + 1), props: p }));
+  assert.equal(sizeVariant(vs({ Length: "40cm" }, { Length: "45cm", "Metal Color": "Gold" }), specOf("necklace 45cm")).skuId, "2");
+  assert.equal(sizeVariant(vs({ Length: "45 cm" }), specOf("necklace 45cm")).skuId, "1", "a space before the unit");
+  assert.equal(sizeVariant(vs({ "Shoe Size": "EU 43" }, { "Shoe Size": "44" }), specOf("men shoes size 43")).skuId, "1");
+  assert.equal(sizeVariant(vs({ Length: "145cm" }), specOf("belt 45cm")), null);
+  assert.equal(sizeVariant(vs({ Power: "30W" }), specOf("power station 300w")), null);
+});

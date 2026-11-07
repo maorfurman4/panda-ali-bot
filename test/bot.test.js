@@ -1574,6 +1574,18 @@ test("item first in the judges' pool: products whose English title names the ite
   assert.equal(pool.at(-1).product_id, "junk", "the 90,000-sold strap goes after the presses");
 });
 
+test("a size the request names: a listing that has it as a variant counts as exact and links to that size", async () => {
+  // Site check 2026-11-07: a 45cm name necklace whose title names no length was "close"; its variants have 45cm.
+  const items = [product(1, { lastest_volume: "900", product_title: "Name Necklace 45cm gold" }), product(2, { lastest_volume: "4000", product_title: "Name Necklace gold" }), product(3, { lastest_volume: "5000", product_title: "Name Necklace silver" })];
+  const skus = async (ids) => new Map(ids.map((id) => [id, /_p2$/.test(id) ? [{ skuId: "77", props: { Length: "45cm" } }] : [{ skuId: "88", props: { Length: "60cm" } }]]));
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => /45cm/.test(x.product_title)), partial: p.filter((x) => !/45cm/.test(x.product_title)) });
+  const asked = [];
+  const ctx = setup({ search: async (q, o = {}) => (asked.push(o), items), live: true, relevant, skus, understand: async () => intent({ corrected_he: "שרשרת עם שם 45 ס\"מ", keywords_en: "name necklace 45cm" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שרשרת עם שם 45 ס\"מ"));
+  const ids = shownIds(ctx.sent()[0]);
+  assert.ok(ids.indexOf("2") >= 0 && ids.indexOf("2") < ids.indexOf("3"), "the 45cm variant listing goes before the one without it");
+});
+
 test("brand and model alone: the words after the brand that are capitalized or carry a digit", () => {
   assert.equal(brandModel("Aruba", "access point Aruba AP22"), "Aruba AP22");
   assert.equal(brandModel("Xiaomi", "Xiaomi Redmi Note 13 phone"), "Xiaomi Redmi Note 13");

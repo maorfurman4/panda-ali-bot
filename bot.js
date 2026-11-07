@@ -20,6 +20,9 @@ import {
   babyOnly,
   notForShabbat,
   colorVariant,
+  specOf,
+  hasSpec,
+  sizeVariant,
   namesItem,
   normalizeText,
   headerOf,
@@ -102,6 +105,7 @@ const COLOR_PICK_MAX = 4; // multi-color listings whose other photos are looked 
 const COLOR_EN = /\b(?:(?:dark|light|deep|sky|navy|wine|baby|royal|rose)\s+)?(?:black|white|red|blue|navy|green|yellow|pink|purple|brown|beige|khaki|nude|gr[ae]y|orange|burgundy|turquoise|wine|maroon|bordeaux|claret|ivory|cream|camel|apricot|lavender|violet|lilac|fuchsia|magenta|teal|mint|olive|mustard|coral|champagne|charcoal|silver|gold|golden)\b/gi;
 export const withoutColor = (keywords = "") => keywords.replace(COLOR_EN, " ").replace(/\s+/g, " ").trim();
 const COLOR_POOL_PICK = 6; // at most this many go to the photo picker
+const SIZE_SKU_CHECK = 30; // the judged candidates whose variants are checked for an asked size (free, like the color check)
 const COLOR_SKU_CHECK = 40; // the color-free best sellers whose variants are checked (free: 40 at once in 0.7-1.5 s, 2026-11-06)
 // Titles only on gpt-5.4: ~$0.008 per 48. Non-style searches get 72: the three readings' words make up to ~17 lists, and
 // at 48 they pushed out sellers each single reading had (8,298 shavers, 16,652 car chargers; simulated 2026-11-02).
@@ -450,6 +454,22 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     ({ exact, partial } = Array.isArray(out) ? { exact: out, partial: [] } : out);
     near = out.near ?? [];
     for (const p of out.brand ?? []) known.add(keyOf(p));
+    // A size or spec the request names (45cm, 120cm, 300W, size 43) is often a variant, not in the title, and the judges
+    // call such a listing close. Its variants decide (SKU API, free): one that has the asked size counts as exact and its
+    // link opens that size. Site check 2026-11-07, size searches: OK 70% -> 74%; a 120cm belt 16 -> 48 of the 72 right,
+    // a 45cm name necklace 7 -> 32.
+    const spec = specOf(keywords);
+    if (spec && skus) {
+      const titled = (p) => en.get(keyOf(p)) ?? p.product_title ?? "";
+      const cands = [...exact, ...partial].filter((p) => !hasSpec(titled(p), spec) && (!noun || !en.has(keyOf(p)) || namesItemEn(titled(p), noun))).slice(0, SIZE_SKU_CHECK);
+      const variants = cands.length ? await skus(cands.map((p) => String(keyOf(p)))).catch(() => new Map()) : new Map();
+      const has = new Map();
+      for (const p of cands) { const v = sizeVariant(variants.get(String(keyOf(p))) ?? [], spec); if (v) has.set(keyOf(p), v); }
+      const withSize = (p) => (has.has(keyOf(p)) ? { ...p, variant: p.variant ?? has.get(keyOf(p)) } : p);
+      exact = [...exact, ...partial.filter((p) => has.has(keyOf(p)))].map(withSize);
+      partial = partial.filter((p) => !has.has(keyOf(p)));
+      if (cands.length) trace.push(`מידה ${spec.raw}: ${has.size}/${cands.length} לפי וריאציות`);
+    }
     // The color-free search's best sellers the judges left out (their first photo shows another variant): the photo picker
     // looks for the asked color among their other photos; one it finds is an exact match shown in that color.
     // They stay out of the judges' pool, which keeps every place for listings pictured in the asked color (sharing it left
