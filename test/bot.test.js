@@ -1559,6 +1559,9 @@ test("item first in the judges' pool: the item noun from the English words", () 
   assert.equal(itemNoun("knee brace size L"), "brace");
   assert.equal(itemNoun("ski pants size L"), "pants");
   assert.equal(itemNoun("men shoes size 43"), "shoes");
+  // Family 9: a bare letter size ("scrubs set M") named "m".
+  assert.equal(itemNoun("dirndl dress M"), "dress");
+  assert.equal(itemNoun("scrubs set S"), "scrubs");
   assert.equal(namesItemEn("Kitchen Garlic Press Crusher Stainless", "press"), true);
   assert.equal(namesItemEn("Silicone Strap for Smart Watch", "watch"), false, "an accessory for the item");
   assert.equal(namesItemEn("Garlic Grater Ceramic", "press"), false);

@@ -118,3 +118,14 @@ rerun back to back (an English-title list failed under the call limit in the par
 No new fix. Left weak, by hand: Under Armour, Nerf Elite 2.0, Magna-Tiles (absent or accessories only; the fallback
 brings the plain item), jalabiya (small market), inflatable bouncers and a 3m bounce house, an 80cm teddy, a 50cm RC
 boat, a men's 3XL shapewear shirt, a toddler balance bike (low sales).
+
+## Families 7-9 (fresh runs, both ways with the same check)
+- 7, Cell Phones & Accessories (38) and Shoes (21), 118 searches: OK 89% -> 88% (burgundy heels: rerun, identical both
+  ways). Phones 84% -> 84%, Shoes 98% -> 95% -> same on rerun.
+- 8, Furniture (28) and Pet Supplies (14), 84 searches: OK 81% -> 81%.
+- 9, Novelty & Special Use (22) and Hair Extensions & Wigs (15), 74 searches: OK 82% -> 82%. Hair 93%.
+Fix: a bare letter size is not the item ("scrubs set M" named "m"); bot.js NOT_NOUN gains xs/s/m.
+Left weak, by hand: phone repair parts for one model (flex cables, camera modules, motherboards: tens sold), a Poco X6
+Pro (phones barely sold via the partner search), furniture and colored furniture (big items sell few), pet sizes
+(a 40cm canary cage, a medium dog cone), uniforms and dirndls in a letter size (the search with "M" finds almost
+nothing; the live reading's fallback is the plain item), a red babydoll (dolls crowd it), a 75B bra.
