@@ -154,7 +154,32 @@ export function colorVariant(variants = [], request = "") {
 // it as a variant, not in the title (a name necklace in 37/45/50cm; site check 2026-11-07). A model number is not one.
 const UNIT = "cm|mm|m|w|v|gb|tb|mah|ml|l|kg|g|inch|in|pcs|pc|ton|t|a";
 const SAME_UNIT = { inch: "inch|in|\"|''", in: "inch|in|\"", pcs: "pcs|pc|pieces?", pc: "pcs|pc|pieces?", ton: "ton|t", t: "ton|t", l: "l|liter|litre", m: "m(?!m)|meter|metre" };
+// A child's European size is a height in cm, 50 to 176 (116 = 5-6 years); sellers list ages, months or round heights.
+const KID = /\b(?:kids?|boys?|girls?|baby|babies|child|children|toddlers?|infants?|newborn|teens?)\b/i;
+const EU_KIDS = [[50, 0, 0.083], [56, 0, 0.25], [62, 0.17, 0.33], [68, 0.33, 0.5], [74, 0.5, 0.75], [80, 0.75, 1], [86, 1, 1.5],
+  [92, 1.5, 2], [98, 2, 3], [104, 3, 4], [110, 4, 5], [116, 5, 6], [122, 6, 7], [128, 7, 8], [134, 8, 9], [140, 9, 10], [146, 10, 11],
+  [152, 11, 12], [158, 12, 13], [164, 13, 14], [170, 14, 15], [176, 15, 16]];
+function kidsSpec(keywords) {
+  if (!KID.test(keywords)) return null;
+  const m = /(?:\bsize\s+)?(?<![\w.])(\d{2,3})(?![\w.%])/i.exec(keywords);
+  const row = m && EU_KIDS.find(([eu]) => eu === Number(m[1]));
+  return row ? { unit: "kids", num: m[1], eu: row[0], lo: row[1], hi: row[2], raw: m[0].toLowerCase() } : null;
+}
+// Ages and heights in a title or a variant: "5-6Y", "2-8 years", "6T", "9-12M", "120", "120cm".
+const AGE_RANGE = /(\d{1,2})\s*-\s*(\d{1,2})\s*(y|yrs?|years?|t|m|months?)\b/gi;
+const AGE_ONE = /(?<![\d-])(\d{1,2})\s*(y|yrs?|years?|t|m|months?)\b/gi;
+const HEIGHT = /(?<![\d.])(\d{2,3})\s*(?:cm)?(?![\d.]|\s*(?:pcs|g|ml|mm|kg))/gi;
+const years = (n, u) => (/^m/i.test(u) ? n / 12 : n);
+function kidsFits(text, spec, { heights = true } = {}) {
+  const mid = (spec.lo + spec.hi) / 2;
+  for (const m of text.matchAll(AGE_RANGE)) if (years(+m[1], m[3]) <= mid && mid <= years(+m[2], m[3])) return true;
+  for (const m of text.replace(AGE_RANGE, " ").matchAll(AGE_ONE)) if (Math.abs(years(+m[1], m[2]) - spec.hi) < 0.01) return true;
+  if (heights) for (const m of text.replace(AGE_RANGE, " ").replace(AGE_ONE, " ").matchAll(HEIGHT)) { const n = +m[1]; if (n >= 50 && n <= 180 && spec.eu > n - 10 && spec.eu <= n) return true; }
+  return false;
+}
 export function specOf(keywords = "") {
+  const kids = kidsSpec(keywords);
+  if (kids) return kids;
   const size = /\bsize\s+(\d{1,3}|x{0,3}[sl]|m|\d?xl)\b/i.exec(keywords);
   if (size) return { num: size[1].toLowerCase(), unit: "size", raw: size[0].toLowerCase() };
   const m = new RegExp(`(?<![\\w.])(\\d+(?:\\.\\d+)?)\\s*(${UNIT})\\b`, "i").exec(keywords);
@@ -164,10 +189,12 @@ const specRe = (spec) => spec.unit === "size"
   ? new RegExp(`(?<![\\w.])(?:eu\\s*|us\\s*|size\\s*)?${spec.num}(?![\\w.])`, "i")
   : new RegExp(`(?<![\\d.])${spec.num.replace(".", "\\.")}\\s*(?:${SAME_UNIT[spec.unit] ?? spec.unit})(?![a-z])`, "i");
 export function hasSpec(title = "", spec) {
+  if (spec?.unit === "kids") return kidsFits(title, spec, { heights: false });
   return Boolean(spec) && specRe(spec).test(title.replace(/,/g, ""));
 }
 export function sizeVariant(variants = [], spec) {
   if (!spec) return null;
+  if (spec.unit === "kids") return variants.find((v) => kidsFits(Object.values(v.props ?? {}).join(" "), spec)) ?? null;
   const re = specRe(spec);
   return variants.find((v) => re.test(Object.values(v.props ?? {}).join(" "))) ?? null;
 }
