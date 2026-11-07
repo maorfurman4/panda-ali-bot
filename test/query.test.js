@@ -594,7 +594,7 @@ test("slang: a known Israeli word adds its meaning to the request; whole words o
   const bodies = [];
   const fetch = async (_u, init) => (bodies.push(JSON.parse(init.body)), { ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(STRICT_OK) }] }] }) });
   await createUnderstander({ fetch, env: ENV })("מגב לרצפה");
-  assert.match(bodies[0].input[0].content, /^מגב לרצפה\n\nNote: "מגב" \(Israeli usage\) = floor squeegee/);
+  assert.match(bodies[0].input[0].content, /^מגב לרצפה\n\nNote: "מגב" \(Israeli usage\) = a floor squeegee; but for a car .*windshield wiper/);
 });
 
 test("forWhom: 'לבנות'/'לבנים' is the color only after a matching plural item; otherwise who it is for", async () => {
