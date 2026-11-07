@@ -109,6 +109,15 @@ const COLOR_PICK_MAX = 4; // multi-color listings whose other photos are looked 
 // unstripped one skips the color-free search (a guess at why one "סוודר בורדו" card had only 1-9 sold, 2026-11-06).
 const COLOR_EN = /\b(?:(?:dark|light|deep|sky|navy|wine|baby|royal|rose)\s+)?(?:black|white|red|blue|navy|green|yellow|pink|purple|brown|beige|khaki|nude|gr[ae]y|orange|burgundy|turquoise|wine|maroon|bordeaux|claret|ivory|cream|camel|apricot|lavender|violet|lilac|fuchsia|magenta|teal|mint|olive|mustard|coral|champagne|charcoal|silver|gold|golden)\b/gi;
 export const withoutColor = (keywords = "") => keywords.replace(COLOR_EN, " ").replace(/\s+/g, " ").trim();
+// A clothing or shoe size is searched without it too: sellers keep sizes as variants, and AliExpress's best sellers for
+// "men sports shoes size 43" had sold 6, 4, 4, without the size 29,188 (free check, 2026-11-07). The size step checks the
+// variants. Only "size X" and a child's size; a spec like 65W or 45cm stays in the words.
+export function withoutSize(keywords = "") {
+  const spec = specOf(keywords);
+  if (!spec || (spec.unit !== "size" && spec.unit !== "kids")) return null;
+  const rest = keywords.replace(new RegExp(`\\b${spec.raw.replace(/\s+/g, "\\s+")}\\b`, "i"), " ").replace(/\s+/g, " ").trim();
+  return rest && rest.toLowerCase() !== keywords.toLowerCase() ? rest : null;
+}
 const COLOR_POOL_PICK = 6; // at most this many go to the photo picker
 const SIZE_SKU_CHECK = 30; // the judged candidates whose variants are checked for an asked size (free, like the color check)
 const COLOR_SKU_CHECK = 40; // the color-free best sellers whose variants are checked (free: 40 at once in 0.7-1.5 s, 2026-11-06)
@@ -377,7 +386,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   if (typeof brandOnly === "string" && fitsDevice(context, brandOnly)) brandOnly = false; // a part for a Toyota isn't a Toyota
   const brandWords = new Set(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`));
   const shortModel = brandModel(brandOnly, keywords);
-  const wordings = live ? [...new Set([shortModel, ...brandWordings(brandOnly, keywords), alt, ...terms, ...brandWords].filter((t) => t && t !== keywords))] : [];
+  const sizeFree = live ? withoutSize(keywords) : null; // one more list, as the other wordings: nothing else changes
+  const wordings = live ? [...new Set([shortModel, ...brandWordings(brandOnly, keywords), alt, ...terms, ...brandWords, sizeFree].filter((t) => t && t !== keywords))] : [];
   const plain = live && namesLook(context) && withoutColor(keywords) !== keywords && withoutColor(keywords) ? withoutColor(keywords) : null;
   // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
   // no second ask, which would only wait 1.2 s.
@@ -411,7 +421,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const known = new Set(); // well-known brands, as the title check names them
   let near = []; // one judge said exact, the other close
   let colorPooled = false; // the color-free best sellers already had their photo look (one picker call per search)
-  const trace = [`"${keywords}"`]; // what happened, step by step: the owner sees it under his own searches (2026-11-06)
+  const trace = [`"${keywords}"`];
+  if (sizeFree) trace.push(`בלי מידה: "${sizeFree}"`); // what happened, step by step: the owner sees it under his own searches (2026-11-06)
   // Each candidate's photo in the asked color: first from its variants (SKU API: a "Burgundy" variant's own photo, no AI,
   // 2026-11-06); a listing whose variants decide "not in this color" is out; only the undecided ones (coded colors, no
   // data, a full list of 20) go to the photo picker, at most pickMax of them. Returns key -> { url, variant }.
