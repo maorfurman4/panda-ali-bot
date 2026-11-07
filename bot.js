@@ -279,9 +279,12 @@ const PER_LIST = 0.15;
 // machine-translated, so the English ones (same products, same order) are asked for alongside.
 // shortcut: the noun is the last word of the English search that isn't a color, size, material or such; an AI field
 // naming the item would be exact, if this guess misfires in Telegram.
-const NOT_NOUN = /^(?:\d.*|black|white|red|blue|green|pink|purple|yellow|grey|gray|beige|brown|gold|golden|silver|navy|burgundy|small|large|mini|big|men|mens|women|womens|kids|girls|boys|baby|portable|slim|heavy|duty|electric|manual|wireless|led|smart|professional|adjustable|foldable|waterproof|elegant|summer|winter|long|short|set|kit|cm|mm|ml|l|kg|inch|xl|xxl|3xl|gift|cordless|rechargeable|stainless|steel|wooden|silicone|leather|cotton|plastic|metal|natural|cute|funny|retro|vintage|outdoor|home|car|usb|pro|max|plus|in|with|for|and|two|three|piece|pieces|pcs)$/i;
+const NOT_NOUN = /^(?:\d.*|black|white|red|blue|green|pink|purple|yellow|grey|gray|beige|brown|gold|golden|silver|navy|burgundy|small|large|mini|big|men|mens|women|womens|kids|girls|boys|baby|portable|slim|heavy|duty|electric|manual|wireless|led|smart|professional|adjustable|foldable|waterproof|elegant|summer|winter|long|short|set|kit|cm|mm|ml|l|kg|inch|xl|xxl|3xl|gift|cordless|rechargeable|stainless|steel|wooden|silicone|leather|cotton|plastic|metal|natural|cute|funny|retro|vintage|outdoor|home|car|usb|pro|max|plus|in|with|for|and|two|three|piece|pieces|pcs|assembly|modest|casual|sexy|loose|oversized)$/i;
+// A general request names no item: "Tesla accessories" (every Tesla product titled "for Tesla" would go last).
+const GENERIC = /^(?:accessories|accessory|parts|supplies|products|gadgets?|equipment|stuff|items)$/i;
 export function itemNoun(keywords) {
-  return (keywords ?? "").toLowerCase().split(/\s+/).filter((w) => w && !NOT_NOUN.test(w)).pop() ?? null;
+  const noun = (keywords ?? "").toLowerCase().split(/\s+/).filter((w) => w && !NOT_NOUN.test(w)).pop() ?? null;
+  return noun && !GENERIC.test(noun) ? noun : null;
 }
 export function namesItemEn(title, noun) {
   const at = title.search(new RegExp(`\\b${noun.replace(/(?:es|s)$/, "").replace(/[^a-z0-9]/g, ".")}`, "i"));
@@ -335,7 +338,8 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // them dresses, so only style searches keep them.
   const byDefault = style ? [{ sort: "relevance" }] : [];
   const inCategory = category ? [{ category }, ...(style ? [{ category, sort: "relevance" }] : [])] : [];
-  const noun = live && !style ? itemNoun(keywords) : null;
+  // Style searches too: an electric shaver (8,852 sold) sat in the 48 for "black women bikini" (2026-11-07).
+  const noun = live ? itemNoun(keywords) : null;
   const LISTS = live ? [{}, { page: 2 }, ...(noun ? [{ page: 3 }] : []), ...byDefault, ...inCategory] : [{}];
   // Each list ranked on its own (best sellers first), then lists mixed in turn: every list's top items get in.
   // Up to 10% over the budget is fine (owner, 2026-11-02): such a product says so on its card, at most one per card.

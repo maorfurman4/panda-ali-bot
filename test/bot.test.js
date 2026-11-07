@@ -1187,7 +1187,7 @@ test("live search: best sellers and page 2 for the main words; a style search ad
   };
   assert.deepEqual(await run(false), { seen: ["2", "2", "3", "3", "p1", "p1"], checked: ["1", "5"] }, "the default order isn't relevance (EV chargers for 'fast charger', 2026-11-02)");
   const styled = await run(true);
-  assert.deepEqual(styled.seen, ["2", "p1", "relevance"]);
+  assert.deepEqual(styled.seen, ["2", "2", "3", "3", "p1", "p1", "relevance"], "item first for style searches too (a shaver in the bikini pool, 2026-11-07)");
   assert.ok(styled.checked.includes("9"), "a style search: the default-order item reaches the AI even with 3 sales");
 });
 
@@ -1550,6 +1550,11 @@ test("item first in the judges' pool: the item noun from the English words", () 
   assert.equal(itemNoun("wireless earbuds white"), "earbuds");
   assert.equal(itemNoun("women pant suit two piece"), "suit");
   assert.equal(itemNoun("black"), null, "no noun: no reordering");
+  // Cars and women's clothing check (2026-11-07): "assembly" named no headlight; "accessories" names no item.
+  assert.equal(itemNoun("car headlight assembly"), "headlight");
+  assert.equal(itemNoun("Tesla accessories"), null, "a general request: no reordering");
+  assert.equal(itemNoun("women modest two piece set"), null);
+  assert.equal(itemNoun("women black abaya"), "abaya");
   assert.equal(namesItemEn("Kitchen Garlic Press Crusher Stainless", "press"), true);
   assert.equal(namesItemEn("Silicone Strap for Smart Watch", "watch"), false, "an accessory for the item");
   assert.equal(namesItemEn("Garlic Grater Ceramic", "press"), false);
