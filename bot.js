@@ -714,8 +714,14 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     }
   }
   if (namedColor) shown = shown.map((p) => (p.offColor && !p.colorPick && inColors(p.product_title, context) ? { ...p, colorAlso: true } : p));
-  // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo.
-  shown = shown.map((p) => { const next = p.product_small_image_urls?.string?.[1]; return banners.has(keyOf(p)) && /^https:\/\//.test(next ?? "") ? { ...p, product_main_image_url: next } : p; });
+  // A photo that is mostly an ad ("CLEARANCE 70% OFF", "998000PA", 2026-11-01) gives way to the listing's next photo, once
+  // the photo look sees the item on it: during 11.11 a Makita battery's second photo was a table of coupon codes (owner's
+  // test, 2026-11-07). One more look, only when a card has a banner; no answer keeps the banner (it shows the item too).
+  const swaps = shown.slice(0, limit + extra).filter((p) => banners.has(keyOf(p)) && /^https:\/\//.test(p.product_small_image_urls?.string?.[1] ?? "")).map((p) => ({ ...p, product_main_image_url: p.product_small_image_urls.string[1] }));
+  const swapSeen = swaps.length && look ? await look(lookRequest, swaps).catch(() => null) : null;
+  const stillAd = new Set((swapSeen?.banner ?? []).map(keyOf));
+  const clean = new Set([...(swapSeen?.exact ?? []), ...(swapSeen?.near ?? []), ...(swapSeen?.partial ?? [])].map(keyOf).filter((k) => !stillAd.has(k)));
+  shown = shown.map((p) => (clean.has(keyOf(p)) ? swaps.find((s) => keyOf(s) === keyOf(p)) : p));
   // A swapped photo (ad banner, asked color) can match another listing's: two listings of one ring light, banners on
   // their first photos, showed the same second photo in one card (owner's test, 2026-11-02). Checked again only then.
   if (hash && (banners.size || shown.some((p) => p.colorPick))) shown = await dedupeByPhoto(shown, hash);

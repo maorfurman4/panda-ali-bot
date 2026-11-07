@@ -1361,7 +1361,7 @@ test("nothing exact on a full pool is asked once more; a better second answer wi
 test("an ad-banner photo gives way to the listing's next photo; a card never starts with a 🏷️ pick", async () => {
   const items = Array.from({ length: 8 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100), product_small_image_urls: { string: [`https://ae01.alicdn.com/kf/img${i + 1}.jpg`, `https://ae01.alicdn.com/kf/clean${i + 1}.jpg`] } }));
   let collaged;
-  const look = async (_r, p) => ({ exact: p, partial: [], banner: [p[0]] });
+  const look = async (_r, p) => ({ exact: p, partial: [], banner: p.filter((x) => x.product_main_image_url.endsWith("img1.jpg")) });
   const ctx = setup({ search: async () => items, live: true, look, collage: async (urls) => ((collaged = urls), null) });
   await ctx.bot.handleUpdate(textUpdate("חפש לי מטען"));
   assert.equal(collaged[0], "https://ae01.alicdn.com/kf/clean1.jpg");
@@ -1396,7 +1396,7 @@ test("a named color: no photo in the asked color leaves the card as it was", asy
 
 test("two listings whose banner photos give way to the same second photo show once", async () => {
   const items = Array.from({ length: 8 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100), product_small_image_urls: { string: [`https://ae01.alicdn.com/kf/img${i + 1}.jpg`, i < 2 ? "https://ae01.alicdn.com/kf/same.jpg" : `https://ae01.alicdn.com/kf/clean${i + 1}.jpg`] } }));
-  const look = async (_r, p) => ({ exact: p, partial: [], banner: p.slice(0, 2) });
+  const look = async (_r, p) => ({ exact: p, partial: [], banner: p.filter((x) => /img[12]\.jpg$/.test(x.product_main_image_url)) });
   const hash = async (url) => (/same/.test(url) ? "0".repeat(64) : url.padEnd(64, "x").slice(-64));
   let collaged;
   const ctx = setup({ search: async () => items, live: true, look, hash, collage: async (urls) => ((collaged = urls), null) });
@@ -1989,4 +1989,15 @@ test("a size the request names: a close listing for the other gender stays close
   await ctx.bot.handleUpdate(textUpdate("חפש לי נעלי ספורט לגברים מידה 43"));
   const ids = shownIds(ctx.sent()[0]);
   assert.ok(ids.indexOf("3") < ids.indexOf("2"), `the unisex one is lifted, the women's one not: ${ids}`);
+});
+
+test("an ad-banner photo stays when the listing's next photo is an ad too (a table of coupon codes)", async () => {
+  // Makita battery, 11.11 (owner's test, 2026-11-07): the banner gave way to a coupon-code table.
+  const items = Array.from({ length: 8 }, (_, i) => product(i + 1, { lastest_volume: String(9000 - i * 100), product_small_image_urls: { string: [`https://ae01.alicdn.com/kf/img${i + 1}.jpg`, `https://ae01.alicdn.com/kf/codes${i + 1}.jpg`] } }));
+  let collaged;
+  const look = async (_r, p) => ({ exact: p, partial: [], banner: p.filter((x) => /img1|codes/.test(x.product_main_image_url)) });
+  const ctx = setup({ search: async () => items, live: true, look, collage: async (urls) => ((collaged = urls), null) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי סוללה למקיטה"));
+  assert.ok(!collaged.some((u) => /codes/.test(u)), `no coupon table: ${collaged}`);
+  assert.ok(collaged.includes("https://ae01.alicdn.com/kf/img1.jpg"), "the banner, which shows the item, stays");
 });
