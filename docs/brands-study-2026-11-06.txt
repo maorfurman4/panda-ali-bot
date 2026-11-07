@@ -42,3 +42,19 @@ Free check, the judges' pool (stub judges) for the 80 requests, best 4 matching 
 - worse (3, all near-zero sellers): NB 2002R 3/2/2/2 -> 3/0/0/0, Adidas Campus 4/4/3/2 -> 4/0/0, Seiko 5 67/58/30/28 -> 67/58/0/0
 - cost: the two new lists share the same 72-product pool, so fewer listings of the exact model reach the judges
   (NB 530 40 -> 20, 2002R 70 -> 6); the judges' cost is unchanged.
+
+Part 2, 2026-11-07 (free): the owner's Telegram check still showed weak sneaker cards (Samba 52/7/6/1, Dunk 20/5/5/3,
+NB 574 39/11/1/1). Checked against AliExpress's own website (Israel, sorted by orders):
+- "new balance 574": 47 / 14 / 12 / 8 sold, all official NB listings (the bot's #1 and #2 are the site's #1 and #2).
+- "samba sneakers": 135 / 35 / 33 / 28 sold, all official Adidas. The site counts all-time sales; the API's lastest_volume
+  for the same items is recent (135 -> 14, 35 -> 7). All four are in our searches already.
+- "casio f91w": the site's top is a no-brand F91W steel-strap watch, 80K+ sold all-time (₪3.61).
+- 18 sneaker models searched by style only, no brand ("german army trainers gum sole", "panda sneakers black white",
+  "retro suede running sneakers"...): best recent sales 0-135 (Hoka-style 135, NB 530-style 114, Samba-style 8,
+  Dunk-style 12, AF1-style 10). Converse-style canvas shoes are the exception (989).
+- Web: Samba look-alikes sold in Spain under plain titles ("vulcanized casual running shoes"); the listing named in the
+  article isn't available to Israel through the API.
+- Search by photo: aliexpress.affiliate.image.search exists (free, no user login, up to 50 results, img_cid 4 = shoes)
+  but our app gets "InsufficientPermission": the owner must request it in the App Console like the SKU API.
+Conclusion: for original big-brand sneakers AliExpress has nothing better than what the bot shows; the gap is the
+F91W kind (a no-brand item with the model code selling 100x the branded one ranks after it: exact before partial).
