@@ -61,3 +61,53 @@ Books & Culture          right&selling  47% · right item  87% · wrong 3 · abs
 #   Before: 81% of the pool named the item; after: 95%. Right items with 100+ sales 5,587 -> 6,218 (+11%).
 #   122 searches more right, 0 fewer, 30 the same; no search's 10 best right sellers dropped. Free pipeline time
 #   median 1.3 -> 1.4 s, 90% 2.0 -> 2.3 s. Style (fashion) searches unchanged. AI cost unchanged (still 72).
+# Item first, per sub-category check (2026-11-07, free): 446 AliExpress sub-categories in 35 categories, 4 new searches
+#   each (1,784; 1,773 compared). Before = the bot without item first, after = with it; real AliExpress lists, stub judges.
+#   The pool naming the item (English title): 79% -> 94%. The independent Hebrew-title check: 44% -> 48%.
+#   Right items with 100+ sales: 61,774 -> 69,745 (+13%). 1,418 searches better, 9 worse.
+#   Sub-categories: 322 gained 10+ points, 103 gained 3-10, 21 under 3 (already ~97-100%: hats, socks, men's watches,
+#   stickers; or food that barely sells), none lost 3+.
+#   8 searches showed fewer top-seller sales; 4 rerun back to back showed no loss (AliExpress lists differ between runs).
+#   26 searches of the after run hit AliExpress's call limit ("App access frequency exceeds the limit", the check ran
+#   6 searches at a time) and were rerun. The bot now asks AliExpress ~6 more times per search (pages 1-3 in English
+#   and page 3); the app limit is 1,000 calls a minute.
+#   Time (free pipeline): median 1.3 -> 1.5 s, 90% 2.5 -> 2.7 s.
+#
+#   PER CATEGORY
+#   Phones & Telecommunications Accessories (28): named 73→93% (Hebrew check 44→48%) · 100+ sold right 1208→1489 (Hebrew 759→790) · better 25, worse 0, top sellers lost 0
+#   Home Appliances (31): named 74→93% (Hebrew check 33→37%) · 100+ sold right 736→877 (Hebrew 278→306) · better 28, worse 0, top sellers lost 0
+#   Industrial & Business (72): named 78→97% (Hebrew check 38→44%) · 100+ sold right 2609→3015 (Hebrew 1246→1323) · better 64, worse 1, top sellers lost 0
+#   Motorcycle Equipments & Parts (55): named 73→92% (Hebrew check 40→46%) · 100+ sold right 2227→2605 (Hebrew 1162→1258) · better 49, worse 1, top sellers lost 0
+#   Electronic Components & Supplies (32): named 76→94% (Hebrew check 26→29%) · 100+ sold right 1011→1125 (Hebrew 286→289) · better 26, worse 0, top sellers lost 0
+#   Computer & Office (63): named 71→90% (Hebrew check 46→51%) · 100+ sold right 1935→2283 (Hebrew 1194→1239) · better 49, worse 0, top sellers lost 0
+#   Automobiles, Parts & Accessories (74): named 76→94% (Hebrew check 37→42%) · 100+ sold right 3079→3719 (Hebrew 1487→1593) · better 65, worse 1, top sellers lost 2
+#   Consumer Electronics (24): named 65→83% (Hebrew check 46→51%) · 100+ sold right 930→1190 (Hebrew 663→733) · better 19, worse 0, top sellers lost 1
+#   Mother & Kids (76): named 76→93% (Hebrew check 42→45%) · 100+ sold right 2198→2349 (Hebrew 1219→1207) · better 64, worse 0, top sellers lost 0
+#   Office & School Supplies (79): named 80→97% (Hebrew check 42→46%) · 100+ sold right 2735→3096 (Hebrew 1365→1373) · better 66, worse 1, top sellers lost 0
+#   Furniture (44): named 79→96% (Hebrew check 43→48%) · 100+ sold right 1059→1214 (Hebrew 503→501) · better 42, worse 0, top sellers lost 0
+#   Toys & Hobbies (92): named 75→92% (Hebrew check 32→35%) · 100+ sold right 3279→3805 (Hebrew 1401→1472) · better 74, worse 1, top sellers lost 2
+#   Novelty & Special Use (28): named 79→95% (Hebrew check 32→37%) · 100+ sold right 864→945 (Hebrew 334→359) · better 24, worse 0, top sellers lost 0
+#   Apparel Accessories (88): named 78→94% (Hebrew check 46→48%) · 100+ sold right 3726→4273 (Hebrew 2376→2424) · better 66, worse 2, top sellers lost 0
+#   Luggage & Bags (79): named 80→95% (Hebrew check 61→63%) · 100+ sold right 3028→3399 (Hebrew 2185→2136) · better 66, worse 0, top sellers lost 0
+#   Books & Cultural Merchandise (12): named 75→91% (Hebrew check 38→39%) · 100+ sold right 425→444 (Hebrew 252→235) · better 8, worse 0, top sellers lost 0
+#   Home Improvement (60): named 83→98% (Hebrew check 38→41%) · 100+ sold right 2612→2876 (Hebrew 1164→1169) · better 50, worse 1, top sellers lost 1
+#   Food (84): named 66→81% (Hebrew check 26→31%) · 100+ sold right 218→219 (Hebrew 99→93) · better 26, worse 0, top sellers lost 0
+#   Jewelry & Accessories (28): named 79→94% (Hebrew check 53→58%) · 100+ sold right 1307→1543 (Hebrew 871→935) · better 21, worse 0, top sellers lost 0
+#   Home & Garden (39): named 80→94% (Hebrew check 53→56%) · 100+ sold right 1631→1783 (Hebrew 1133→1131) · better 31, worse 0, top sellers lost 0
+#   Tools (63): named 84→98% (Hebrew check 34→39%) · 100+ sold right 3264→3649 (Hebrew 1362→1476) · better 52, worse 0, top sellers lost 0
+#   Phones & Telecommunications (20): named 66→79% (Hebrew check 36→41%) · 100+ sold right 589→665 (Hebrew 271→267) · better 13, worse 0, top sellers lost 0
+#   Sports & Entertainment (84): named 85→98% (Hebrew check 51→55%) · 100+ sold right 3132→3351 (Hebrew 1834→1845) · better 69, worse 0, top sellers lost 0
+#   Security & Protection (16): named 87→100% (Hebrew check 52→57%) · 100+ sold right 719→773 (Hebrew 448→464) · better 13, worse 0, top sellers lost 1
+#   Beauty & Health (78): named 85→98% (Hebrew check 46→50%) · 100+ sold right 3176→3532 (Hebrew 1623→1710) · better 64, worse 1, top sellers lost 0
+#   Shoes (20): named 86→99% (Hebrew check 47→50%) · 100+ sold right 951→1063 (Hebrew 547→565) · better 16, worse 0, top sellers lost 0
+#   Women's Clothing (132): named 78→90% (Hebrew check 49→51%) · 100+ sold right 3590→4028 (Hebrew 2330→2352) · better 114, worse 0, top sellers lost 1
+#   Men's Clothing (76): named 77→90% (Hebrew check 45→48%) · 100+ sold right 1677→1878 (Hebrew 1200→1212) · better 64, worse 0, top sellers lost 0
+#   Weddings & Events (24): named 86→97% (Hebrew check 75→77%) · 100+ sold right 547→584 (Hebrew 407→396) · better 21, worse 0, top sellers lost 0
+#   Sports Shoes,Clothing&Accessories (24): named 80→92% (Hebrew check 54→56%) · 100+ sold right 953→1023 (Hebrew 666→671) · better 19, worse 0, top sellers lost 0
+#   Lights & Lighting (56): named 85→97% (Hebrew check 45→48%) · 100+ sold right 2503→2748 (Hebrew 1262→1285) · better 43, worse 0, top sellers lost 0
+#   Hair Extensions & Wigs (32): named 88→99% (Hebrew check 31→34%) · 100+ sold right 1481→1627 (Hebrew 456→478) · better 26, worse 0, top sellers lost 0
+#   Watches (28): named 85→95% (Hebrew check 76→78%) · 100+ sold right 1033→1173 (Hebrew 1014→1008) · better 20, worse 0, top sellers lost 0
+#   Underwear (28): named 86→96% (Hebrew check 63→65%) · 100+ sold right 1115→1176 (Hebrew 858→877) · better 19, worse 0, top sellers lost 0
+#   Apparel & Accessories (4): named 96→96% (Hebrew check 55→53%) · 100+ sold right 227→226 (Hebrew 137→134) · better 2, worse 0, top sellers lost 0
+#   
+#   SUB-CATEGORIES 446: gain 10+ points 322, 3-10 103, under 3 21, down 3+ 0; with a lost top seller 7
