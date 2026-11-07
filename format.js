@@ -165,6 +165,16 @@ function kidsSpec(keywords) {
   const row = m && EU_KIDS.find(([eu]) => eu === Number(m[1]));
   return row ? { unit: "kids", num: m[1], eu: row[0], lo: row[1], hi: row[2], raw: m[0].toLowerCase() } : null;
 }
+// A child's age in the Hebrew request ("שמלה לילדה גיל 6", "לבת 6", "בן 9 חודשים"): the reading leaves ages out of the
+// English words on purpose (sellers rarely title them), so the size step reads it here; "גיל 6" is the 5-6 years row
+// (116), as sellers' "6Y" is (owner's test 2026-11-07: the age was never checked).
+export function ageSpec(text = "") {
+  const m = /(?<![א-ת])[ול]?(?:גיל|בת|בן)\s*(\d{1,2})(?!\d)\s*(חודש)?/.exec(text);
+  if (!m) return null;
+  const age = m[2] ? Number(m[1]) / 12 : Number(m[1]);
+  const row = EU_KIDS.find(([, , hi]) => Math.abs(hi - age) < 0.01);
+  return row ? { unit: "kids", num: String(row[0]), eu: row[0], lo: row[1], hi: row[2], raw: m[0].trim() } : null;
+}
 // Ages and heights in a title or a variant: "5-6Y", "2-8 years", "6T", "9-12M", "120", "120cm".
 const AGE_RANGE = /(\d{1,2})\s*-\s*(\d{1,2})\s*(y|yrs?|years?|t|m|months?)\b/gi;
 const AGE_ONE = /(?<![\d-])(\d{1,2})\s*(y|yrs?|years?|t|m|months?)\b/gi;

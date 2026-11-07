@@ -804,3 +804,15 @@ test("otherGender: a title only for the other gender; unisex and ungendered titl
   assert.equal(otherGender("men running shoes", "women leggings size L"), true);
   assert.equal(otherGender("women leggings", "leggings size L"), false, "the request names no gender");
 });
+
+test("ageSpec: a child's age in the Hebrew request becomes a kids' size the variants are checked for", async () => {
+  const { ageSpec, sizeVariant } = await import("../format.js");
+  assert.deepEqual(ageSpec("שמלה לילדה גיל 6"), { unit: "kids", num: "116", eu: 116, lo: 5, hi: 6, raw: "גיל 6" });
+  assert.equal(ageSpec("שמלה לבת 8").eu, 128);
+  assert.equal(ageSpec("פיג'מה לתינוק בן 9 חודשים").eu, 74);
+  assert.equal(ageSpec("מגבת 6 יחידות"), null, "not an age");
+  assert.equal(ageSpec("חולצה לבן 30"), null, "no child's size");
+  const vs = (...vals) => vals.map((v, i) => ({ skuId: String(i + 1), props: { Size: v } }));
+  assert.equal(sizeVariant(vs("4Y", "6Y", "8Y"), ageSpec("שמלה לילדה גיל 6")).skuId, "2");
+  assert.equal(sizeVariant(vs("3-4Y", "5-6Y"), ageSpec("שמלה לילדה גיל 6")).skuId, "2");
+});

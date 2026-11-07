@@ -22,6 +22,7 @@ import {
   notForShabbat,
   colorVariant,
   specOf,
+  ageSpec,
   hasSpec,
   sizeVariant,
   namesItem,
@@ -460,7 +461,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     // call such a listing close. Its variants decide (SKU API, free): one that has the asked size counts as exact and its
     // link opens that size. Site check 2026-11-07, size searches: OK 70% -> 74%; a 120cm belt 16 -> 48 of the 72 right,
     // a 45cm name necklace 7 -> 32.
-    const spec = specOf(keywords);
+    const spec = specOf(keywords) ?? ageSpec(context);
     if (spec && skus) {
       const titled = (p) => en.get(keyOf(p)) ?? p.product_title ?? "";
       const cands = [...exact, ...partial].filter((p) => !hasSpec(titled(p), spec) && (!noun || !en.has(keyOf(p)) || namesItemEn(titled(p), noun))).slice(0, SIZE_SKU_CHECK);
