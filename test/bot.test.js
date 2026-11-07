@@ -1980,3 +1980,13 @@ test("a named color: the judges of a color-free best seller see its photo in the
   await ctx.bot.handleUpdate(textUpdate("חפש לי סוודר בורדו"));
   assert.ok(seen.includes("https://ae01.alicdn.com/kf/v-Burgundy.jpg"), `judged on ${seen}`);
 });
+
+test("a size the request names: a close listing for the other gender stays close, even with the size as a variant", async () => {
+  const items = [product(1, { lastest_volume: "900", product_title: "Men Sports Shoes size 43" }), product(2, { lastest_volume: "4000", product_title: "Women Mesh Sports Shoes" }), product(3, { lastest_volume: "3000", product_title: "Lightweight Sports Shoes" })];
+  const skus = async (ids) => new Map(ids.map((id) => [id, [{ skuId: "43", props: { "Shoe Size": "43" } }]]));
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => /43/.test(x.product_title)), partial: p.filter((x) => !/43/.test(x.product_title)) });
+  const ctx = setup({ search: async () => items, live: true, relevant, skus, understand: async () => intent({ corrected_he: "נעלי ספורט לגברים מידה 43", keywords_en: "men sports shoes size 43" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי נעלי ספורט לגברים מידה 43"));
+  const ids = shownIds(ctx.sent()[0]);
+  assert.ok(ids.indexOf("3") < ids.indexOf("2"), `the unisex one is lifted, the women's one not: ${ids}`);
+});

@@ -18,6 +18,7 @@ import {
   strength,
   offColor,
   babyOnly,
+  otherGender,
   notForShabbat,
   colorVariant,
   specOf,
@@ -467,8 +468,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
       const has = new Map();
       for (const p of cands) { const v = sizeVariant(variants.get(String(keyOf(p))) ?? [], spec); if (v) has.set(keyOf(p), v); }
       const withSize = (p) => (has.has(keyOf(p)) ? { ...p, variant: p.variant ?? has.get(keyOf(p)) } : p);
-      exact = [...exact, ...partial.filter((p) => has.has(keyOf(p)))].map(withSize);
-      partial = partial.filter((p) => !has.has(keyOf(p)));
+      // Only the size is proven: a close one for the other gender stays close (a women's sneaker in a men's search).
+      const lift = (p) => has.has(keyOf(p)) && !otherGender(`${titled(p)} ${p.product_title ?? ""}`, `${context} ${keywords}`);
+      exact = [...exact, ...partial.filter(lift)].map(withSize);
+      partial = partial.filter((p) => !lift(p));
       if (cands.length) trace.push(`מידה ${spec.raw}: ${has.size}/${cands.length} לפי וריאציות`);
     }
     // The color-free search's best sellers the judges left out (their first photo shows another variant): the photo picker

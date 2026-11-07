@@ -208,6 +208,15 @@ const CHILD_WORDS = /(?<![א-ת])[ולהבמשכ]{0,2}(?:ילדה|ילדות|י�
 const BABY_WORDS = /תינוק|פעוט|יילוד|\b(?:baby|babies|newborn|infant|toddler)\b/gi;
 const BABY_GIRL = /תינוק\S*\s+(?:בנות|בנים|ילדה|ילדות|ילד|בת|בן)(?![א-ת])|(?<![א-ת])(?:ילדת|ילדה|בת|בן)\s+תינוק\S*|\bbaby\s+(?:girls?|boys?)\b/gi;
 const AGES = /(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(שנ|חודש|years?|months?|[mM](?![a-z]))/;
+// A request for men and a title only for women, or the other way round: a women's sneaker came in for "נעלי ספורט לגברים
+// מידה 43" on its size variant (owner's test, 2026-11-07). A title naming both is unisex.
+const MEN = /(?<![א-ת])[ולהבמש]{0,2}(?:גברים|גבר)(?![א-ת])|\b(?:men|mens|men's|male)\b/i;
+const WOMEN = /(?<![א-ת])[ולהבמש]{0,2}(?:נשים|אישה|אשה)(?![א-ת])|\b(?:women|womens|women's|ladies|female)\b/i;
+export function otherGender(title = "", request = "") {
+  const [men, women] = [MEN.test(request), WOMEN.test(request)];
+  if (men === women) return false;
+  return men ? WOMEN.test(title) && !MEN.test(title) : MEN.test(title) && !WOMEN.test(title);
+}
 export function babyOnly(title = "", request = "") {
   if (!CHILD.test(request) || BABY.test(request)) return false;
   if (/(?<![\d.])0\s*[-–]\s*\d{1,2}(?!\d)/.test(title)) return true; // "0-3", "0-24 חודשים": from birth

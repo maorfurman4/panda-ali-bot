@@ -794,3 +794,13 @@ test("colorVariant: more of the names sellers give the asked color", async () =>
   assert.equal(colorVariant(vs("touch-black-chrome"), "ברז כסוף").variant, null, "black chrome is black");
   assert.equal(colorVariant(vs("Red", "Olive"), "מעיל ירוק").variant.color, "Olive");
 });
+
+test("otherGender: a title only for the other gender; unisex and ungendered titles are fine", async () => {
+  const { otherGender } = await import("../format.js");
+  assert.equal(otherGender("נעלי ספורט רשת לנשים", "נעלי ספורט לגברים מידה 43"), true);
+  assert.equal(otherGender("women mesh sneakers", "men sports shoes size 43"), true);
+  assert.equal(otherGender("men women unisex sneakers", "men sports shoes"), false, "unisex");
+  assert.equal(otherGender("sneakers", "men sports shoes"), false);
+  assert.equal(otherGender("men running shoes", "women leggings size L"), true);
+  assert.equal(otherGender("women leggings", "leggings size L"), false, "the request names no gender");
+});
