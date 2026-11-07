@@ -72,3 +72,13 @@ The card order itself is checked by a unit test and in Telegram (the free check 
 
 Left weak, by hand: building-automation controllers, Casio engraving, pocket camera detectors, Aqara curtain motors
 (few sellers or low sales), a 300W power station (top 68 sold), a green USB water pump (the color rarely sold).
+
+## Family 3: Office & School Supplies (66 sub-categories) and Electronics (37), 204 searches
+Check fix: the stub's fallback now drops numbers and, for a brand the check doesn't know (Copic, Jabra, Beelink), the
+brand word, as the live reading's fallback_en does.
+Before (live bot): OK 95%, weak 2%, miss 3%, 72 right 75%. After (fixes so far): OK 94%, weak 2%, miss 3%, 72 right 75%.
+Office 92% -> 92%; Electronics 100% -> 99% (one row: "24 inch monitor", 4 vs 3 right of the 72, AliExpress lists).
+No new fix: plain searches 98-99%, colors 100%, brands 95%.
+Left weak, by hand: big desktop monitors (shipping: the search brings arms and accessories; a 24" monitor sells little),
+Jabra speakerphones and Kensington locks (only "for" accessories), exact sizes sellers rarely title (easel 170cm,
+business cards 90x50, cork board 60x40, 850W power supply), a presentation clicker "for MacBook" (no such listing).
