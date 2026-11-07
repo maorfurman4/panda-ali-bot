@@ -2001,3 +2001,11 @@ test("an ad-banner photo stays when the listing's next photo is an ad too (a tab
   assert.ok(!collaged.some((u) => /codes/.test(u)), `no coupon table: ${collaged}`);
   assert.ok(collaged.includes("https://ae01.alicdn.com/kf/img1.jpg"), "the banner, which shows the item, stays");
 });
+
+test("a car's year: a listing for other years only goes after the ones that fit, a universal one stays", async () => {
+  const items = [product(1, { lastest_volume: "900", product_title: "שטיחונים לטויוטה קורולה 2019-2024" }), product(2, { lastest_volume: "300", product_title: "שטיחונים לטויוטה קורולה 2007-2013" }), product(3, { lastest_volume: "200", product_title: "שטיחונים אוניברסליים לרכב" })];
+  const ctx = setup({ search: async () => items, live: true, understand: async () => intent({ corrected_he: "שטיחונים לקורולה 2012", keywords_en: "Toyota Corolla floor mats" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי שטיחונים לקורולה 2012"));
+  const ids = shownIds(ctx.sent()[0]);
+  assert.ok(ids.indexOf("1") > ids.indexOf("2") && ids.indexOf("1") > ids.indexOf("3"), `2019-2024 last: ${ids}`);
+});

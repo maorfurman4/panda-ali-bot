@@ -22,6 +22,8 @@ import {
   notForShabbat,
   colorVariant,
   specOf,
+  carYear,
+  wrongYear,
   fitsDevice,
   ageSpec,
   hasSpec,
@@ -541,6 +543,13 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   partial = [...partial.map((p) => (wrongColor(p) ? { ...p, offColor: true, titleOff: true } : p)), ...[...exact, ...near].filter(wrongColor).map((p) => ({ ...p, offColor: true, titleOff: true }))];
   exact = exact.filter((p) => !wrongColor(p));
   near = near.filter((p) => !wrongColor(p));
+  // The car's year the request names: a listing for other years only is close (its title's years; one without years,
+  // like a universal wiper, stays). Owner, 2026-11-07.
+  const year = carYear(context);
+  const offYear = (p) => wrongYear(p.product_title, year);
+  partial = [...partial, ...[...exact, ...near].filter(offYear).map((p) => ({ ...p, titleOff: true }))];
+  exact = exact.filter((p) => !offYear(p));
+  near = near.filter((p) => !offYear(p));
   // A baby item for a child's request is close, never a real match (style searches too).
   const baby = (p) => babyOnly(p.product_title, context) || notForShabbat(p.product_title, context); // and a sensor light for Shabbat
   partial = [...partial, ...[...exact, ...near].filter(baby).map((p) => ({ ...p, titleOff: true }))];

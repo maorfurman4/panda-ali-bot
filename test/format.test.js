@@ -824,3 +824,30 @@ test("fitsDevice: the car or phone a part is for isn't the part's brand", async 
   assert.equal(fitsDevice("מטען של אנקר לאייפון", "Anker"), false, "the charger's own brand stays");
   assert.equal(fitsDevice("שעון שיאומי", "Xiaomi"), false, "a Xiaomi watch is a Xiaomi");
 });
+
+test("car years: the request's year on a car search, the years a title names, and which titles don't fit", async () => {
+  const { carYear, namesCar, titleYears, wrongYear } = await import("../format.js");
+  assert.equal(carYear("שטיחונים לקורולה 2012"), 2012);
+  assert.equal(carYear("שעון 2019"), null, "not a car");
+  assert.equal(namesCar("שטיחונים לטוסון"), true, "a model named alone");
+  assert.equal(namesCar("חולצת פולו"), false);
+  assert.equal(namesCar("כיסוי לאייפון"), false, "a phone isn't a car");
+  assert.deepEqual(titleYears("Floor Mats For Toyota Corolla 2007-2026"), [[2007, 2026]]);
+  assert.deepEqual(titleYears("For Corolla E140 E150 2007~2013"), [[2007, 2013]]);
+  assert.deepEqual(titleYears("Kia Sportage 2016-19 mats"), [[2016, 2019]]);
+  assert.deepEqual(titleYears("Corolla 2019+ sunshade"), [[2019, 2039]]);
+  assert.deepEqual(titleYears("Power bank 20000mAh 2000LM"), [], "a number with a unit isn't a year");
+  assert.equal(wrongYear("For Toyota Corolla E210 2018 2019 2020 2021", 2012), true);
+  assert.equal(wrongYear("For Toyota Corolla 2007-2026", 2012), false);
+  assert.equal(wrongYear("Universal wiper blades", 2012), false, "no years: may fit");
+  assert.equal(wrongYear("For Corolla 2019-2024", null), false, "no year asked");
+});
+
+test("a car search without a year whose products name years: the card says to add the year", () => {
+  const car = (n, title) => full(n, { product_title: title });
+  const { caption } = formatCard([car(1, "שטיחונים לקורולה 2019-2024"), car(2, "שטיחונים אוניברסליים")], { query: "שטיחונים לקורולה" });
+  assert.ok(caption.includes("הוסיפו לחיפוש את שנת הרכב"));
+  assert.ok(!caption.includes("בחרו את הדגם שלכם"), "instead of the model note");
+  assert.ok(!formatCard([car(1, "שטיחונים לקורולה 2007-2013")], { query: "שטיחונים לקורולה 2012" }).caption.includes("שנת הרכב"), "the year is given");
+  assert.ok(!formatCard([car(1, "מגב אוניברסלי")], { query: "מגב לקורולה" }).caption.includes("שנת הרכב"), "no years on the card");
+});

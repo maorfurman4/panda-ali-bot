@@ -655,6 +655,27 @@ export const namesModel = (text = "") => new RegExp(`(?:(?<![א-ת])ל(?:-|\\s)?
 // The car or device a part is for isn't the part's brand: "מגב לטויוטה קורולה" read Toyota as the brand and said "מצאתי
 // מעט מוצרים של המותג שביקשתם" (owner's test, 2026-11-07).
 export const fitsDevice = (text = "", brand = "") => namesModel(text) && new RegExp(DEVICES.source, "i").test(brand);
+// A car's year (owner, 2026-11-07: 80-100% of model-specific car listings name their years or generation, free study of
+// 8 cars x 6 parts; a 2012 Corolla owner could get 2019+ mats). The request's year counts only on a car request.
+const CAR = new RegExp(`(?:(?<![א-ת])ל(?:-|\\s)?|של\\s+|\\bfor\\s+)(?:${CARS})`, "i");
+export const namesCar = (text = "") => CAR.test(text);
+export function carYear(text = "") {
+  const m = namesCar(text) && /(?<![\d.])(?:19[89]\d|20[0-3]\d)(?![\d.])/.exec(text);
+  return m ? Number(m[0]) : null;
+}
+// The years a title names: ranges ("2018-2024", "2018~2024", "2019-22"), open ones ("2019+") and single years. Not a
+// number with a unit ("2000mAh", "2000LM").
+const YEAR_RANGE = /(?<![\da-z.])((?:19|20)\d{2})\s*(?:-|~|–|to)\s*((?:19|20)\d{2}|\d{2})(?![\da-z.])/gi;
+const YEAR_ONE = /(?<![\da-z.])((?:19[89]|20[0-3])\d)(\s*\+|\s+(?:on|onwards?|and\s+up))?(?![\da-z.])/gi;
+export function titleYears(title = "") {
+  const ranges = [];
+  const rest = title.replace(YEAR_RANGE, (_, a, b) => (ranges.push([+a, +b < 100 ? 2000 + +b : +b]), " "));
+  for (const m of rest.matchAll(YEAR_ONE)) ranges.push([+m[1], m[2] ? 2039 : +m[1]]);
+  return ranges.filter(([a, b]) => a >= 1990 && b >= a);
+}
+// A title that names years, none of them the car's: it doesn't fit. A title without years (a universal one) does.
+export const wrongYear = (title = "", year = null) => Boolean(year) && ((r) => r.length > 0 && !r.some(([a, b]) => a <= year && year <= b))(titleYears(title));
+export const YEAR_NOTE = "💡 רוב החלקים מתאימים לשנים מסוימות: הוסיפו לחיפוש את שנת הרכב (למשל 2019) ויוצג רק מה שמתאים";
 export const MODELS_NOTE = "📱 רוב המוצרים מגיעים לכמה דגמים: בדף המוצר בחרו את הדגם שלכם";
 export const COLORS_NOTE = "🎨 חלק מהמוצרים מגיעים במבחר צבעים: בדף המוצר בחרו את הצבע שביקשתם";
 // A brand search with few items of the brand: other brands fill the card, and the card says so (owner: always 4, 2026-11-03).
@@ -718,10 +739,12 @@ function withBadges(p, [rating, sold]) {
 }
 
 function buildCard(products, query, demo, reasons, closest, rare, weak, fakes) {
+  // A car search without a year whose products name years: the card says to add it (instead of the model note).
+  const yearNote = namesCar(query) && !carYear(query) && products.some((p) => titleYears(p.product_title).length);
   const fill = !closest && products.some((p) => p.brandFill);
   const fake = products.some((p) => p.fakeCap) ? FAKE_SHOWN_NOTE : fakes ? fakeSkippedNote(typeof fakes === "string" ? fakes : undefined) : null;
   const sizes = products.some((p) => manySizes(p.product_title)) ? SIZES_NOTE : null;
-  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(sizes ? [sizes] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(namesModel(query) ? [MODELS_NOTE] : []), ...(lookalikeBrand(query) ? [LOOKALIKE_NOTE] : [])];
+  const lines = [`🔎 <b>${esc(clip(oneLine(query), QUERY_MAX))}</b>${demo ? " [דמו – תוצאות קבועות]" : ""}`, ...(closest ? [rare ? RARE_NOTE : CLOSEST_NOTE] : []), ...(fill ? [FILL_NOTE] : []), ...(fake ? [fake] : []), ...(sizes ? [sizes] : []), ...(weak && !closest ? [WEAK_NOTE] : []), ...(named(query).length ? [COLORS_NOTE] : []), ...(yearNote ? [YEAR_NOTE] : namesModel(query) ? [MODELS_NOTE] : []), ...(lookalikeBrand(query) ? [LOOKALIKE_NOTE] : [])];
   products.forEach((p, i) => {
     const link = /^https?:\/\//i.test(p.promotion_link ?? "") ? p.promotion_link : null;
     const sold = soldText(p.lastest_volume);
