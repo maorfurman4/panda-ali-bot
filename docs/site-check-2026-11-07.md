@@ -108,3 +108,13 @@ No new fix. Left weak, by hand: sex toys and condoms (absent from AliExpress's p
 for toys), big appliances (a 12,000 BTU air conditioner, a 55" TV, an 80L boiler, dishwashers, ovens: shipping; the
 search brings their accessories), exact sizes rarely titled (back belt L, 560W disposer), rare colors (pink handcuffs,
 white foot spa, black range hood), kids' hair straightening cream, an iPhone scalp camera.
+
+## Family 6: Men's Clothing (25 sub-categories) and Toys & Games (45), 137 searches
+Before: OK 85%, weak 12%, miss 3%, 72 right 74%. After: OK 89%, weak 9%, miss 2%, 72 right 79%, best-4 sales +4%.
+Men's Clothing: 72 right 70% -> 82% (item first for style searches), OK 84% -> 86%. Toys: OK 86% -> 90%.
+Gains: men's pajama set weak -> OK (best seller 91 -> 2,142, 72 right 27 -> 47 of 48), magnetic tiles weak -> OK
+(94 -> 1,286), red wooden blocks (120 -> 1,686). Two rows that looked worse (DJI Mini, gray tracksuit) are identical
+rerun back to back (an English-title list failed under the call limit in the parallel run).
+No new fix. Left weak, by hand: Under Armour, Nerf Elite 2.0, Magna-Tiles (absent or accessories only; the fallback
+brings the plain item), jalabiya (small market), inflatable bouncers and a 3m bounce house, an 80cm teddy, a 50cm RC
+boat, a men's 3XL shapewear shirt, a toddler balance bike (low sales).
