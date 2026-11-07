@@ -129,3 +129,13 @@ Left weak, by hand: phone repair parts for one model (flex cables, camera module
 Pro (phones barely sold via the partner search), furniture and colored furniture (big items sell few), pet sizes
 (a 40cm canary cage, a medium dog cone), uniforms and dirndls in a letter size (the search with "M" finds almost
 nothing; the live reading's fallback is the plain item), a red babydoll (dolls crowd it), a 75B bra.
+
+## Families 10-11
+- 10, Bags & Luggage (43) and Motorcycles & Powersports (30), 146 searches: OK 88% -> 89% (two rows that looked worse,
+  a black hand cart and a 48V battery, rerun back to back: no loss). Bags 94%, Motorcycles 80%.
+  Left weak: parts for one bike model (TMAX top case, MT-07 crash bar, Grom seat: tens sold), Minn Kota motors, a pink
+  luggage scale, amber turn signals by that name, scooter polish.
+- 11, Baby & Maternity (44) and Arts, Crafts & Sewing (11), 110 searches: OK 77% -> 78%. Crafts 100%, Baby 72% -> 73%.
+  Kids' European sizes (116, 98, 74) looked like misses: the check wanted "116" in the title; sellers list 5-6Y, 6T or
+  120. Read as the bot now reads them (next fix), the 11 kids' size searches are 91% OK both before and after; the fix
+  matters on the card: a listing that has the size counts as exact and its link opens that size.
