@@ -1,6 +1,7 @@
 // Hourly run of the daily-deals channel (by .github/workflows/daily-deals.yml): posts when this hour is a posting hour.
 // DEALS_FORCE=true posts now whatever the hour. DEALS_PREVIEW=true sends one post to the owner's private chat
-// (DEALS_OWNER_ID) instead of the channel and keeps the channel's state as it was (owner, 2026-11-08: tests in private).
+// (DEALS_OWNER_ID) instead of the channel and keeps the channel's state as it was (owner, 2026-11-08: tests in private);
+// DEALS_PREVIEW_COUNT=10 sends 10 of them, each on another topic.
 // Needs DEALS_BOT_TOKEN (the new bot) and DEALS_CHAT_ID (its channel; found by itself on the first run). Without the
 // token it is a dry run that prints the post.
 // State (posted product ids, last topic) lives in DEALS_STATE, kept between runs by the workflow's cache.
@@ -23,7 +24,11 @@ if (token && !chatId) {
 }
 const preview = process.env.DEALS_PREVIEW === "true";
 if (preview && token && !process.env.DEALS_OWNER_ID) throw new Error("a preview needs DEALS_OWNER_ID");
-let next = await runDeals(state, { api: token ? new Api(token) : null, chatId: preview ? process.env.DEALS_OWNER_ID : chatId, stars: addStars, reviews: fetchReviews, force: preview || process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
+const run = (st) => runDeals(st, { api: token ? new Api(token) : null, chatId: preview ? process.env.DEALS_OWNER_ID : chatId, stars: addStars, reviews: fetchReviews, force: preview || process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
+let next = await run(state);
+// DEALS_PREVIEW_COUNT: several previews in a row, each on the next topic (the topic moves on in memory only; owner,
+// 2026-11-08: "at least 10" to judge a change).
+if (preview) for (let n = 1, count = Math.min(Number(process.env.DEALS_PREVIEW_COUNT) || 1, 20); n < count; n++) next = await run(next);
 if (preview) {
   console.log("preview: sent to the owner, state unchanged");
 } else {
