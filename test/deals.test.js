@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, CLOSINGS, topicOrder, loadTopics, CATS, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
+import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, CLOSINGS, topicOrder, loadTopics, CATS, rememberSeen, dealSignals, signalTag, worthRank, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
 
 const item = (id, extra = {}) => ({
   product_id: id,
@@ -61,7 +61,7 @@ test("postDeal: next topic in turn, the AI's pick, remembers what it posted", as
   assert.equal(sent[0][0], -100);
   assert.equal(sent[0][1], "https://ae01.alicdn.com/2.jpg");
   assert.deepEqual(sent[0][2].reply_markup.inline_keyboard, [[{ text: "🛒 לקנייה בעלי אקספרס", url: "https://s.click.aliexpress.com/e/2" }]], "a buy button under the post");
-  const { log: posts, closingTurn, closings, headlines, ...rest } = state;
+  const { log: posts, closingTurn, closings, headlines, seen, ...rest } = state;
   assert.deepEqual(rest, { topic: 1, posted: ["9", "2"] });
   assert.equal(closingTurn, 0, "no AI closing: the first of the 60 lines");
   assert.equal(posts.length, 1, "the post is logged for the nightly status");
@@ -203,7 +203,7 @@ test("specialFor: the holiday item is the day's second-to-last post, the weekly 
   const tue = { hour: 22, wd: 2 }; // hourly from 2026-11-04: second-to-last is 22:00, third is 09:00
   assert.match(specialFor(tue, "normal", holiday).banner, /🕎 לקראת חנוכה · עוד 12 ימים/);
   assert.equal(specialFor({ hour: 22, wd: 2 }, "peak", holiday).key, "holidayTopic", "peak days: 22:00");
-  assert.equal(specialFor({ hour: 12, wd: 2 }, "normal", holiday), null, "Tuesday has no series");
+  assert.equal(specialFor({ hour: 13, wd: 2 }, "normal", holiday), null, "Tuesday has no series");
   const sunday = specialFor({ hour: 9, wd: 0 }, "normal", null);
   assert.deepEqual([sunday.banner, sunday.maxIls], ["💸 מתחת ל-10 ₪", 10]);
   const wed = specialFor({ hour: 9, wd: 3 }, "sale", null);
@@ -501,4 +501,60 @@ test("postDeal recent: the last headlines and closing lines go to the pick, and 
   const next = await postDeal(state, { api: { sendPhoto: async () => {} }, chatId: 1, search: async () => [item("a")], shorten: async (ps) => ps, pick, log: () => {} });
   assert.deepEqual(seen, { headlines: ["h2", "h3", "h4", "h5", "h6", "h7"], closings: ["c1"] });
   assert.deepEqual(next.headlines, ["h3", "h4", "h5", "h6", "h7", "כותרת חדשה"]);
+});
+
+test("rememberSeen: the lowest price seen; a sales reading kept up to 14 days, then renewed; at most 2,000 products", () => {
+  const day = 864e5;
+  const p = (id, price, sold) => ({ product_id: id, target_sale_price: String(price), lastest_volume: sold });
+  let seen = rememberSeen({}, [p("1", 20, 5000)], 0);
+  seen = rememberSeen(seen, [p("1", 25, 6000)], 5 * day);
+  assert.deepEqual(seen["1"], { price: 20, sold: 5000, at: 0 }, "the older reading stays inside 14 days");
+  seen = rememberSeen(seen, [p("1", 18, 9000)], 15 * day);
+  assert.deepEqual(seen["1"], { price: 18, sold: 9000, at: 15 * day });
+  const many = rememberSeen({}, Array.from({ length: 2100 }, (_, i) => p(String(i), 10, 100)), 0);
+  assert.equal(Object.keys(many).length, 2000);
+});
+
+test("dealSignals and signalTag: a trend needs 25% more sales over 3+ days; a new lowest price 10% under; an unusual discount 70-79%", () => {
+  const day = 864e5;
+  const p = { product_id: "1", target_sale_price: "9", target_original_price: "20", lastest_volume: 13000, target_sale_price_currency: "ILS" };
+  const seen = { 1: { price: 10, sold: 10000, at: 0 } };
+  assert.equal(dealSignals(p, seen, 2 * day).trend, null, "under 3 days: no trend yet");
+  const s = dealSignals(p, seen, 7 * day);
+  assert.equal(s.trend, 1.3);
+  assert.equal(s.lowest, true);
+  assert.equal(s.discount, 55);
+  assert.match(signalTag(p, s), /טרנד/);
+  assert.match(signalTag(p, { ...s, trend: 1.1 }), /המחיר הכי נמוך שראינו/);
+  assert.match(signalTag(p, { trend: null, lowest: false, discount: 72 }), /הנחה חריגה: 72%/);
+  assert.equal(signalTag(p, { trend: null, lowest: false, discount: 85 }), null, "80%+ is a fake price");
+  assert.equal(signalTag(p, { trend: null, lowest: false, discount: 50 }), null);
+  assert.match(signalTag(p, { trend: null, lowest: false, discount: 50 }, true), /💎 שווה במיוחד: מעל 13,000 קנו, ב-₪9\.00 בלבד/);
+  assert.equal(dealSignals(p, {}, 7 * day).lowest, false, "first sighting: no claims");
+});
+
+test("worthRank: a trending product first, then the most sales per shekel", () => {
+  const day = 864e5;
+  const p = (id, price, sold) => ({ product_id: id, target_sale_price: String(price), lastest_volume: sold });
+  const list = [p("dear", 100, 50000), p("cheap", 5, 20000), p("hot", 50, 13000)];
+  assert.deepEqual(worthRank(list, {}, 0).map((x) => x.product_id), ["cheap", "dear", "hot"]);
+  assert.deepEqual(worthRank(list, { hot: { price: 50, sold: 10000, at: 0 } }, 7 * day).map((x) => x.product_id), ["hot", "cheap", "dear"]);
+});
+
+test("specialFor: 'worth it' is the 6th and 12th post; runDeals posts it with the tag and remembers what it saw", async () => {
+  assert.deepEqual(specialFor({ hour: 12, wd: 2 }, "normal", null), { worth: true });
+  assert.deepEqual(specialFor({ hour: 18, wd: 2 }, "normal", null), { worth: true });
+  const sent = [];
+  const state = await runDeals({}, {
+    now: new Date("2026-11-03T10:30:00Z"), // 12:30 Israel, Tuesday
+    names: async () => [],
+    api: { sendPhoto: async (_c, _p, o) => sent.push(o.caption) },
+    chatId: 1,
+    search: async () => [item("dear", { target_sale_price: "90.00", lastest_volume: 40000 }), item("cheap", { target_sale_price: "4.00", lastest_volume: 9000 })],
+    shorten: async (ps) => ps,
+    pick: async () => ({ i: 0, name: "x" }),
+    log: () => {},
+  });
+  assert.match(sent[0], /💎 שווה במיוחד: מעל 9,000 קנו, ב-₪4\.00 בלבד/, "the cheap best seller wins the worth post");
+  assert.ok(state.seen.cheap && state.seen.dear);
 });

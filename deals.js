@@ -180,6 +180,8 @@ export function specialFor(t, kind, holiday) {
     return { key: "holidayTopic", topics: holiday.topics, minSold: MIN_SOLD_HOLIDAY, banner: `${holiday.emoji} לקראת ${holiday.name} · עוד ${holiday.days} ימים · מזמינים עכשיו שיגיע בזמן` };
   }
   if (t.wd === SET_DAY && t.hour === hours[2]) return { set: true };
+  // "Really worth it / trending" twice a day (the 6th and 12th posts): ranked by the data, not by sales alone.
+  if (t.hour === hours[5] || t.hour === hours[11]) return { worth: true };
   // "3 things under 20 ₪" once a day, not on the days that already have a cheap or a set post (Sunday, Thursday).
   if (t.hour === hours[3] && t.wd !== 0 && t.wd !== SET_DAY) return { cheap: { maxIls: CHEAP_MAX_ILS } };
   const series = SERIES.find((x) => x.wd === t.wd);
@@ -275,7 +277,7 @@ const flag = (code) => (/^[A-Z]{2}$/.test(code ?? "") ? String.fromCodePoint(...
 
 // AI parts (headline, benefits, warning, review, why) are optional: without them the post is the plain card under
 // "הדיל של עכשיו". The data lines (price to the search-bot link) are the same in every style.
-export function formatDeal(p, { name, emoji, headline, benefits = [], warning, review, why, before, after, quotes = [], closing, template = "classic" } = {}, banner = null) {
+export function formatDeal(p, { name, emoji, headline, benefits = [], warning, review, why, before, after, quotes = [], closing, tag, template = "classic" } = {}, banner = null) {
   const sold = soldText(p.lastest_volume);
   const title = `<b>${esc(name || shortTitle(p.product_title) || "מוצר")}</b>`;
   const head = `${emoji || "🔥"} <b>${esc(headline || "הדיל של עכשיו")}</b>`;
@@ -294,6 +296,7 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning, r
   }[style] ?? [];
   const lines = [
     banner && `<b>${esc(banner)}</b>`,
+    tag && `<b>${esc(tag)}</b>`,
     ...top,
     "",
     priceLine(p),
@@ -336,6 +339,54 @@ async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = nu
   }
 }
 
+// Step 5 (owner, 2026-11-08: show what is really worth it, talk about an unusual discount, trends). Real data only:
+// seen = { [product id]: { price: the lowest price seen, sold, at } } from every list the bot searched (free). A
+// product's (sold, at) reading is kept up to 14 days, so a topic that comes back a week later can be compared.
+const KEEP_SEEN = 2000;
+const READING_MS = 14 * 864e5;
+export function rememberSeen(seen = {}, products = [], now = Date.now()) {
+  const next = { ...seen };
+  for (const p of products) {
+    const id = String(p.product_id), price = Number(p.target_sale_price), sold = Number(p.lastest_volume);
+    if (!(price > 0) || !(sold >= 0)) continue;
+    const old = next[id];
+    next[id] = old ? { price: Math.min(old.price, price), ...(now - old.at < READING_MS ? { sold: old.sold, at: old.at } : { sold, at: now }) } : { price, sold, at: now };
+  }
+  const ids = Object.keys(next);
+  return ids.length <= KEEP_SEEN ? next : Object.fromEntries(Object.entries(next).sort((a, b) => b[1].at - a[1].at).slice(0, KEEP_SEEN));
+}
+
+// What the data says about a product, from what was seen before this search: a new lowest price (10%+ under the lowest
+// seen), the sales growth since a reading 3+ days old (ratio), and the discount from AliExpress's own price.
+export function dealSignals(p, seen = {}, now = Date.now()) {
+  const old = seen[String(p.product_id)];
+  const price = Number(p.target_sale_price), sold = Number(p.lastest_volume), original = Number(p.target_original_price);
+  return {
+    lowest: Boolean(old && price > 0 && price <= old.price * 0.9),
+    trend: old && old.sold > 0 && now - old.at >= 3 * 864e5 ? sold / old.sold : null,
+    discount: original > price && price > 0 ? Math.round((1 - price / original) * 100) : 0,
+  };
+}
+
+// The line on top that says why this one, from the data alone; null when nothing stands out.
+const TREND_RATIO = 1.25;
+export function signalTag(p, signals, worth = false) {
+  if (signals.trend >= TREND_RATIO) return "📈 טרנד: המכירות שלו קפצו לאחרונה";
+  if (signals.lowest) return "📉 המחיר הכי נמוך שראינו עליו";
+  if (signals.discount >= 70 && signals.discount < 80) return `🔥 הנחה חריגה: ${signals.discount}%`; // 80%+ is hidden as a fake price
+  if (worth) return `💎 שווה במיוחד: ${soldText(p.lastest_volume)} קנו, ב-${formatPrice(p.target_sale_price, p.target_sale_price_currency ?? "ILS")} בלבד`;
+  return null;
+}
+
+// "Worth it" posts rank a topic's best sellers by trend first, then by sales for each shekel (owner's "costs nothing here").
+export function worthRank(list, seen = {}, now = Date.now()) {
+  const score = (p) => {
+    const t = dealSignals(p, seen, now).trend;
+    return [t >= TREND_RATIO ? t : 0, Number(p.lastest_volume) / Math.max(Number(p.target_sale_price), 1)];
+  };
+  return list.map((p) => [p, score(p)]).sort((a, b) => b[1][0] - a[1][0] || b[1][1] - a[1][1]).map(([p]) => p);
+}
+
 // The main rotation's memory after a post: when each topic was last used (30 days kept) and the last 3 categories.
 function markUsed(state, done, now = Date.now()) {
   const used = Object.fromEntries(Object.entries(state.used ?? {}).filter(([, at]) => now - at < KEEP_USED_MS));
@@ -347,9 +398,10 @@ function markUsed(state, done, now = Date.now()) {
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
 // topics/topicKey: a holiday or series post walks its own list with its own place in state; maxIls: a price cap.
 // stars: real stars and review counts for the chosen product (scripts/daily-deal.js passes addStars; tests leave it out).
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", order = null, usedAt = Date.now(), steps = Math.min(topics.length, order ? MAIN_TRIES : topics.length), minSold = MIN_SOLD, maxIls = null, rotate = false, log = console.log } = {}) {
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", order = null, usedAt = Date.now(), worth = false, steps = Math.min(topics.length, order ? MAIN_TRIES : topics.length), minSold = MIN_SOLD, maxIls = null, rotate = false, log = console.log } = {}) {
   const posted = state.posted ?? [];
   const cap = maxIls ? { maxIls } : {};
+  let seenNow = null; // every searched best seller is remembered for the price and trend signals
   for (let step = 1; step <= steps; step++) {
     // A series' first post starts half a list away from the main rotation, so the two don't land on the same topic;
     // the main rotation and a holiday start at their first topic.
@@ -365,7 +417,9 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
       log(`no good item for "${words}", trying the next topic`);
       continue;
     }
-    list = list.slice(0, TO_AI);
+    const seen = state.seen ?? {};
+    seenNow = rememberSeen(seenNow ?? seen, list, usedAt);
+    list = (worth ? worthRank(list, seen, usedAt) : list).slice(0, TO_AI);
     // A failed AI call (null) is tried once more: it timed out once at 30 s, and the post then went out without its text.
     // reviews: the chosen product's buyer reviews (scripts/daily-deal.js passes fetchReviews); a failure is no reviews.
     const reviewsFor = reviews
@@ -392,14 +446,16 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     const fresh = choice?.closing && !(state.closings ?? []).includes(choice.closing) ? choice.closing : null;
     const turn = fresh ? state.closingTurn ?? -1 : ((state.closingTurn ?? -1) + 1) % CLOSINGS.length;
     const closing = fresh ?? CLOSINGS[turn];
-    const caption = formatDeal(p, { ...(choice ?? {}), closing }, banner);
+    const tag = signalTag(p, dealSignals(p, state.seen ?? {}, usedAt), worth);
+    if (tag) log(`signal: ${tag}`);
+    const caption = formatDeal(p, { ...(choice ?? {}), closing, tag }, banner);
     if (api) await sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto: choice?.review?.photo });
     else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
     const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };
     log(`style: ${choice?.template ?? "plain"}`);
     const usage = order ? markUsed(state, [[words, cat]], usedAt) : {};
-    return { ...state, [topicKey]: topic, ...usage, ...(rotate && choice?.template ? { template: choice.template } : {}), closingTurn: turn, closings: fresh ? [...(state.closings ?? []), fresh].slice(-KEEP_CLOSINGS) : state.closings ?? [], headlines: [...(state.headlines ?? []), ...(choice?.headline ? [choice.headline] : [])].slice(-6), posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
+    return { ...state, [topicKey]: topic, ...usage, seen: seenNow, ...(rotate && choice?.template ? { template: choice.template } : {}), closingTurn: turn, closings: fresh ? [...(state.closings ?? []), fresh].slice(-KEEP_CLOSINGS) : state.closings ?? [], headlines: [...(state.headlines ?? []), ...(choice?.headline ? [choice.headline] : [])].slice(-6), posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
   }
   log("no topic gave a good item; nothing posted");
   return state;
@@ -483,13 +539,19 @@ export async function runDeals(state, { now = new Date(), force = false, special
   let next = state;
   // One post a day for the coming holiday and one for the weekly series; if nothing fits, the usual post goes out.
   const wd = { sun: 0, wed: 3, fri: 5, set: SET_DAY }[forced];
-  const special = forced === "cheap"
+  const special = forced === "worth"
+    ? { worth: true }
+    : forced === "cheap"
     ? specialFor({ ...t, wd: 1, hour: SCHEDULE[kind][3] }, kind, null)
     : forced === "holiday"
     ? specialFor({ ...t, hour: SCHEDULE[kind].at(-2) }, kind, upcomingHoliday(now, 365))
     : forced && wd != null
       ? specialFor({ ...t, wd, hour: SCHEDULE[kind][2] }, kind, null)
       : specialFor(t, kind, upcomingHoliday(now));
+  if (special?.worth) {
+    next = await postDeal(state, { ...deps, log, banner, rotate: true, topics: DEAL_TOPICS, order, usedAt: now.getTime(), worth: true });
+    if (next !== state) return { ...next, slot };
+  }
   if (special?.set || special?.cheap) {
     next = await postSet(state, { ...deps, log, cheap: special.cheap ?? null, order, usedAt: now.getTime() });
     if (next !== state) return { ...next, slot };
