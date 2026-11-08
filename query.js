@@ -1017,7 +1017,7 @@ export const DEAL_STYLES = {
   numbers: "\nThis post is the NUMBERS style: the sales and rating are shown big above it, so the headline is one short line that\n  sounds like a reaction to them, with no numbers. benefits: up to 2; why: null.",
   beforeafter: "\nThis post is the BEFORE/AFTER style. before: the everyday annoyance this item ends, up to 8 words; after: what it is like\n  with it, up to 8 words. Only what the title supports. benefits: an empty list; why: null.",
   reasons: "\nThis post is the 3-REASONS style: benefits are 3 reasons to buy it, each a short full sentence of up to 8 words.\n  why: null.",
-  reviews3: "\nThis post is the 3-BUYERS style: review_index/review_quote is the best review, and more_quotes are up to 2 more\n  reviews (other indexes), each quoted the same way. benefits: an empty list; why: null.",
+  reviews3: "\nThis post is the 3-BUYERS style: review_index/review_quote is the best review, and more_quotes are up to 2 more\n  reviews (other indexes), each quoted the same way and each saying something different. Every quote says something\n  good about the item: never a complaint, a limit or a \"but\". benefits: an empty list; why: null.",
 };
 
 // Device families a deal post may name only when the product title does (Hebrew or English spelling).
@@ -1132,10 +1132,11 @@ function dealClosing(text) {
 function dealQuotes(out, reviews, title) {
   const all = [[out?.review_index, out?.review_quote], ...(Array.isArray(out?.more_quotes) ? out.more_quotes : []).map((q) => [q?.review_index, q?.quote])];
   const seen = new Set();
+  const said = new Set(); // the same words under two reviews showed twice (resistance bands, 2026-11-08 preview)
   return all
     .filter(([i]) => !seen.has(i) && seen.add(i))
     .map(([i, q]) => dealReview(i, q, reviews, title))
-    .filter(Boolean)
+    .filter((q) => q && !said.has(q.quote.replace(/[^\p{L}]/gu, "")) && said.add(q.quote.replace(/[^\p{L}]/gu, "")))
     .slice(0, 3);
 }
 

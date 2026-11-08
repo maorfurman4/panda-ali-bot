@@ -416,6 +416,7 @@ test("formatDeal new styles: numbers on top, before/after, numbered reasons, 3 b
   assert.match(formatDeal(p, { ...choice, quotes: choice.quotes.slice(0, 1), template: "reviews3" }), /✅ קלה מאוד/, "one quote: classic");
   assert.match(formatDeal(p, { ...choice, before: null, template: "beforeafter" }), /✅ קלה מאוד/, "no before: classic");
   assert.match(formatDeal(p, choice), /<i>שווה להציץ 👀<\/i>\n‏🛒/, "the closing line sits above the buy link");
+  assert.match(formatDeal(p, choice), /נמכרו: מעל 31,000\n\u200f\n\u200f<i>/, "with an empty line before it, apart from the numbers");
 });
 
 test("postDeal closing: the AI's own line when fresh; one used lately or missing takes the next of the 60", async () => {

@@ -485,7 +485,7 @@ test("deal picker new styles: before/after, 3 buyers' quotes and the closing lin
     { stars: 5, country: "KR", text: "Sturdy and big enough for groceries", photos: [] },
   ];
   const base = { fits: [true], emoji: "🚗", headline: "תא מטען מסודר", name: "ארגונית לתא המטען", benefits: ["מתקפלת", "גדולה"], warning: null, why: null,
-    review_index: 0, review_quote: "קופסה מעולה, הכל נשאר במקום", more_quotes: [{ review_index: 1, quote: "מתקפלת שטוח כשלא צריך" }, { review_index: 0, quote: "כפול" }, { review_index: 2, quote: "חזקה ונכנסות לה 5 שקיות" }],
+    review_index: 0, review_quote: "קופסה מעולה, הכל נשאר במקום", more_quotes: [{ review_index: 1, quote: "מתקפלת שטוח כשלא צריך" }, { review_index: 0, quote: "כפול" }, { review_index: 2, quote: "חזקה ונכנסות לה 5 שקיות" }, { review_index: 2, quote: "מתקפלת שטוח כשלא צריך." }],
     before: "הכל מתגלגל בתא המטען", after: "כל דבר במקום שלו", closing: "סוף סוף סדר ברכב" };
   const run = (template, answer = {}) => createDealPicker({ fetch: openai({ ...base, ...answer }).fetch, env: ENV })(products, "car trunk organizer", { reviews: async () => reviews, template });
   const ba = await run("beforeafter");
@@ -494,7 +494,7 @@ test("deal picker new styles: before/after, 3 buyers' quotes and the closing lin
   assert.deepEqual(ba.benefits, []);
   assert.equal((await run("classic")).before, null, "before/after only in their style");
   const three = await run("reviews3");
-  assert.deepEqual(three.quotes.map((q) => q.country), ["IL", "GB"], "a repeated index and a made-up number are dropped");
+  assert.deepEqual(three.quotes.map((q) => q.country), ["IL", "GB"], "a repeated index, the same words twice and a made-up number are dropped");
   assert.equal(three.closing, "סוף סוף סדר ברכב");
   for (const closing of ["רק היום במחיר הזה", "2 במחיר של 1", "Grab it now", "סוף סוף סדר ברכב, בלי בלגן ובלי כאב ראש בכלל אף פעם"]) {
     assert.equal((await run("classic", { closing })).closing, null, closing);

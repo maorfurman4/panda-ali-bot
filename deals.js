@@ -227,7 +227,7 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning, r
     vatLine(p),
     style !== "numbers" && ratingText(p), // the numbers style shows these two at the top
     style !== "numbers" && sold && `📦 נמכרו: ${sold}`, // 🛒 is the buy line
-    closing && `<i>${esc(closing)}</i>`,
+    ...(closing ? ["", `<i>${esc(closing)}</i>`] : []), // its own line, so it doesn't read as one of the numbers
     // Short clickable text, not the bare URL (it wrapped over two lines); the same link is also the button under the post.
     `🛒 <a href="${esc(p.promotion_link)}">לרכישה בעלי אקספרס ←</a>`,
     "",
