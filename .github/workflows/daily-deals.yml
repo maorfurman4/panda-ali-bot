@@ -26,6 +26,10 @@ on:
         description: "With preview: how many posts, each on another topic (up to 20)"
         type: string
         default: "1"
+      hour:
+        description: "With preview: as if it were this hour in Israel, 7-23 (empty: now)"
+        type: string
+        default: ""
 
 concurrency: daily-deals # two runs at once could post the same item
 
@@ -58,6 +62,7 @@ jobs:
           DEALS_SPECIAL: ${{ inputs.special }}
           DEALS_PREVIEW: ${{ github.event_name == 'workflow_dispatch' && inputs.preview }}
           DEALS_PREVIEW_COUNT: ${{ inputs.count }}
+          DEALS_PREVIEW_HOUR: ${{ inputs.hour }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # Claude backup when OpenAI fails (empty: no backup)
           ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}

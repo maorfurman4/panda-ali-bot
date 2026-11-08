@@ -8,7 +8,7 @@
 // Usage: npm run deal
 import { readFile, writeFile } from "node:fs/promises";
 import { Api } from "grammy";
-import { runDeals, sendDailyStatus } from "../deals.js";
+import { runDeals, sendDailyStatus, israelTime } from "../deals.js";
 import { addStars, fetchReviews } from "../aliexpress.js";
 
 const file = process.env.DEALS_STATE || "deals-state.json";
@@ -24,7 +24,10 @@ if (token && !chatId) {
 }
 const preview = process.env.DEALS_PREVIEW === "true";
 if (preview && token && !process.env.DEALS_OWNER_ID) throw new Error("a preview needs DEALS_OWNER_ID");
-const run = (st) => runDeals(st, { api: token ? new Api(token) : null, chatId: preview ? process.env.DEALS_OWNER_ID : chatId, stars: addStars, reviews: fetchReviews, force: preview || process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
+// DEALS_PREVIEW_HOUR: a preview as if it were that hour in Israel (to see the morning or evening topics at any time).
+const hour = preview ? Number(process.env.DEALS_PREVIEW_HOUR) : NaN;
+const now = new Date(Date.now() + (Number.isInteger(hour) && hour >= 0 && hour <= 23 ? (hour - israelTime().hour) * 3600e3 : 0));
+const run = (st) => runDeals(st, { now, api: token ? new Api(token) : null, chatId: preview ? process.env.DEALS_OWNER_ID : chatId, stars: addStars, reviews: fetchReviews, force: preview || process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
 let next = await run(state);
 // DEALS_PREVIEW_COUNT: several previews in a row, each on the next topic (the topic moves on in memory only; owner,
 // 2026-11-08: "at least 10" to judge a change).

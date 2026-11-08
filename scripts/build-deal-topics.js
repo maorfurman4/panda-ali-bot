@@ -16,7 +16,12 @@ const terms = [
   ...readFileSync(new URL("../research_notes/deal-terms.jsonl", import.meta.url), "utf8").trim().split("\n").map((l) => JSON.parse(l)),
 ];
 const seen = new Set();
-const todo = terms.filter((t) => CATS[t.cat] && !seen.has(t.kw.toLowerCase()) && seen.add(t.kw.toLowerCase()));
+// Not for a public deals channel: lingerie and intimate wear (socks, undershirts and loungewear stay), and hobby electronics
+// (soldering, boards, modules) that few readers want (2026-11-08).
+export const SKIP = /\b(bra|panties|thong|g string|lingerie|nipple|fishnet|pantyhose|briefs|camisole)\b/i;
+const SKIP_CATS = new Set(["Electronic Components", "Food"]); // food from abroad: customs and kashrut
+const KEEP_ANYWAY = /\b(micro sd|led strip)\b/i; // everyday items listed under the hobby category
+const todo = terms.filter((t) => CATS[t.cat] && !SKIP.test(t.kw) && (!SKIP_CATS.has(t.cat) || KEEP_ANYWAY.test(t.kw)) && !seen.has(t.kw.toLowerCase()) && seen.add(t.kw.toLowerCase()));
 
 const kept = [];
 let done = 0;
