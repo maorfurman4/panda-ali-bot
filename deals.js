@@ -1,5 +1,6 @@
 // Daily-deals bot: a separate Telegram bot that posts one best-selling AliExpress product to its own channel, a few times a day.
 // It has no server: scripts/daily-deal.js runs it from a scheduled GitHub Action (see .github/workflows/daily-deals.yml).
+import { readFileSync } from "node:fs";
 import { InputFile } from "grammy";
 import { searchProducts, shortenLinks, promoNames, promoProducts } from "./aliexpress.js";
 import { makeCollage } from "./collage.js";
@@ -21,6 +22,79 @@ export const TOPICS = [
   ["shower head", 13], ["kitchen gadgets", 15], ["sleep eye mask", 66], ["clothes hanger", 15], ["door seal strip", 13],
   ["umbrella", 15], ["thermometer", 66], ["cat toy", 15],
 ];
+
+
+// The 33 categories of the search-bot studies: AliExpress id (null: searched anywhere only) and the hours they suit
+// (owner, 2026-11-08: product by hour; a first guess per category, to be tuned from the owner's feedback).
+// morning 7-10: commute, car, coffee; noon 11-14: gadgets, office; afternoon 15-18: kids, sport, going out;
+// evening 19-23: home, beauty, sleep, fashion.
+export const WINDOW_HOURS = { morning: [7, 10], noon: [11, 14], afternoon: [15, 18], evening: [19, 23] };
+export const CATS = {
+  "Consumer Electronics": { id: 44, windows: ["noon", "evening"] },
+  "Phones & Accessories": { id: 509, windows: ["morning", "noon"] },
+  "Computer & Office": { id: 7, windows: ["noon"] },
+  "Home Appliances": { id: 6, windows: ["morning", "evening"] },
+  "Home & Garden": { id: 15, windows: ["evening", "afternoon"] },
+  "Home Improvement": { id: 13, windows: ["noon", "evening"] },
+  Tools: { id: 1420, windows: ["noon", "afternoon"] },
+  "Lights & Lighting": { id: 39, windows: ["evening"] },
+  Furniture: { id: 1503, windows: ["evening"] },
+  "Security & Protection": { id: 30, windows: ["noon", "evening"] },
+  Automobiles: { id: 34, windows: ["morning", "afternoon"] },
+  Motorcycle: { id: 201355758, windows: ["morning", "afternoon"] },
+  "Sports & Entertainment": { id: 18, windows: ["morning", "afternoon"] },
+  "Sports Clothing & Shoes": { id: 201768104, windows: ["morning", "afternoon"] },
+  Shoes: { id: 322, windows: ["afternoon", "evening"] },
+  "Women's Clothing": { id: 200000345, windows: ["evening"] },
+  "Men's Clothing": { id: 200000343, windows: ["evening"] },
+  Underwear: { id: 200574005, windows: ["evening"] },
+  "Apparel Accessories": { id: 200000297, windows: ["afternoon", "evening"] },
+  Jewelry: { id: 36, windows: ["evening"] },
+  Watches: { id: 1511, windows: ["noon", "evening"] },
+  "Luggage & Bags": { id: 1524, windows: ["morning", "afternoon"] },
+  "Beauty & Health": { id: 66, windows: ["evening"] },
+  "Hair & Wigs": { id: null, windows: ["evening"] },
+  "Mother & Kids": { id: 1501, windows: ["afternoon"] },
+  "Toys & Hobbies": { id: 26, windows: ["afternoon"] },
+  "Office & School": { id: 21, windows: ["morning", "noon"] },
+  "Weddings & Events": { id: 320, windows: ["afternoon"] },
+  "Novelty & Gifts": { id: null, windows: ["afternoon", "evening"] },
+  "Electronic Components": { id: null, windows: ["noon"] },
+  Food: { id: null, windows: ["morning", "afternoon"] },
+  "Books & Culture": { id: 202228412, windows: ["afternoon"] },
+  Kitchen: { id: 15, windows: ["morning", "evening"] },
+};
+
+// The main rotation's topics: deal-topics.json (built by scripts/build-deal-topics.js), else the 48 TOPICS. Each is
+// [English search words, category id or null, category name or null, time windows or null].
+export function loadTopics(file = new URL("./deal-topics.json", import.meta.url)) {
+  try {
+    const list = JSON.parse(readFileSync(file, "utf8"));
+    return Array.isArray(list) && list.length ? list.map((t) => [t.words, t.category ?? null, t.cat ?? null, t.windows ?? null]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export const DEAL_TOPICS = loadTopics() ?? TOPICS.map(([w, c]) => [w, c, null, null]);
+
+// The order to try the main topics in, best first (owner, 2026-11-08: product by hour, no repeat within 7 days):
+// 1. rested 7+ days and the hour is in its window; 2. rested, any hour; 3. the rest, the longest unused first.
+// Inside 1 and 2: a category not among the last posts first, then a shuffle that changes every day.
+const REST_MS = 7 * 864e5;
+const mixOf = (text) => [...text].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
+export function topicOrder(topics, { used = {}, recentCats = [], hour, now = Date.now() } = {}) {
+  const day = Math.floor(now / 864e5);
+  const fits = (windows) => !windows || windows.some((w) => hour >= WINDOW_HOURS[w][0] && hour <= WINDOW_HOURS[w][1]);
+  const info = topics.map(([words, , cat, windows], i) => {
+    const last = used[words] ?? 0;
+    const rested = now - last >= REST_MS;
+    return { i, last, rank: rested ? (fits(windows) ? 0 : 1) : 2, again: recentCats.includes(cat) ? 1 : 0, mix: mixOf(`${words}|${day}`) };
+  });
+  return info.sort((a, b) => a.rank - b.rank || (a.rank < 2 ? a.again - b.again || a.mix - b.mix : a.last - b.last)).map((x) => x.i);
+}
+const MAIN_TRIES = 12; // topics tried before an hour gives up (each try is 2 searches and maybe an AI call)
+const KEEP_USED_MS = 30 * 864e5;
 
 const MIN_FEEDBACK = 93; // ≈4.7 stars; 95 (≈4.8) left out 45% of strong sellers (2026-11-01)
 // The regular search sorted by sales holds the real best sellers: 10x the sales of the "hot products" list (earbuds:
@@ -110,7 +184,7 @@ export function specialFor(t, kind, holiday) {
   if (t.hour === hours[3] && t.wd !== 0 && t.wd !== SET_DAY) return { cheap: { maxIls: CHEAP_MAX_ILS } };
   const series = SERIES.find((x) => x.wd === t.wd);
   if (series && t.hour === hours[2]) {
-    const topics = series.categories ? TOPICS.filter(([, c]) => series.categories.includes(c)) : TOPICS;
+    const topics = series.categories ? DEAL_TOPICS.filter(([, c]) => series.categories.includes(c)) : DEAL_TOPICS;
     return { key: `series${series.wd}Topic`, topics, maxIls: series.maxIls ?? null, banner: series.banner };
   }
   return null;
@@ -261,19 +335,28 @@ async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = nu
   }
 }
 
+// The main rotation's memory after a post: when each topic was last used (30 days kept) and the last 3 categories.
+function markUsed(state, done, now = Date.now()) {
+  const used = Object.fromEntries(Object.entries(state.used ?? {}).filter(([, at]) => now - at < KEEP_USED_MS));
+  for (const [words] of done) used[words] = now;
+  return { used, recentCats: [...(state.recentCats ?? []), ...done.map(([, cat]) => cat).filter(Boolean)].slice(-3) };
+}
+
 // One post. state = { posted: [product ids], topic: index of the last topic used, ... }; returns the new state, or the
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
 // topics/topicKey: a holiday or series post walks its own list with its own place in state; maxIls: a price cap.
 // stars: real stars and review counts for the chosen product (scripts/daily-deal.js passes addStars; tests leave it out).
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", steps = topics.length, minSold = MIN_SOLD, maxIls = null, rotate = false, log = console.log } = {}) {
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", order = null, usedAt = Date.now(), steps = Math.min(topics.length, order ? MAIN_TRIES : topics.length), minSold = MIN_SOLD, maxIls = null, rotate = false, log = console.log } = {}) {
   const posted = state.posted ?? [];
   const cap = maxIls ? { maxIls } : {};
   for (let step = 1; step <= steps; step++) {
     // A series' first post starts half a list away from the main rotation, so the two don't land on the same topic;
     // the main rotation and a holiday start at their first topic.
     const start = state[topicKey] ?? (topicKey.startsWith("series") ? (state.topic ?? -1) + Math.floor(topics.length / 2) : -1);
-    const topic = (start + step) % topics.length;
-    const [words, category] = topics[topic];
+    // order: the main rotation's own order (topicOrder); otherwise the next topic in turn.
+    const topic = order ? order[step - 1] : (start + step) % topics.length;
+    if (topic === undefined) break;
+    const [words, category, cat] = topics[topic];
     // With and without the category: the strongest USB-C cable (54,790 sold) is listed outside "Phones" (2026-10-30).
     const [inCategory, anywhere] = await Promise.all([category ? search(words, { category, shorten: false, ...cap }) : Promise.resolve([]), search(words, { shorten: false, ...cap })]);
     let list = candidates([...inCategory, ...anywhere], posted, minSold);
@@ -312,7 +395,8 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     log(`posted "${words}": product ${p.product_id}`);
     const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };
     log(`style: ${choice?.template ?? "plain"}`);
-    return { ...state, [topicKey]: topic, ...(rotate && choice?.template ? { template: choice.template } : {}), closingTurn: turn, closings: fresh ? [...(state.closings ?? []), fresh].slice(-KEEP_CLOSINGS) : state.closings ?? [], posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
+    const usage = order ? markUsed(state, [[words, cat]], usedAt) : {};
+    return { ...state, [topicKey]: topic, ...usage, ...(rotate && choice?.template ? { template: choice.template } : {}), closingTurn: turn, closings: fresh ? [...(state.closings ?? []), fresh].slice(-KEEP_CLOSINGS) : state.closings ?? [], posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
   }
   log("no topic gave a good item; nothing posted");
   return state;
@@ -323,15 +407,15 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
 // cheap ({ maxIls }): "3 things under X ₪" instead (owner, 2026-11-08): the next main topics that have a best seller under
 // the cap, up to CHEAP_TRIES of them; each topic used moves the main rotation on.
 const CHEAP_TRIES = 8;
-export async function postSet(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, cheap = null, log = console.log } = {}) {
+export async function postSet(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, cheap = null, topics = DEAL_TOPICS, order = null, usedAt = Date.now(), log = console.log } = {}) {
   const index = ((state.setIndex ?? -1) + 1) % SETS.length;
-  const order = cheap ? Array.from({ length: CHEAP_TRIES }, (_, k) => ((state.topic ?? -1) + 1 + k) % TOPICS.length) : [];
-  const set = cheap ? { name: `3 מתחת ל-${cheap.maxIls} ₪`, topics: order.map((k) => TOPICS[k]) } : SETS[index];
+  const tries = cheap ? (order ?? topics.map((_, k) => k)).slice(0, CHEAP_TRIES).map((k) => topics[k]) : [];
+  const set = cheap ? { name: `3 מתחת ל-${cheap.maxIls} ₪`, topics: tries } : SETS[index];
   const cap = cheap ? { maxIls: cheap.maxIls } : {};
   const posted = state.posted ?? [];
   const items = [];
-  let lastTopic = state.topic;
-  for (const [k, [words, category]] of set.topics.entries()) {
+  const usedTopics = [];
+  for (const [words, category, cat] of set.topics) {
     if (items.length === 3) break;
     const [inCategory, anywhere] = await Promise.all([category ? search(words, { category, shorten: false, ...cap }) : Promise.resolve([]), search(words, { shorten: false, ...cap })]);
     // The cap filters before the duplicates are merged, so a dearer look-alike can't push out the cheap one.
@@ -344,7 +428,7 @@ export async function postSet(state, { api, chatId, search = searchProducts, sho
       return log(`set "${set.name}": nothing good for "${words}", no set today`), state;
     }
     items.push({ p: list[choice?.i ?? 0], name: choice?.name || shortTitle(list[choice?.i ?? 0].product_title) });
-    if (cheap) lastTopic = order[k];
+    usedTopics.push([words, cat]);
   }
   if (items.length < 3) return log(`"${set.name}": only ${items.length} items, not posted`), state;
   const shortened = await shorten(items.map((x) => x.p));
@@ -375,7 +459,7 @@ export async function postSet(state, { api, chatId, search = searchProducts, sho
     }
   } else log(`[dry run, nothing sent]\n${caption}`);
   log(`posted the set "${set.name}": ${shortened.map((p) => p.product_id).join(", ")}`);
-  return { ...state, ...(cheap ? { topic: lastTopic } : { setIndex: index }), posted: [...posted, ...shortened.map((p) => String(p.product_id))].slice(-KEEP_POSTED), log: [...(state.log ?? []), { at: Date.now(), name: `סט של ${shortened.length} מוצרים` }].slice(-40) };
+  return { ...state, ...(cheap ? markUsed(state, usedTopics, usedAt) : { setIndex: index }), posted: [...posted, ...shortened.map((p) => String(p.product_id))].slice(-KEEP_POSTED), log: [...(state.log ?? []), { at: Date.now(), name: `סט של ${shortened.length} מוצרים` }].slice(-40) };
 }
 
 // One hourly run: posts only at this kind of day's hours (force: post now). One post a day may be a holiday or series
@@ -392,6 +476,7 @@ export async function runDeals(state, { now = new Date(), force = false, special
     return state;
   }
   const banner = saleBanner(sale, t);
+  const order = topicOrder(DEAL_TOPICS, { used: state.used, recentCats: state.recentCats, hour: t.hour, now: now.getTime() });
   const turn = state.saleTurn ?? 0;
   let next = state;
   // One post a day for the coming holiday and one for the weekly series; if nothing fits, the usual post goes out.
@@ -404,7 +489,7 @@ export async function runDeals(state, { now = new Date(), force = false, special
       ? specialFor({ ...t, wd, hour: SCHEDULE[kind][2] }, kind, null)
       : specialFor(t, kind, upcomingHoliday(now));
   if (special?.set || special?.cheap) {
-    next = await postSet(state, { ...deps, log, cheap: special.cheap ?? null });
+    next = await postSet(state, { ...deps, log, cheap: special.cheap ?? null, order, usedAt: now.getTime() });
     if (next !== state) return { ...next, slot };
   } else if (special) {
     const { key, ...opts } = special;
@@ -413,10 +498,10 @@ export async function runDeals(state, { now = new Date(), force = false, special
   }
   if (sale && turn % 2 === 0) {
     const list = sale.lists[(turn / 2) % sale.lists.length];
-    next = await postDeal(state, { ...deps, log, banner, steps: 3, minSold: MIN_SOLD_SALE, rotate: true, search: (_words, d) => promo(list, d) });
+    next = await postDeal(state, { ...deps, log, banner, steps: 3, minSold: MIN_SOLD_SALE, rotate: true, topics: DEAL_TOPICS, order, usedAt: now.getTime(), search: (_words, d) => promo(list, d) });
     if (next !== state) log(`from the sale list "${list}"`);
   }
-  if (next === state) next = await postDeal(state, { ...deps, log, banner, rotate: true });
+  if (next === state) next = await postDeal(state, { ...deps, log, banner, rotate: true, topics: DEAL_TOPICS, order, usedAt: now.getTime() });
   return next === state ? state : { ...next, slot, ...(sale ? { saleTurn: turn + 1 } : {}) };
 }
 

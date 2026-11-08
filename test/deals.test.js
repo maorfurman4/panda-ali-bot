@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, CLOSINGS, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
+import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, CLOSINGS, topicOrder, loadTopics, CATS, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
 
 const item = (id, extra = {}) => ({
   product_id: id,
@@ -385,12 +385,14 @@ test("postSet cheap: 3 best sellers under the cap from the next topics, skipping
   const searched = [];
   const search = async (w, d) => (searched.push(d.maxIls), w === TOPICS[2][0] ? [] : [item(`${w}-a`, { target_sale_price: "12.00" }), item(`${w}-x`, { target_sale_price: "35.00", lastest_volume: 99000 })]);
   const api = { sendPhoto: async (...a) => sent.push(a) };
-  const state = await postSet({ topic: 0, posted: [] }, { api, chatId: 1, search, shorten: async (ps) => ps, pick: async () => ({ i: 0, name: "שם" }), collage: async () => Buffer.from("jpg"), cheap: { maxIls: 20 }, log: () => {} });
+  const topics = TOPICS.map(([w, c]) => [w, c, `cat-${w}`, null]);
+  const state = await postSet({ topic: 0, posted: [] }, { api, chatId: 1, search, shorten: async (ps) => ps, pick: async () => ({ i: 0, name: "שם" }), collage: async () => Buffer.from("jpg"), cheap: { maxIls: 20 }, topics, order: [1, 2, 3, 4, 5], usedAt: 1000, log: () => {} });
   assert.ok(searched.every((m) => m === 20), "searched with the cap");
   assert.match(sent[0][2].caption, /3 דברים שווים מתחת ל-20 ₪/);
   assert.doesNotMatch(sent[0][2].caption, /35/);
   assert.equal(state.posted.length, 3);
-  assert.equal(state.topic, 4, "topics 1, 3, 4 used (2 had nothing)");
+  assert.deepEqual(Object.keys(state.used), [TOPICS[1][0], TOPICS[3][0], TOPICS[4][0]], "topics 1, 3, 4 used (2 had nothing)");
+  assert.equal(state.topic, 0, "the old turn index is left alone");
   assert.equal(state.setIndex, undefined, "the Thursday sets keep their own turn");
   const few = await postSet({ topic: 0, posted: [] }, { api, chatId: 1, search: async () => [], shorten: async (ps) => ps, pick: async () => ({ i: 0 }), collage: async () => null, cheap: { maxIls: 20 }, log: () => {} });
   assert.deepEqual(few, { topic: 0, posted: [] }, "fewer than 3: nothing posted");
@@ -433,4 +435,56 @@ test("postDeal closing: the AI's own line when fresh; one used lately or missing
   assert.equal(CLOSINGS.length, 60);
   assert.equal(new Set(CLOSINGS).size, 60, "60 different lines");
   assert.ok(CLOSINGS.every((c) => !/\d|רק היום|אחרונים|אחרונות|נגמר|מוגבל|מהרו/.test(c)), "no numbers or fake urgency");
+});
+
+test("topicOrder: rested topics in the hour's window first, then rested ones, then the longest unused; no category twice in a row", () => {
+  const day = 864e5, now = 100 * day;
+  const topics = [
+    ["night lamp", 39, "Lights", ["evening"]],
+    ["car holder", 34, "Cars", ["morning"]],
+    ["mug", 15, "Home", ["morning", "evening"]],
+    ["earbuds", 44, "Electronics", ["noon"]],
+    ["eye mask", 66, "Beauty", ["evening"]],
+  ];
+  const morning = topicOrder(topics, { hour: 8, now });
+  assert.deepEqual(morning.slice(0, 2).toSorted(), [1, 2], "the morning topics first");
+  const used = { "car holder": now - 2 * day, mug: now - 30 * day };
+  const order = topicOrder(topics, { used, hour: 8, now });
+  assert.equal(order[0], 2, "car holder was used 2 days ago; the mug rested");
+  assert.equal(order.at(-1), 1, "inside 7 days: last");
+  const all = { "night lamp": now - 1 * day, "car holder": now - 3 * day, mug: now - 2 * day, earbuds: now - 5 * day, "eye mask": now - 4 * day };
+  assert.deepEqual(topicOrder(topics, { used: all, hour: 20, now }), [3, 4, 1, 2, 0], "all used lately: the longest unused first, window or not");
+  const evening = topicOrder(topics, { hour: 20, now, recentCats: ["Lights"] });
+  assert.notEqual(evening[0], 0, "the last post's category waits");
+  assert.deepEqual(topicOrder(topics, { hour: 20, now }).slice(0, 3).toSorted(), [0, 2, 4]);
+});
+
+test("loadTopics: the built file as [words, id, category, windows]; missing or empty is null (TOPICS then)", async () => {
+  const { writeFileSync, mkdtempSync } = await import("node:fs");
+  const dir = mkdtempSync(`${(await import("node:os")).tmpdir()}/deal-topics-`);
+  const file = `${dir}/t.json`;
+  writeFileSync(file, JSON.stringify([{ words: "mug", category: 15, cat: "Kitchen", windows: ["morning"] }]));
+  assert.deepEqual(loadTopics(file), [["mug", 15, "Kitchen", ["morning"]]]);
+  writeFileSync(file, "[]");
+  assert.equal(loadTopics(file), null);
+  assert.equal(loadTopics(`${dir}/none.json`), null);
+  assert.equal(Object.keys(CATS).length, 33);
+});
+
+test("runDeals: the main post follows the topic order and remembers the topic and its category", async () => {
+  const searched = [];
+  const state = await runDeals({}, {
+    now: new Date("2026-11-02T06:30:00Z"), // 08:30 Israel time, a Monday, no sale
+    force: true,
+    names: async () => [],
+    api: { sendPhoto: async () => {} },
+    chatId: 1,
+    search: async (w) => (searched.push(w), [item(`${w}-1`)]),
+    shorten: async (ps) => ps,
+    pick: async () => ({ i: 0, name: "x" }),
+    log: () => {},
+  });
+  assert.equal(Object.keys(state.used).length, 1);
+  assert.equal(Object.keys(state.used)[0], searched[0]);
+  assert.ok(Array.isArray(state.recentCats));
 });
