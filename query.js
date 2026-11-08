@@ -1085,6 +1085,8 @@ function dealReview(out, reviews, title) {
   const r = Number.isInteger(out?.review_index) ? reviews[out.review_index] : null;
   const quote = clean(out?.review_quote, 120);
   if (!r || !quote || quote.length > 90 || /השם|התיאור|הכותרת/.test(quote)) return null;
+  // A quote left in English (the thermometer, 2026-11-08 preview) is not a Hebrew post line: Hebrew must lead.
+  if ((quote.match(/[\u05d0-\u05ea]/g) ?? []).length <= (quote.match(/[a-z]/gi) ?? []).length) return null;
   const source = `${r.text} ${title}`;
   const nums = new Set(source.match(/\d+(?:\.\d+)?/g) ?? []);
   if (!(quote.match(/\d+(?:\.\d+)?/g) ?? []).every((n) => nums.has(n))) return null;

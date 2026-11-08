@@ -443,6 +443,8 @@ test("deal picker: buyer reviews go to the write call; the Hebrew quote keeps on
   assert.equal((await pick({ review_index: 0, review_quote: "הגיעה תוך 5 ימים" })).review, null, "a number the buyer didn't write");
   assert.equal((await pick({ review_index: 0, review_quote: "מושלמת לאייפון" })).review, null, "a device nobody named");
   assert.equal((await pick({ review_index: 7, review_quote: "קלה" })).review, null, "no such review");
+  assert.equal((await pick({ review_index: 0, review_quote: "Light and small, great to carry" })).review, null, "left in English");
+  assert.equal((await pick({ review_index: 0, review_quote: "קלה וקטנה, נכנסת לכל תיק UV" })).review.country, "KR", "a Latin word inside Hebrew is fine");
   assert.equal((await pick({ review_index: null, review_quote: null })).review, null);
   const failing = await createDealPicker({ fetch: openai({ ...base, review_index: null, review_quote: null }).fetch, env: ENV })(products, "umbrella", { reviews: async () => { throw new Error("blocked"); } });
   assert.equal(failing.name, "מטריה מתקפלת", "reviews failing still writes the post");
