@@ -8,7 +8,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { Api } from "grammy";
 import { runDeals, sendDailyStatus } from "../deals.js";
-import { addStars } from "../aliexpress.js";
+import { addStars, fetchReviews } from "../aliexpress.js";
 
 const file = process.env.DEALS_STATE || "deals-state.json";
 const state = await readFile(file, "utf8").then(JSON.parse).catch(() => ({}));
@@ -23,7 +23,7 @@ if (token && !chatId) {
 }
 const preview = process.env.DEALS_PREVIEW === "true";
 if (preview && token && !process.env.DEALS_OWNER_ID) throw new Error("a preview needs DEALS_OWNER_ID");
-let next = await runDeals(state, { api: token ? new Api(token) : null, chatId: preview ? process.env.DEALS_OWNER_ID : chatId, stars: addStars, force: preview || process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
+let next = await runDeals(state, { api: token ? new Api(token) : null, chatId: preview ? process.env.DEALS_OWNER_ID : chatId, stars: addStars, reviews: fetchReviews, force: preview || process.env.DEALS_FORCE === "true", special: process.env.DEALS_SPECIAL || null });
 if (preview) {
   console.log("preview: sent to the owner, state unchanged");
 } else {

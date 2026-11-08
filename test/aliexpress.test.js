@@ -283,3 +283,16 @@ test("shortenLinks: a product with a matched variant gets the link made for its 
   assert.deepEqual(sources, ["https://www.aliexpress.com/item/11.html?skuId=999", "https://www.aliexpress.com/item/12.html"]);
   assert.deepEqual(out.map((p) => p.promotion_link), ["https://s.click.aliexpress.com/e/_v0", "https://s.click.aliexpress.com/e/_v1"]);
 });
+
+test("fetchReviews: text, stars 1-5, country and photos from the review list; any failure is []", async () => {
+  const { fetchReviews } = await import("../aliexpress.js");
+  const list = [
+    { buyerEval: 100, buyerCountry: "IL", buyerTranslationFeedback: "Great", buyerFeedback: "מעולה", images: ["https://a/1.jpg", "bad"] },
+    { buyerEval: 80, buyerCountry: "KR", buyerFeedback: "Nice and small" },
+    { buyerEval: 100, buyerCountry: "GB", buyerFeedback: "" },
+  ];
+  const out = await fetchReviews("1", { fetch: async () => ({ json: async () => ({ data: { evaViewList: list } }) }) });
+  assert.deepEqual(out, [{ stars: 5, country: "IL", text: "Great", photos: ["https://a/1.jpg"] }, { stars: 4, country: "KR", text: "Nice and small", photos: [] }]);
+  assert.deepEqual(await fetchReviews("1", { fetch: async () => { throw new Error("blocked"); } }), []);
+  assert.deepEqual(await fetchReviews("1", { fetch: async () => ({ json: async () => "<html>" }) }), []);
+});

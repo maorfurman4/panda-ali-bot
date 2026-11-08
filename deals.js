@@ -147,8 +147,19 @@ export function candidates(products, posted = [], minSold = MIN_SOLD) {
   return dedupeProducts(good.toSorted((a, b) => Number(b.lastest_volume) - Number(a.lastest_volume)));
 }
 
+// The reviews worth showing: 5 stars (4 when no 5), a real sentence, buyers from Israel first, then with a photo, then the
+// longer text; at most 3 go to the AI, which picks one and quotes it in Hebrew.
+export function pickReviews(reviews = []) {
+  const real = reviews.filter((r) => (r.text.match(/\p{L}/gu) ?? []).length >= 25 && r.text.split(/\s+/).length >= 4);
+  const top = real.some((r) => r.stars === 5) ? 5 : 4;
+  return real
+    .filter((r) => r.stars === top)
+    .toSorted((a, b) => (b.country === "IL") - (a.country === "IL") || (b.photos.length > 0) - (a.photos.length > 0) || b.text.length - a.text.length)
+    .slice(0, 3);
+}
+
 // AI parts (headline, benefits, warning) are optional: without them the post is the plain card under "הדיל של עכשיו".
-export function formatDeal(p, { name, emoji, headline, benefits = [], warning } = {}, banner = null) {
+export function formatDeal(p, { name, emoji, headline, benefits = [], warning, review } = {}, banner = null) {
   const sold = soldText(p.lastest_volume);
   const lines = [
     banner && `<b>${esc(banner)}</b>`,
@@ -156,6 +167,7 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning } 
     `<b>${esc(name || shortTitle(p.product_title) || "מוצר")}</b>`,
     ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []),
     warning && `⚠️ ${esc(warning)}`,
+    review?.quote && `💬 ${review.country === "IL" ? "קונה מישראל" : "מהביקורות"}: "${esc(review.quote)}"`,
     "",
     priceLine(p),
     discountLine(p),
@@ -174,7 +186,7 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning } 
 // The seller's video when there is one (about 1 in 10 top sellers, 2026-10-31; owner: a video shows the real thing), else
 // one collage of 4 of the product's own photos (a single photo keeps the caption and the buy button, an album can't), else
 // the main photo, else text. Every step falls back to the next.
-async function sendDeal(api, chatId, p, caption, { collage, log }) {
+async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = null }) {
   const extra = { caption, parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: BUY_LABEL, url: p.promotion_link }]] } };
   if (/^https:\/\//.test(p.product_video_url ?? "")) {
     try {
@@ -184,7 +196,9 @@ async function sendDeal(api, chatId, p, caption, { collage, log }) {
     }
   }
   const photos = [...new Set([p.product_main_image_url, ...(p.product_small_image_urls?.string ?? [])])].filter((u) => /^https:\/\//.test(u ?? "")).slice(0, 4);
-  const image = photos.length === 4 ? await collage(photos, { badges: false }).catch(() => null) : null;
+  // A buyer's own photo takes the last place (owner, 2026-11-08); if it can't be used, the seller's 4 photos.
+  const withBuyer = /^https:\/\//.test(buyerPhoto ?? "") && photos.length >= 3 ? [...photos.slice(0, 3), buyerPhoto] : null;
+  const image = (withBuyer && (await collage(withBuyer, { badges: false }).catch(() => null))) || (photos.length === 4 ? await collage(photos, { badges: false }).catch(() => null) : null);
   try {
     return await api.sendPhoto(chatId, image ? new InputFile(image, "panda-deal.jpg") : p.product_main_image_url, extra);
   } catch (e) {
@@ -198,7 +212,7 @@ async function sendDeal(api, chatId, p, caption, { collage, log }) {
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
 // topics/topicKey: a holiday or series post walks its own list with its own place in state; maxIls: a price cap.
 // stars: real stars and review counts for the chosen product (scripts/daily-deal.js passes addStars; tests leave it out).
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", steps = topics.length, minSold = MIN_SOLD, maxIls = null, log = console.log } = {}) {
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", steps = topics.length, minSold = MIN_SOLD, maxIls = null, log = console.log } = {}) {
   const posted = state.posted ?? [];
   const cap = maxIls ? { maxIls } : {};
   for (let step = 1; step <= steps; step++) {
@@ -216,8 +230,16 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     }
     list = list.slice(0, TO_AI);
     // A failed AI call (null) is tried once more: it timed out once at 30 s, and the post then went out without its text.
-    let choice = await pick(list, words);
-    if (choice === null) choice = await pick(list, words);
+    // reviews: the chosen product's buyer reviews (scripts/daily-deal.js passes fetchReviews); a failure is no reviews.
+    const reviewsFor = reviews
+      ? async (p) => {
+          const r = pickReviews(await Promise.resolve().then(() => reviews(p.product_id)).catch(() => []));
+          log(`reviews: ${r.length}`);
+          return r;
+        }
+      : null;
+    let choice = await pick(list, words, { reviews: reviewsFor });
+    if (choice === null) choice = await pick(list, words, { reviews: reviewsFor });
     if (choice?.none) {
       log(`none of the best sellers for "${words}" is that item, trying the next topic`); // AliExpress search noise
       continue;
@@ -226,7 +248,7 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     const [[short], rated] = await Promise.all([shorten([chosen]), stars ? stars([chosen]).catch(() => null) : null]); // search links are ~1 KB; on failure the long one is kept
     const p = rated?.[0]?.reviewCount ? { ...short, avgStars: rated[0].avgStars, reviewCount: rated[0].reviewCount } : short;
     const caption = formatDeal(p, choice ?? {}, banner);
-    if (api) await sendDeal(api, chatId, p, caption, { collage, log });
+    if (api) await sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto: choice?.review?.photo });
     else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
     const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };

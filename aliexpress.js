@@ -178,6 +178,20 @@ export async function skuDetails(productIds, deps = {}) {
 // Stars and review count from the public review summary the item page uses (no API has them: the DS API can't be added to
 // an affiliate account). shortcut: unofficial and may change or block; every failure just leaves the % feedback line.
 const FEEDBACK_URL = "https://feedback.aliexpress.com/pc/searchEvaluation.do";
+// Up to 20 buyer reviews of one product, English text (AliExpress's own translation), stars 1-5 and the buyer's photos.
+// Same unofficial source as addStars; any failure is [] (owner, 2026-11-08: real reviews in the deal posts).
+export async function fetchReviews(productId, { fetch = globalThis.fetch, timeoutMs = 4500 } = {}) {
+  const url = `${FEEDBACK_URL}?productId=${encodeURIComponent(productId)}&lang=en_US&country=IL&page=1&pageSize=20&filter=all&sort=complex_default`;
+  try {
+    const d = await fetch(url, { headers: { "user-agent": "Mozilla/5.0", referer: "https://www.aliexpress.com/" }, signal: AbortSignal.timeout(timeoutMs) }).then((r) => r.json());
+    const list = Array.isArray(d?.data?.evaViewList) ? d.data.evaViewList : [];
+    return list
+      .map((r) => ({ stars: Number(r.buyerEval) / 20, country: String(r.buyerCountry ?? ""), text: String(r.buyerTranslationFeedback || r.buyerFeedback || "").trim(), photos: (Array.isArray(r.images) ? r.images : []).filter((u) => /^https:\/\//.test(u ?? "")) }))
+      .filter((r) => r.stars >= 1 && r.stars <= 5 && r.text);
+  } catch {
+    return [];
+  }
+}
 export async function addStars(products, { fetch = globalThis.fetch, timeoutMs = 4500 } = {}) { // 12 at once take ~2.5-4 s (2026-11-02)
   const one = async (p) => {
     const url = `${FEEDBACK_URL}?productId=${encodeURIComponent(p.product_id)}&lang=en_US&country=IL&page=1&pageSize=1&filter=all&sort=complex_default`;

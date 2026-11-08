@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { candidates, formatDeal, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
+import { candidates, formatDeal, pickReviews, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
 
 const item = (id, extra = {}) => ({
   product_id: id,
@@ -288,4 +288,48 @@ test("nightly status (owner, 2026-11-04): once after the 23:00 post, members and
   assert.equal(await sendDailyStatus(state, { api, chatId: "-100", ownerId: "7", now: noon, log: () => {} }), state, "only at 23:00");
   assert.equal(await sendDailyStatus(state, { api, chatId: "-100", ownerId: null, now: at23, log: () => {} }), state, "no owner id: nothing");
   assert.match(statusText({ day: "2026-11-04", members: null, prevMembers: null, posts: [] }), /לא ידוע/);
+});
+
+test("pickReviews: 5 stars (4 when no 5), a real sentence, Israel first, then with a photo, at most 3", () => {
+  const r = (stars, country, text, photos = []) => ({ stars, country, text, photos });
+  const long = "Very light and small, fits in any bag easily";
+  const out = pickReviews([r(3, "IL", long), r(5, "KR", "good"), r(5, "GB", long, ["https://p"]), r(5, "IL", long), r(5, "US", long + " and more"), r(5, "FR", long)]);
+  assert.deepEqual(out.map((x) => x.country), ["IL", "GB", "US"]);
+  assert.deepEqual(pickReviews([r(4, "KR", long), r(3, "IL", long)]).map((x) => x.country), ["KR"], "4 stars when no 5");
+  assert.deepEqual(pickReviews([]), []);
+});
+
+test("formatDeal: the buyer's quote, 'קונה מישראל' for Israel; no line without a review", () => {
+  const p = item("1");
+  assert.match(formatDeal(p, { name: "מטריה", review: { quote: "קלה וקטנה", country: "IL" } }), /💬 קונה מישראל: "קלה וקטנה"/);
+  assert.match(formatDeal(p, { name: "מטריה", review: { quote: "קלה וקטנה", country: "KR" } }), /💬 מהביקורות: "קלה וקטנה"/);
+  assert.doesNotMatch(formatDeal(p, { name: "מטריה" }), /💬/);
+});
+
+test("postDeal reviews: the chosen product's reviews reach the pick, the buyer photo is the 4th in the collage, failures still post", async () => {
+  const photos = { string: ["https://ae01.alicdn.com/s1.jpg", "https://ae01.alicdn.com/s2.jpg", "https://ae01.alicdn.com/s3.jpg"] };
+  const product = item("a", { product_small_image_urls: photos, lastest_volume: 90000 });
+  const long = "Very light and small, fits in any bag easily";
+  const logs = [];
+  const run = async ({ reviews, collage }) => {
+    const sent = [];
+    let got = null;
+    const pick = async (list, _w, opts) => ((got = await opts.reviews?.(list[0])), { i: 0, name: "מטריה", review: got?.length ? { quote: "קלה", country: "KR", photo: got[0].photos[0] } : null });
+    await postDeal({}, { api: { sendPhoto: async (...a) => sent.push(a) }, chatId: 1, search: async () => [product], shorten: async (ps) => ps, pick, reviews, collage, log: (l) => logs.push(l) });
+    return { sent, got };
+  };
+  const urls = [];
+  const ok = await run({ reviews: async (id) => (assert.equal(id, "a"), [{ stars: 5, country: "KR", text: long, photos: ["https://buyer/1.jpg"] }]), collage: async (u) => (urls.push(u), Buffer.from("jpg")) });
+  assert.equal(ok.got.length, 1);
+  assert.equal(urls[0][3], "https://buyer/1.jpg");
+  assert.match(ok.sent[0][2].caption, /💬 מהביקורות: "קלה"/);
+  assert.ok(logs.includes("reviews: 1"));
+  const tries = [];
+  const fallback = await run({ reviews: async () => [{ stars: 5, country: "KR", text: long, photos: ["https://buyer/bad.jpg"] }], collage: async (u) => (tries.push(u), u[3].includes("buyer") ? Promise.reject(new Error("404")) : Buffer.from("jpg")) });
+  assert.equal(tries.length, 2, "the buyer collage failed, the seller collage was tried");
+  assert.ok(fallback.sent[0][1] instanceof Object);
+  const broken = await run({ reviews: () => { throw new Error("blocked"); }, collage: async () => Buffer.from("jpg") });
+  assert.deepEqual(broken.got, []);
+  assert.equal(broken.sent.length, 1, "no reviews: the post still goes out");
+  assert.ok(logs.includes("reviews: 0"));
 });
