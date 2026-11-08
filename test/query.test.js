@@ -406,7 +406,7 @@ test("deal picker: the most sold product the AI says is the topic's item, writte
   const answer = { fits: [false, true, true], emoji: "🎧", headline: "סוף לכבלים מסתבכים", name: "SoundPEATS אוזניות אלחוטיות", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות", "השם צריך להיות קצר"], warning: null };
   const api = openai(answer);
   assert.deepEqual(await createDealPicker({ fetch: api.fetch, env: ENV })(products, "wireless earbuds"), {
-    i: 1, name: "SoundPEATS אוזניות אלחוטיות", emoji: "🎧", headline: "סוף לכבלים מסתבכים", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות"], warning: null, review: null,
+    i: 1, name: "SoundPEATS אוזניות אלחוטיות", emoji: "🎧", headline: "סוף לכבלים מסתבכים", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות"], warning: null, review: null, why: null, template: "classic",
   });
   assert.equal(api.requests.length, 2);
   assert.equal(api.requests[0].body.input[0].content, "Topic: wireless earbuds\n3 products:\n0. Cable organizer winder\n1. SoundPEATS wireless earbuds\n2. Lenovo LP40 earbuds");
@@ -448,6 +448,33 @@ test("deal picker: buyer reviews go to the write call; the Hebrew quote keeps on
   assert.equal((await pick({ review_index: null, review_quote: null })).review, null);
   const failing = await createDealPicker({ fetch: openai({ ...base, review_index: null, review_quote: null }).fetch, env: ENV })(products, "umbrella", { reviews: async () => { throw new Error("blocked"); } });
   assert.equal(failing.name, "מטריה מתקפלת", "reviews failing still writes the post");
+});
+
+test("deal picker styles: the style's instructions go to the write call; 'why' is guarded, short and why have no benefits", async () => {
+  const products = [{ product_title: "Mini folding umbrella UV 8 ribs" }];
+  const reviews = [{ stars: 5, country: "KR", text: "Light and small, great to carry in a bag", photos: [] }];
+  const base = { fits: [true], emoji: "☂️", headline: "קטנה כמו בקבוק", name: "מטריה מתקפלת", benefits: ["הגנה מקרינת UV", "8 צלעות", "קלה"], warning: null, review_index: null, review_quote: null, why: "קטנה כמו בקבוק מים, נכנסת לכל תיק, ו-8 צלעות שלא מתהפכות ברוח." };
+  const run = async (template, answer = {}, revs = reviews) => {
+    const api = openai({ ...base, ...answer });
+    const out = await createDealPicker({ fetch: api.fetch, env: ENV })(products, "umbrella", { reviews: async () => revs, template });
+    return { out, instructions: api.requests[1].body.instructions };
+  };
+  const why = await run("why");
+  assert.equal(why.out.template, "why");
+  assert.match(why.instructions, /WHY-WE-PICKED-IT/);
+  assert.equal(why.out.why, base.why);
+  assert.deepEqual(why.out.benefits, []);
+  assert.equal((await run("why", { why: "נשלחת תוך 5 ימים" })).out.why, null, "a number from nowhere");
+  assert.equal((await run("why", { why: "Small and light, fits any bag" })).out.why, null, "left in English");
+  const short = await run("short");
+  assert.deepEqual(short.out.benefits, []);
+  assert.equal(short.out.why, null, "why only in its own style");
+  assert.equal((await run("buyers")).out.benefits.length, 2);
+  assert.equal((await run("classic")).out.benefits.length, 3);
+  assert.equal((await run("nonsense")).out.template, "classic");
+  const asked = [];
+  await run((hasReviews) => (asked.push(hasReviews), "short"), {}, []);
+  assert.deepEqual(asked, [false], "the rotation is told whether reviews came");
 });
 test("style: validateIntent keeps style only when true; the pick asks for pretty and plain, kept items only", async () => {
   assert.equal(validateIntent({ ...STRICT_OK, style: true }).style, true);

@@ -97,6 +97,7 @@ export const SETS = [
   { name: "ספורט ויציאה", emoji: "🏃", topics: [["resistance bands", 18], ["bike light", 18], ["hiking backpack", 1524]] },
 ];
 const SET_DAY = 4; // Thursday
+const CHEAP_MAX_ILS = 20;
 
 // What one post of the day is: the holiday item (the day's second-to-last post) and the weekly series (its third post).
 export function specialFor(t, kind, holiday) {
@@ -105,6 +106,8 @@ export function specialFor(t, kind, holiday) {
     return { key: "holidayTopic", topics: holiday.topics, minSold: MIN_SOLD_HOLIDAY, banner: `${holiday.emoji} לקראת ${holiday.name} · עוד ${holiday.days} ימים · מזמינים עכשיו שיגיע בזמן` };
   }
   if (t.wd === SET_DAY && t.hour === hours[2]) return { set: true };
+  // "3 things under 20 ₪" once a day, not on the days that already have a cheap or a set post (Sunday, Thursday).
+  if (t.hour === hours[3] && t.wd !== 0 && t.wd !== SET_DAY) return { cheap: { maxIls: CHEAP_MAX_ILS } };
   const series = SERIES.find((x) => x.wd === t.wd);
   if (series && t.hour === hours[2]) {
     const topics = series.categories ? TOPICS.filter(([, c]) => series.categories.includes(c)) : TOPICS;
@@ -158,16 +161,35 @@ export function pickReviews(reviews = []) {
     .slice(0, 3);
 }
 
-// AI parts (headline, benefits, warning) are optional: without them the post is the plain card under "הדיל של עכשיו".
-export function formatDeal(p, { name, emoji, headline, benefits = [], warning, review } = {}, banner = null) {
+// The post styles in turn (owner, 2026-11-08: vary them so the channel reads like something, not a bot). Never the same
+// style twice in a row; "buyers" only when a review came. Specials keep "classic".
+export const TEMPLATES = ["classic", "why", "short", "buyers"];
+export function nextTemplate(last, hasReview) {
+  const from = TEMPLATES.indexOf(last);
+  for (let k = 1; k <= TEMPLATES.length; k++) {
+    const t = TEMPLATES[(from + k) % TEMPLATES.length];
+    if (t !== last && (t !== "buyers" || hasReview)) return t;
+  }
+  return "classic";
+}
+
+// AI parts (headline, benefits, warning, review, why) are optional: without them the post is the plain card under
+// "הדיל של עכשיו". The data lines (price to the search-bot link) are the same in every style.
+export function formatDeal(p, { name, emoji, headline, benefits = [], warning, review, why, template = "classic" } = {}, banner = null) {
   const sold = soldText(p.lastest_volume);
+  const title = `<b>${esc(name || shortTitle(p.product_title) || "מוצר")}</b>`;
+  const head = `${emoji || "🔥"} <b>${esc(headline || "הדיל של עכשיו")}</b>`;
+  const quote = review?.quote && `💬 ${review.country === "IL" ? "קונה מישראל" : "מהביקורות"}: "${esc(review.quote)}"`;
+  const style = template === "buyers" && !review?.quote ? "classic" : template === "why" && !why ? "classic" : template;
+  const top = {
+    classic: [head, title, ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []), warning && `⚠️ ${esc(warning)}`, quote],
+    short: [head, title, warning && `⚠️ ${esc(warning)}`],
+    why: [head, title, "", esc(why ?? ""), warning && `⚠️ ${esc(warning)}`, quote && ["", quote]].flat(),
+    buyers: [`💬 <b>"${esc(review?.quote ?? "")}"</b>`, `— ${review?.country === "IL" ? "קונה מישראל" : "מהביקורות של הקונים"}`, "", `${emoji || "🛍️"} ${title}`, ...benefits.map((b) => `✅ ${esc(b)}`), warning && `⚠️ ${esc(warning)}`],
+  }[style] ?? [];
   const lines = [
     banner && `<b>${esc(banner)}</b>`,
-    `${emoji || "🔥"} <b>${esc(headline || "הדיל של עכשיו")}</b>`,
-    `<b>${esc(name || shortTitle(p.product_title) || "מוצר")}</b>`,
-    ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []),
-    warning && `⚠️ ${esc(warning)}`,
-    review?.quote && `💬 ${review.country === "IL" ? "קונה מישראל" : "מהביקורות"}: "${esc(review.quote)}"`,
+    ...top,
     "",
     priceLine(p),
     discountLine(p),
@@ -212,7 +234,7 @@ async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = nu
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
 // topics/topicKey: a holiday or series post walks its own list with its own place in state; maxIls: a price cap.
 // stars: real stars and review counts for the chosen product (scripts/daily-deal.js passes addStars; tests leave it out).
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", steps = topics.length, minSold = MIN_SOLD, maxIls = null, log = console.log } = {}) {
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", steps = topics.length, minSold = MIN_SOLD, maxIls = null, rotate = false, log = console.log } = {}) {
   const posted = state.posted ?? [];
   const cap = maxIls ? { maxIls } : {};
   for (let step = 1; step <= steps; step++) {
@@ -238,8 +260,10 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
           return r;
         }
       : null;
-    let choice = await pick(list, words, { reviews: reviewsFor });
-    if (choice === null) choice = await pick(list, words, { reviews: reviewsFor });
+    // rotate: the post styles take turns (state.template is the last one); otherwise the classic post.
+    const template = rotate ? (hasReview) => nextTemplate(state.template, hasReview) : "classic";
+    let choice = await pick(list, words, { reviews: reviewsFor, template });
+    if (choice === null) choice = await pick(list, words, { reviews: reviewsFor, template });
     if (choice?.none) {
       log(`none of the best sellers for "${words}" is that item, trying the next topic`); // AliExpress search noise
       continue;
@@ -252,7 +276,8 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
     const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };
-    return { ...state, [topicKey]: topic, posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
+    log(`style: ${choice?.template ?? "plain"}`);
+    return { ...state, [topicKey]: topic, ...(rotate && choice?.template ? { template: choice.template } : {}), posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
   }
   log("no topic gave a good item; nothing posted");
   return state;
@@ -260,24 +285,37 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
 
 // The perfect set: the most sold item of each of the set's three topics that the AI says IS that item, one collage with
 // rank badges, and a buy button for each. Returns the old state (nothing posted) when any of the three is missing.
-export async function postSet(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, log = console.log } = {}) {
+// cheap ({ maxIls }): "3 things under X ₪" instead (owner, 2026-11-08): the next main topics that have a best seller under
+// the cap, up to CHEAP_TRIES of them; each topic used moves the main rotation on.
+const CHEAP_TRIES = 8;
+export async function postSet(state, { api, chatId, search = searchProducts, shorten = shortenLinks, pick = defaultPick, collage = makeCollage, cheap = null, log = console.log } = {}) {
   const index = ((state.setIndex ?? -1) + 1) % SETS.length;
-  const set = SETS[index];
+  const order = cheap ? Array.from({ length: CHEAP_TRIES }, (_, k) => ((state.topic ?? -1) + 1 + k) % TOPICS.length) : [];
+  const set = cheap ? { name: `3 מתחת ל-${cheap.maxIls} ₪`, topics: order.map((k) => TOPICS[k]) } : SETS[index];
+  const cap = cheap ? { maxIls: cheap.maxIls } : {};
   const posted = state.posted ?? [];
   const items = [];
-  for (const [words, category] of set.topics) {
-    const [inCategory, anywhere] = await Promise.all([search(words, { category, shorten: false }), search(words, { shorten: false })]);
-    const list = candidates([...inCategory, ...anywhere], posted).slice(0, TO_AI);
+  let lastTopic = state.topic;
+  for (const [k, [words, category]] of set.topics.entries()) {
+    if (items.length === 3) break;
+    const [inCategory, anywhere] = await Promise.all([category ? search(words, { category, shorten: false, ...cap }) : Promise.resolve([]), search(words, { shorten: false, ...cap })]);
+    // The cap filters before the duplicates are merged, so a dearer look-alike can't push out the cheap one.
+    const found = [...inCategory, ...anywhere].filter((p) => !cheap || Number(p.target_sale_price) <= cheap.maxIls);
+    const list = candidates(found, [...posted, ...items.map((x) => String(x.p.product_id))]).slice(0, TO_AI);
     let choice = list.length ? await pick(list, words) : { none: true };
     if (choice === null) choice = await pick(list, words);
-    if (!list.length || choice?.none) return log(`set "${set.name}": nothing good for "${words}", no set today`), state;
+    if (!list.length || choice?.none) {
+      if (cheap) continue;
+      return log(`set "${set.name}": nothing good for "${words}", no set today`), state;
+    }
     items.push({ p: list[choice?.i ?? 0], name: choice?.name || shortTitle(list[choice?.i ?? 0].product_title) });
+    if (cheap) lastTopic = order[k];
   }
+  if (items.length < 3) return log(`"${set.name}": only ${items.length} items, not posted`), state;
   const shortened = await shorten(items.map((x) => x.p));
   const total = shortened.reduce((sum, p) => sum + Number(p.target_sale_price ?? 0), 0);
   const lines = [
-    `${set.emoji} <b>הסט המושלם: ${esc(set.name)}</b>`,
-    "3 רבי מכר שעובדים מעולה ביחד 👇",
+    ...(cheap ? [`💸 <b>3 דברים שווים מתחת ל-${cheap.maxIls} ₪</b>`, "רבי מכר אמיתיים, כל אחד במחיר של קפה 👇"] : [`${set.emoji} <b>הסט המושלם: ${esc(set.name)}</b>`, "3 רבי מכר שעובדים מעולה ביחד 👇"]),
     ...shortened.flatMap((p, i) => [
       "",
       `${["1️⃣", "2️⃣", "3️⃣"][i]} <b>${esc(items[i].name)}</b>`,
@@ -302,7 +340,7 @@ export async function postSet(state, { api, chatId, search = searchProducts, sho
     }
   } else log(`[dry run, nothing sent]\n${caption}`);
   log(`posted the set "${set.name}": ${shortened.map((p) => p.product_id).join(", ")}`);
-  return { ...state, setIndex: index, posted: [...posted, ...shortened.map((p) => String(p.product_id))].slice(-KEEP_POSTED), log: [...(state.log ?? []), { at: Date.now(), name: `סט של ${shortened.length} מוצרים` }].slice(-40) };
+  return { ...state, ...(cheap ? { topic: lastTopic } : { setIndex: index }), posted: [...posted, ...shortened.map((p) => String(p.product_id))].slice(-KEEP_POSTED), log: [...(state.log ?? []), { at: Date.now(), name: `סט של ${shortened.length} מוצרים` }].slice(-40) };
 }
 
 // One hourly run: posts only at this kind of day's hours (force: post now). One post a day may be a holiday or series
@@ -323,13 +361,15 @@ export async function runDeals(state, { now = new Date(), force = false, special
   let next = state;
   // One post a day for the coming holiday and one for the weekly series; if nothing fits, the usual post goes out.
   const wd = { sun: 0, wed: 3, fri: 5, set: SET_DAY }[forced];
-  const special = forced === "holiday"
+  const special = forced === "cheap"
+    ? specialFor({ ...t, wd: 1, hour: SCHEDULE[kind][3] }, kind, null)
+    : forced === "holiday"
     ? specialFor({ ...t, hour: SCHEDULE[kind].at(-2) }, kind, upcomingHoliday(now, 365))
     : forced && wd != null
       ? specialFor({ ...t, wd, hour: SCHEDULE[kind][2] }, kind, null)
       : specialFor(t, kind, upcomingHoliday(now));
-  if (special?.set) {
-    next = await postSet(state, { ...deps, log });
+  if (special?.set || special?.cheap) {
+    next = await postSet(state, { ...deps, log, cheap: special.cheap ?? null });
     if (next !== state) return { ...next, slot };
   } else if (special) {
     const { key, ...opts } = special;
@@ -338,10 +378,10 @@ export async function runDeals(state, { now = new Date(), force = false, special
   }
   if (sale && turn % 2 === 0) {
     const list = sale.lists[(turn / 2) % sale.lists.length];
-    next = await postDeal(state, { ...deps, log, banner, steps: 3, minSold: MIN_SOLD_SALE, search: (_words, d) => promo(list, d) });
+    next = await postDeal(state, { ...deps, log, banner, steps: 3, minSold: MIN_SOLD_SALE, rotate: true, search: (_words, d) => promo(list, d) });
     if (next !== state) log(`from the sale list "${list}"`);
   }
-  if (next === state) next = await postDeal(state, { ...deps, log, banner });
+  if (next === state) next = await postDeal(state, { ...deps, log, banner, rotate: true });
   return next === state ? state : { ...next, slot, ...(sale ? { saleTurn: turn + 1 } : {}) };
 }
 

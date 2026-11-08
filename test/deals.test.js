@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { candidates, formatDeal, pickReviews, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
+import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
 
 const item = (id, extra = {}) => ({
   product_id: id,
@@ -332,4 +332,69 @@ test("postDeal reviews: the chosen product's reviews reach the pick, the buyer p
   assert.deepEqual(broken.got, []);
   assert.equal(broken.sent.length, 1, "no reviews: the post still goes out");
   assert.ok(logs.includes("reviews: 0"));
+});
+
+test("nextTemplate: the styles take turns, never the same twice in a row, 'buyers' only with a review", () => {
+  let last = null;
+  const seen = [];
+  for (let n = 0; n < 20; n++) {
+    const t = nextTemplate(last, n % 4 !== 3);
+    assert.notEqual(t, last);
+    if (n % 4 === 3) assert.notEqual(t, "buyers");
+    seen.push((last = t));
+  }
+  assert.deepEqual([...new Set(seen)].toSorted(), [...TEMPLATES].toSorted(), "every style shows up");
+  assert.notEqual(nextTemplate("short", false), "buyers");
+});
+
+test("formatDeal styles: each keeps price, sold, the buy link and the search-bot link; empty parts fall back to classic", () => {
+  const p = item("1");
+  const choice = { name: "מטריה", emoji: "☂️", headline: "קטנה כמו בקבוק", benefits: ["קלה", "UV"], review: { quote: "קלה וקטנה", country: "IL" }, why: "נכנסת לכל תיק ולא מתהפכת ברוח." };
+  for (const template of TEMPLATES) {
+    const post = formatDeal(p, { ...choice, template });
+    assert.match(post, /💰|מחיר/, template);
+    assert.match(post, /נמכרו/, template);
+    assert.match(post, /לרכישה בעלי אקספרס/, template);
+    assert.match(post, /הבוט שלנו ימצא לכם/, template);
+  }
+  assert.doesNotMatch(formatDeal(p, { ...choice, template: "short" }), /✅|💬/, "short: headline and data only");
+  assert.match(formatDeal(p, { ...choice, template: "why" }), /נכנסת לכל תיק/);
+  assert.doesNotMatch(formatDeal(p, { ...choice, template: "why" }), /✅/);
+  assert.match(formatDeal(p, { ...choice, template: "buyers" }), /^‏💬 <b>"קלה וקטנה"<\/b>\n‏— קונה מישראל/);
+  assert.match(formatDeal(p, { ...choice, review: null, template: "buyers" }), /✅ קלה/, "buyers without a review is classic");
+  assert.match(formatDeal(p, { ...choice, why: null, template: "why" }), /✅ קלה/, "why without its text is classic");
+});
+
+test("postDeal rotate: the pick is told the next style and the state keeps it; without rotate it is classic", async () => {
+  const asked = [];
+  const pick = async (_l, _w, opts) => (asked.push(typeof opts.template === "function" ? opts.template(false) : opts.template), { i: 0, name: "מנורה", template: typeof opts.template === "function" ? opts.template(false) : opts.template });
+  const base = { api: { sendPhoto: async () => {} }, chatId: 1, search: async () => [item("a")], shorten: async (ps) => ps, pick, log: () => {} };
+  const s1 = await postDeal({ template: "classic" }, { ...base, rotate: true });
+  assert.equal(s1.template, "why");
+  const s2 = await postDeal({ template: "why" }, { ...base, rotate: false });
+  assert.equal(s2.template, "why", "a special leaves the turn alone");
+  assert.deepEqual(asked, ["why", "classic"]);
+});
+
+test("postSet cheap: 3 best sellers under the cap from the next topics, skipping topics without one; the main turn moves on", async () => {
+  const sent = [];
+  const searched = [];
+  const search = async (w, d) => (searched.push(d.maxIls), w === TOPICS[2][0] ? [] : [item(`${w}-a`, { target_sale_price: "12.00" }), item(`${w}-x`, { target_sale_price: "35.00", lastest_volume: 99000 })]);
+  const api = { sendPhoto: async (...a) => sent.push(a) };
+  const state = await postSet({ topic: 0, posted: [] }, { api, chatId: 1, search, shorten: async (ps) => ps, pick: async () => ({ i: 0, name: "שם" }), collage: async () => Buffer.from("jpg"), cheap: { maxIls: 20 }, log: () => {} });
+  assert.ok(searched.every((m) => m === 20), "searched with the cap");
+  assert.match(sent[0][2].caption, /3 דברים שווים מתחת ל-20 ₪/);
+  assert.doesNotMatch(sent[0][2].caption, /35/);
+  assert.equal(state.posted.length, 3);
+  assert.equal(state.topic, 4, "topics 1, 3, 4 used (2 had nothing)");
+  assert.equal(state.setIndex, undefined, "the Thursday sets keep their own turn");
+  const few = await postSet({ topic: 0, posted: [] }, { api, chatId: 1, search: async () => [], shorten: async (ps) => ps, pick: async () => ({ i: 0 }), collage: async () => null, cheap: { maxIls: 20 }, log: () => {} });
+  assert.deepEqual(few, { topic: 0, posted: [] }, "fewer than 3: nothing posted");
+});
+
+test("specialFor: '3 under 20 ₪' is the 4th post, except Sunday and Thursday", () => {
+  assert.deepEqual(specialFor({ hour: 10, wd: 1 }, "normal", null), { cheap: { maxIls: 20 } });
+  assert.equal(specialFor({ hour: 10, wd: 0 }, "normal", null), null);
+  assert.equal(specialFor({ hour: 10, wd: 4 }, "normal", null), null);
+  assert.equal(specialFor({ hour: 11, wd: 1 }, "normal", null), null);
 });
