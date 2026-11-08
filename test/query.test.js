@@ -466,6 +466,7 @@ test("deal picker styles: the style's instructions go to the write call; 'why' i
   assert.deepEqual(why.out.benefits, []);
   assert.equal((await run("why", { why: "נשלחת תוך 5 ימים" })).out.why, null, "a number from nowhere");
   assert.equal((await run("why", { why: "Small and light, fits any bag" })).out.why, null, "left in English");
+  assert.equal((await run("why", { why: "נראה כמו מטריה פשוטה, אבל היא נכנסת לכל תיק." })).out.why, null, "the worn-out opening");
   const short = await run("short");
   assert.deepEqual(short.out.benefits, []);
   assert.equal(short.out.why, null, "why only in its own style");
@@ -475,6 +476,9 @@ test("deal picker styles: the style's instructions go to the write call; 'why' i
   const asked = [];
   await run((hasReviews) => (asked.push(hasReviews), "short"), {}, []);
   assert.deepEqual(asked, [0], "the rotation is told how many reviews came");
+  const api = openai(base);
+  await createDealPicker({ fetch: api.fetch, env: ENV })(products, "umbrella", { template: "short", recent: { headlines: ["רוצים מטריה?"], closings: ["נראה מעולה"] } });
+  assert.match(api.requests[1].body.input[0].content, /Recent posts' headlines \(open differently, not with their first words\):\n- רוצים מטריה\?\n\nRecent closing lines \(open differently\):\n- נראה מעולה$/);
 });
 
 test("deal picker new styles: before/after, 3 buyers' quotes and the closing line, each guarded", async () => {

@@ -61,7 +61,7 @@ test("postDeal: next topic in turn, the AI's pick, remembers what it posted", as
   assert.equal(sent[0][0], -100);
   assert.equal(sent[0][1], "https://ae01.alicdn.com/2.jpg");
   assert.deepEqual(sent[0][2].reply_markup.inline_keyboard, [[{ text: "🛒 לקנייה בעלי אקספרס", url: "https://s.click.aliexpress.com/e/2" }]], "a buy button under the post");
-  const { log: posts, closingTurn, closings, ...rest } = state;
+  const { log: posts, closingTurn, closings, headlines, ...rest } = state;
   assert.deepEqual(rest, { topic: 1, posted: ["9", "2"] });
   assert.equal(closingTurn, 0, "no AI closing: the first of the 60 lines");
   assert.equal(posts.length, 1, "the post is logged for the nightly status");
@@ -139,22 +139,19 @@ test("runDeals: posts only at the day's hours and once per hour; a manual run po
   assert.doesNotMatch(d.sent[0], /מבצעי|היום זה/);
 });
 
-test("runDeals: on sale days more hours, every other post from the sale lists in turn, all with the banner", async () => {
+test("runDeals: on sale days every post is a best seller with the sale banner; the sale lists themselves aren't searched", async () => {
   const d = deps({ sale: SALE });
   let state = { posted: [] };
   for (const hour of [7, 9, 11]) state = await runDeals(state, { ...d.opts, now: at(`2026-11-03T${String(hour).padStart(2, "0")}:05:00Z`) }); // 9, 11, 13 Israel
-  assert.deepEqual(d.used, [SALE[0], "search", SALE[1]]);
+  assert.deepEqual(d.used, ["search"]);
   assert.equal(d.sent.length, 3);
   assert.ok(d.sent.every((c) => c.includes("🛍️ מבצעי 11.11 · עוד 8 ימים!")));
-  assert.equal(state.saleTurn, 3);
 });
 
-test("runDeals: a sale list with nothing good falls back to the best sellers; the peak day posts at its extra hours", async () => {
-  const d = deps({ sale: SALE, promoEmpty: true });
-  const state = await runDeals({ posted: [] }, { ...d.opts, now: at("2026-11-11T09:05:00Z") }); // 11:00 on 11.11, an extra peak hour
-  assert.deepEqual(d.used, [SALE[0], "search"]);
+test("runDeals: the peak day has its banner", async () => {
+  const d = deps({ sale: SALE });
+  await runDeals({ posted: [] }, { ...d.opts, now: at("2026-11-11T09:05:00Z") });
   assert.match(d.sent[0], /🔥 היום זה 11\.11!/);
-  assert.equal(state.saleTurn, 1);
 });
 
 test("postDeal: a failed AI call is tried once more", async () => {
@@ -351,7 +348,7 @@ test("nextTemplate: the styles take turns, never the same twice in a row, 'buyer
 });
 
 test("formatDeal styles: each keeps price, sold, the buy link and the search-bot link; empty parts fall back to classic", () => {
-  const p = item("1");
+  const p = item("1", { lastest_volume: 31000 });
   const choice = { name: "מטריה", emoji: "☂️", headline: "קטנה כמו בקבוק", benefits: ["קלה", "UV"], review: { quote: "קלה וקטנה", country: "IL" }, why: "נכנסת לכל תיק ולא מתהפכת ברוח.",
     before: "מטריה ענקית שלא נכנסת לתיק", after: "קטנה כמו בקבוק מים", quotes: [{ quote: "קלה וקטנה", country: "IL" }, { quote: "שורדת רוח", country: "GB" }] };
   for (const template of TEMPLATES) {
@@ -487,4 +484,21 @@ test("runDeals: the main post follows the topic order and remembers the topic an
   assert.equal(Object.keys(state.used).length, 1);
   assert.equal(Object.keys(state.used)[0], searched[0]);
   assert.ok(Array.isArray(state.recentCats));
+});
+
+test("numbers style needs 10,000 sold: the rotation skips it below, and the layout falls back to classic", () => {
+  assert.notEqual(nextTemplate("why", 3, 4900), "numbers");
+  assert.equal(nextTemplate("why", 3, 31000), "numbers");
+  const post = formatDeal(item("1", { lastest_volume: 4900 }), { name: "x", benefits: ["a", "b"], template: "numbers" });
+  assert.doesNotMatch(post, /קנו את זה/);
+  assert.match(post, /נמכרו: מעל 4,900/);
+});
+
+test("postDeal recent: the last headlines and closing lines go to the pick, and the new headline is remembered (6 kept)", async () => {
+  let seen = null;
+  const pick = async (_l, _w, opts) => ((seen = opts.recent), { i: 0, name: "x", headline: "כותרת חדשה", closing: "שורה חדשה" });
+  const state = { headlines: ["h1", "h2", "h3", "h4", "h5", "h6", "h7"], closings: ["c1"] };
+  const next = await postDeal(state, { api: { sendPhoto: async () => {} }, chatId: 1, search: async () => [item("a")], shorten: async (ps) => ps, pick, log: () => {} });
+  assert.deepEqual(seen, { headlines: ["h2", "h3", "h4", "h5", "h6", "h7"], closings: ["c1"] });
+  assert.deepEqual(next.headlines, ["h3", "h4", "h5", "h6", "h7", "כותרת חדשה"]);
 });

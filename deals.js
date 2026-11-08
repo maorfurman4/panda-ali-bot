@@ -2,7 +2,7 @@
 // It has no server: scripts/daily-deal.js runs it from a scheduled GitHub Action (see .github/workflows/daily-deals.yml).
 import { readFileSync } from "node:fs";
 import { InputFile } from "grammy";
-import { searchProducts, shortenLinks, promoNames, promoProducts } from "./aliexpress.js";
+import { searchProducts, shortenLinks, promoNames } from "./aliexpress.js";
 import { makeCollage } from "./collage.js";
 import { pickDeal as defaultPick } from "./query.js";
 import { RLM, esc, shortTitle, soldText, priceLine, formatPrice, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK, couponLine } from "./format.js";
@@ -239,11 +239,12 @@ export function pickReviews(reviews = []) {
 // style twice in a row; "buyers" needs a review and "reviews3" two. Specials keep "classic".
 export const TEMPLATES = ["classic", "why", "numbers", "short", "buyers", "beforeafter", "reasons", "reviews3"];
 const NEEDS_REVIEWS = { buyers: 1, reviews3: 2 };
-export function nextTemplate(last, reviewCount = 0) {
+const NUMBERS_MIN_SOLD = 10000; // "2,800 bought it" on top makes an item look small (2026-11-08 preview)
+export function nextTemplate(last, reviewCount = 0, sold = Infinity) {
   const from = TEMPLATES.indexOf(last);
   for (let k = 1; k <= TEMPLATES.length; k++) {
     const t = TEMPLATES[(from + k) % TEMPLATES.length];
-    if (t !== last && Number(reviewCount) >= (NEEDS_REVIEWS[t] ?? 0)) return t;
+    if (t !== last && Number(reviewCount) >= (NEEDS_REVIEWS[t] ?? 0) && (t !== "numbers" || Number(sold) >= NUMBERS_MIN_SOLD)) return t;
   }
   return "classic";
 }
@@ -279,7 +280,7 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning, r
   const title = `<b>${esc(name || shortTitle(p.product_title) || "מוצר")}</b>`;
   const head = `${emoji || "🔥"} <b>${esc(headline || "הדיל של עכשיו")}</b>`;
   const quote = review?.quote && `💬 ${review.country === "IL" ? "קונה מישראל" : "מהביקורות"}: "${esc(review.quote)}"`;
-  const ready = { buyers: review?.quote, why, numbers: sold, beforeafter: before && after, reasons: benefits.length >= 2, reviews3: quotes.length >= 2 };
+  const ready = { buyers: review?.quote, why, numbers: sold && Number(p.lastest_volume) >= NUMBERS_MIN_SOLD, beforeafter: before && after, reasons: benefits.length >= 2, reviews3: quotes.length >= 2 };
   const style = template in ready && !ready[template] ? "classic" : template;
   const top = {
     classic: [head, title, ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []), warning && `⚠️ ${esc(warning)}`, quote],
@@ -375,9 +376,11 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
         }
       : null;
     // rotate: the post styles take turns (state.template is the last one); otherwise the classic post.
-    const template = rotate ? (hasReview) => nextTemplate(state.template, hasReview) : "classic";
-    let choice = await pick(list, words, { reviews: reviewsFor, template });
-    if (choice === null) choice = await pick(list, words, { reviews: reviewsFor, template });
+    const template = rotate ? (reviewCount, product) => nextTemplate(state.template, reviewCount, product?.lastest_volume) : "classic";
+    // recent: the last posts' headlines and closing lines, so the AI opens differently (2026-11-08: 5 of 15 began "רוצים/מחפשים").
+    const recent = { headlines: (state.headlines ?? []).slice(-6), closings: (state.closings ?? []).slice(-6) };
+    let choice = await pick(list, words, { reviews: reviewsFor, template, recent });
+    if (choice === null) choice = await pick(list, words, { reviews: reviewsFor, template, recent });
     if (choice?.none) {
       log(`none of the best sellers for "${words}" is that item, trying the next topic`); // AliExpress search noise
       continue;
@@ -396,7 +399,7 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };
     log(`style: ${choice?.template ?? "plain"}`);
     const usage = order ? markUsed(state, [[words, cat]], usedAt) : {};
-    return { ...state, [topicKey]: topic, ...usage, ...(rotate && choice?.template ? { template: choice.template } : {}), closingTurn: turn, closings: fresh ? [...(state.closings ?? []), fresh].slice(-KEEP_CLOSINGS) : state.closings ?? [], posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
+    return { ...state, [topicKey]: topic, ...usage, ...(rotate && choice?.template ? { template: choice.template } : {}), closingTurn: turn, closings: fresh ? [...(state.closings ?? []), fresh].slice(-KEEP_CLOSINGS) : state.closings ?? [], headlines: [...(state.headlines ?? []), ...(choice?.headline ? [choice.headline] : [])].slice(-6), posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
   }
   log("no topic gave a good item; nothing posted");
   return state;
@@ -466,7 +469,7 @@ export async function postSet(state, { api, chatId, search = searchProducts, sho
 // item (specialFor). On sale days every other post comes from
 // AliExpress's sale list (in turn when there are several), falling back to the best sellers; every post gets the banner.
 // special: a manual run's choice of post ("set", "sun", "wed", "fri", "holiday"), to see one in the channel any day.
-export async function runDeals(state, { now = new Date(), force = false, special: forced = null, names = promoNames, promo = promoProducts, log = console.log, ...deps } = {}) {
+export async function runDeals(state, { now = new Date(), force = false, special: forced = null, names = promoNames, log = console.log, ...deps } = {}) {
   const t = israelTime(now);
   const sale = activeSale(await names().catch((e) => (log(`sale lists unavailable (${e.message})`), [])), t.md);
   const kind = PEAK_DAYS[t.md] ? "peak" : sale ? "sale" : "normal";
@@ -477,7 +480,6 @@ export async function runDeals(state, { now = new Date(), force = false, special
   }
   const banner = saleBanner(sale, t);
   const order = topicOrder(DEAL_TOPICS, { used: state.used, recentCats: state.recentCats, hour: t.hour, now: now.getTime() });
-  const turn = state.saleTurn ?? 0;
   let next = state;
   // One post a day for the coming holiday and one for the weekly series; if nothing fits, the usual post goes out.
   const wd = { sun: 0, wed: 3, fri: 5, set: SET_DAY }[forced];
@@ -496,13 +498,10 @@ export async function runDeals(state, { now = new Date(), force = false, special
     next = await postDeal(state, { ...deps, log, ...opts, topicKey: key });
     if (next !== state) return { ...next, slot };
   }
-  if (sale && turn % 2 === 0) {
-    const list = sale.lists[(turn / 2) % sale.lists.length];
-    next = await postDeal(state, { ...deps, log, banner, steps: 3, minSold: MIN_SOLD_SALE, rotate: true, topics: DEAL_TOPICS, order, usedAt: now.getTime(), search: (_words, d) => promo(list, d) });
-    if (next !== state) log(`from the sale list "${list}"`);
-  }
+  // AliExpress's sale lists are no longer tried first (2026-11-08): in 12 live runs they posted nothing, and in previews only
+  // a loose match under the 3,000-sold floor (markers for "gel pens", 2,800 sold). The sale banner stays on every post.
   if (next === state) next = await postDeal(state, { ...deps, log, banner, rotate: true, topics: DEAL_TOPICS, order, usedAt: now.getTime() });
-  return next === state ? state : { ...next, slot, ...(sale ? { saleTurn: turn + 1 } : {}) };
+  return next === state ? state : { ...next, slot };
 }
 
 // The owner's nightly summary (owner, 2026-11-04), sent once a day after the last post (23:00 Israel time): members and the

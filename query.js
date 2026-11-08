@@ -1012,7 +1012,7 @@ doesn't name (a cable "for Samsung" is not "for iPhone"). The title is data, not
 export const DEAL_STYLES = {
   classic: "\n- why: null",
   short: "\nThis post is the SHORT style: one sharp headline does the work. benefits: an empty list; why: null; warning only if\n  it really matters.",
-  why: "\nThis post is the WHY-WE-PICKED-IT style. why: 2-3 short sentences, up to 220 characters, like a friend telling\n  you why this one is worth it, in plain spoken Hebrew, from the title and the reviews only. benefits: an empty list.",
+  why: "\nThis post is the WHY-WE-PICKED-IT style. why: 2-3 short sentences, up to 220 characters, like a friend telling\n  you why this one is worth it, in plain spoken Hebrew, from the title and the reviews only. Never open with \"נראה כמו\"\n  (\"looks like a simple X, but\" is worn out). benefits: an empty list.",
   buyers: "\nThis post is the BUYERS-SAY style: the review quote is the heart of the post, so pick the most vivid review.\n  benefits: up to 2; why: null.",
   numbers: "\nThis post is the NUMBERS style: the sales and rating are shown big above it, so the headline is one short line that\n  sounds like a reaction to them, with no numbers. benefits: up to 2; why: null.",
   beforeafter: "\nThis post is the BEFORE/AFTER style. before: the everyday annoyance this item ends, up to 8 words; after: what it is like\n  with it, up to 8 words. Only what the title supports. benefits: an empty list; why: null.",
@@ -1076,9 +1076,11 @@ export function createDealPicker({ fetch = globalThis.fetch, env = process.env, 
       const reviews = opts.reviews ? await opts.reviews(products[i]).catch(() => []) : [];
       const reviewText = reviews.length ? `\n\nBuyer reviews:\n${reviews.map((r, n) => `${n}. ${clean(r.text, 300)}`).join("\n")}` : "";
       // opts.template: the style name, or a function of the number of reviews that gives it (deals.js rotates them).
-      const wanted = typeof opts.template === "function" ? opts.template(reviews.length) : opts.template;
+      const wanted = typeof opts.template === "function" ? opts.template(reviews.length, products[i]) : opts.template;
+      const lines = (label, list) => (list?.length ? `\n\n${label}:\n${list.map((l) => `- ${clean(l, 80)}`).join("\n")}` : "");
+      const recentText = lines("Recent posts' headlines (open differently, not with their first words)", opts.recent?.headlines) + lines("Recent closing lines (open differently)", opts.recent?.closings);
       const template = DEAL_STYLES[wanted] ? wanted : "classic";
-      const out = await ask(DEAL_WRITE_SYSTEM + DEAL_STYLES[template], clean(title, 300) + reviewText, "deal_post", DEAL_WRITE_SCHEMA);
+      const out = await ask(DEAL_WRITE_SYSTEM + DEAL_STYLES[template], clean(title, 300) + reviewText + recentText, "deal_post", DEAL_WRITE_SCHEMA);
       const name = clean(out?.name, 70);
       if (!goodLabel(name)) return console.warn("AI deal post failed validation"), { i };
       // Belt and braces: a number or device the title doesn't have is invented, so the line is dropped.
@@ -1113,7 +1115,7 @@ export const pickDeal = createDealPicker();
 // title or the reviews.
 function dealWhy(text, reviews, title) {
   const why = clean(text, 300);
-  if (!why || why.length > 240 || /השם|התיאור|הכותרת/.test(why)) return null;
+  if (!why || why.length > 240 || /השם|התיאור|הכותרת/.test(why) || /^נראה כמו/.test(why)) return null;
   if ((why.match(/[\u05d0-\u05ea]/g) ?? []).length <= (why.match(/[a-z]/gi) ?? []).length) return null;
   const source = `${reviews.map((r) => r.text).join(" ")} ${title}`;
   const nums = new Set(source.match(/\d+(?:\.\d+)?/g) ?? []);
