@@ -358,7 +358,8 @@ test("formatDeal styles: each keeps price, sold, the buy link and the search-bot
     assert.match(post, /לרכישה בעלי אקספרס/, template);
     assert.match(post, /הבוט שלנו ימצא לכם/, template);
   }
-  assert.doesNotMatch(formatDeal(p, { ...choice, template: "short" }), /✅|💬/, "short: headline and data only");
+  assert.doesNotMatch(formatDeal(p, { ...choice, template: "short" }), /✅/, "short: no benefits");
+  for (const template of TEMPLATES.filter((t) => t !== "reviews3")) assert.match(formatDeal(p, { ...choice, template }), /💬/, `${template}: a review in every post`);
   assert.match(formatDeal(p, { ...choice, template: "why" }), /נכנסת לכל תיק/);
   assert.doesNotMatch(formatDeal(p, { ...choice, template: "why" }), /✅/);
   assert.match(formatDeal(p, { ...choice, template: "buyers" }), /^‏💬 <b>"קלה וקטנה"<\/b>\n‏— קונה מישראל/);

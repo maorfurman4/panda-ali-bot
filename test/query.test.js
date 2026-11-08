@@ -443,6 +443,13 @@ test("deal picker: buyer reviews go to the write call; the Hebrew quote keeps on
   assert.equal((await pick({ review_index: 0, review_quote: "הגיעה תוך 5 ימים" })).review, null, "a number the buyer didn't write");
   assert.equal((await pick({ review_index: 0, review_quote: "מושלמת לאייפון" })).review, null, "a device nobody named");
   assert.equal((await pick({ review_index: 7, review_quote: "קלה" })).review, null, "no such review");
+  const api2 = openai({ ...base, review_index: 0, review_quote: "Light and small", quote: "קלה וקטנה, נכנסת לתיק" });
+  const again = await createDealPicker({ fetch: api2.fetch, env: ENV })(products, "umbrella", { reviews: async () => reviews });
+  assert.deepEqual(again.review, { quote: "קלה וקטנה, נכנסת לתיק", country: "KR", photo: "https://x/b.jpg" }, "an English quote is translated by one more call");
+  assert.equal(api2.requests.length, 3);
+  assert.equal(api2.requests[2].body.input[0].content, "Light and small, great to carry in a bag");
+  const none = openai({ ...base, review_index: null, review_quote: null, quote: "הגיעה מהר ומתקפלת שטוחה" });
+  assert.equal((await createDealPicker({ fetch: none.fetch, env: ENV })(products, "umbrella", { reviews: async () => reviews })).review.country, "KR", "no pick: the first review is quoted");
   assert.equal((await pick({ review_index: 0, review_quote: "Light and small, great to carry" })).review, null, "left in English");
   assert.equal((await pick({ review_index: 0, review_quote: "קלה וקטנה, נכנסת לכל תיק UV" })).review.country, "KR", "a Latin word inside Hebrew is fine");
   assert.equal((await pick({ review_index: null, review_quote: null })).review, null);

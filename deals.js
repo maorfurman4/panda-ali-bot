@@ -286,10 +286,10 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning, r
   const style = template in ready && !ready[template] ? "classic" : template;
   const top = {
     classic: [head, title, ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []), warning && `⚠️ ${esc(warning)}`, quote],
-    short: [head, title, warning && `⚠️ ${esc(warning)}`],
+    short: [head, title, warning && `⚠️ ${esc(warning)}`, quote && ["", quote]].flat(), // owner, 2026-11-08: a review in every post
     why: [head, title, "", esc(why ?? ""), warning && `⚠️ ${esc(warning)}`, quote && ["", quote]].flat(),
     buyers: [`💬 <b>"${esc(review?.quote ?? "")}"</b>`, `— ${review?.country === "IL" ? "קונה מישראל" : "מהביקורות של הקונים"}`, "", `${emoji || "🛍️"} ${title}`, ...benefits.map((b) => `✅ ${esc(b)}`), warning && `⚠️ ${esc(warning)}`],
-    numbers: [`📦 <b>${sold} קנו את זה</b>`, ratingText(p), "", head, title, ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []), warning && `⚠️ ${esc(warning)}`],
+    numbers: [`📦 <b>${sold} קנו את זה</b>`, ratingText(p), "", head, title, ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []), warning && `⚠️ ${esc(warning)}`, quote],
     beforeafter: [head, title, "", `❌ ${esc(before ?? "")}`, `✅ ${esc(after ?? "")}`, warning && `⚠️ ${esc(warning)}`, quote],
     reasons: [head, title, "", ...benefits.map((b, n) => `${["1️⃣", "2️⃣", "3️⃣"][n]} ${esc(b)}`), warning && `⚠️ ${esc(warning)}`, quote],
     reviews3: [head, title, "", `${quotes.length} קונים מספרים:`, ...quotes.map((q) => `${flag(q.country)} "${esc(q.quote)}"`), warning && `⚠️ ${esc(warning)}`],
