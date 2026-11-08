@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
+import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, CLOSINGS, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
 
 const item = (id, extra = {}) => ({
   product_id: id,
@@ -61,8 +61,9 @@ test("postDeal: next topic in turn, the AI's pick, remembers what it posted", as
   assert.equal(sent[0][0], -100);
   assert.equal(sent[0][1], "https://ae01.alicdn.com/2.jpg");
   assert.deepEqual(sent[0][2].reply_markup.inline_keyboard, [[{ text: "🛒 לקנייה בעלי אקספרס", url: "https://s.click.aliexpress.com/e/2" }]], "a buy button under the post");
-  const { log: posts, ...rest } = state;
+  const { log: posts, closingTurn, closings, ...rest } = state;
   assert.deepEqual(rest, { topic: 1, posted: ["9", "2"] });
+  assert.equal(closingTurn, 0, "no AI closing: the first of the 60 lines");
   assert.equal(posts.length, 1, "the post is logged for the nightly status");
 });
 
@@ -338,22 +339,25 @@ test("nextTemplate: the styles take turns, never the same twice in a row, 'buyer
   let last = null;
   const seen = [];
   for (let n = 0; n < 20; n++) {
-    const t = nextTemplate(last, n % 4 !== 3);
+    const reviews = n % 4 === 3 ? 0 : 3;
+    const t = nextTemplate(last, reviews);
     assert.notEqual(t, last);
-    if (n % 4 === 3) assert.notEqual(t, "buyers");
+    if (!reviews) assert.ok(t !== "buyers" && t !== "reviews3");
     seen.push((last = t));
   }
   assert.deepEqual([...new Set(seen)].toSorted(), [...TEMPLATES].toSorted(), "every style shows up");
-  assert.notEqual(nextTemplate("short", false), "buyers");
+  assert.notEqual(nextTemplate("short", 0), "buyers");
+  assert.notEqual(nextTemplate("beforeafter", 1), "reviews3", "3 buyers needs 2 reviews");
 });
 
 test("formatDeal styles: each keeps price, sold, the buy link and the search-bot link; empty parts fall back to classic", () => {
   const p = item("1");
-  const choice = { name: "מטריה", emoji: "☂️", headline: "קטנה כמו בקבוק", benefits: ["קלה", "UV"], review: { quote: "קלה וקטנה", country: "IL" }, why: "נכנסת לכל תיק ולא מתהפכת ברוח." };
+  const choice = { name: "מטריה", emoji: "☂️", headline: "קטנה כמו בקבוק", benefits: ["קלה", "UV"], review: { quote: "קלה וקטנה", country: "IL" }, why: "נכנסת לכל תיק ולא מתהפכת ברוח.",
+    before: "מטריה ענקית שלא נכנסת לתיק", after: "קטנה כמו בקבוק מים", quotes: [{ quote: "קלה וקטנה", country: "IL" }, { quote: "שורדת רוח", country: "GB" }] };
   for (const template of TEMPLATES) {
     const post = formatDeal(p, { ...choice, template });
     assert.match(post, /💰|מחיר/, template);
-    assert.match(post, /נמכרו/, template);
+    assert.match(post, template === "numbers" ? /קנו את זה/ : /נמכרו/, template);
     assert.match(post, /לרכישה בעלי אקספרס/, template);
     assert.match(post, /הבוט שלנו ימצא לכם/, template);
   }
@@ -397,4 +401,35 @@ test("specialFor: '3 under 20 ₪' is the 4th post, except Sunday and Thursday",
   assert.equal(specialFor({ hour: 10, wd: 0 }, "normal", null), null);
   assert.equal(specialFor({ hour: 10, wd: 4 }, "normal", null), null);
   assert.equal(specialFor({ hour: 11, wd: 1 }, "normal", null), null);
+});
+
+test("formatDeal new styles: numbers on top, before/after, numbered reasons, 3 buyers with flags; the closing line", () => {
+  const p = item("1", { lastest_volume: 31000 });
+  const choice = { name: "מטריה", emoji: "☂️", headline: "קטנה כמו בקבוק", benefits: ["קלה מאוד", "הגנה מ-UV", "נכנסת לתיק"], before: "מטריה שלא נכנסת לתיק", after: "קטנה כמו בקבוק", quotes: [{ quote: "קלה וקטנה", country: "IL" }, { quote: "שורדת רוח", country: "GB" }], closing: "שווה להציץ 👀" };
+  const numbers = formatDeal(p, { ...choice, template: "numbers" });
+  assert.match(numbers, /^‏📦 <b>מעל 31,000 קנו את זה<\/b>/);
+  assert.doesNotMatch(numbers, /נמכרו:/, "not twice");
+  assert.match(formatDeal(p, { ...choice, template: "beforeafter" }), /❌ מטריה שלא נכנסת לתיק\n‏✅ קטנה כמו בקבוק/);
+  assert.match(formatDeal(p, { ...choice, template: "reasons" }), /1️⃣ קלה מאוד\n‏2️⃣ הגנה מ-UV\n‏3️⃣ נכנסת לתיק/);
+  const three = formatDeal(p, { ...choice, template: "reviews3" });
+  assert.match(three, /2 קונים מספרים:\n‏🇮🇱 "קלה וקטנה"\n‏🇬🇧 "שורדת רוח"/);
+  assert.match(formatDeal(p, { ...choice, quotes: choice.quotes.slice(0, 1), template: "reviews3" }), /✅ קלה מאוד/, "one quote: classic");
+  assert.match(formatDeal(p, { ...choice, before: null, template: "beforeafter" }), /✅ קלה מאוד/, "no before: classic");
+  assert.match(formatDeal(p, choice), /<i>שווה להציץ 👀<\/i>\n‏🛒/, "the closing line sits above the buy link");
+});
+
+test("postDeal closing: the AI's own line when fresh; one used lately or missing takes the next of the 60", async () => {
+  const captions = [];
+  const run = (state, closing) => postDeal(state, { api: { sendPhoto: async (_c, _p, x) => captions.push(x.caption) }, chatId: 1, search: async () => [item(`p${captions.length}`)], shorten: async (ps) => ps, pick: async () => ({ i: 0, name: "מנורה", closing }), log: () => {} });
+  const s1 = await run({}, "אור נעים לכל חדר");
+  assert.match(captions[0], /<i>אור נעים לכל חדר<\/i>/);
+  assert.deepEqual(s1.closings, ["אור נעים לכל חדר"]);
+  const s2 = await run(s1, "אור נעים לכל חדר");
+  assert.match(captions[1], new RegExp(`<i>${CLOSINGS[0]}</i>`), "a repeat: the list instead");
+  const s3 = await run(s2, null);
+  assert.match(captions[2], new RegExp(`<i>${CLOSINGS[1]}</i>`));
+  assert.equal(s3.closingTurn, 1);
+  assert.equal(CLOSINGS.length, 60);
+  assert.equal(new Set(CLOSINGS).size, 60, "60 different lines");
+  assert.ok(CLOSINGS.every((c) => !/\d|רק היום|אחרונים|אחרונות|נגמר|מוגבל|מהרו/.test(c)), "no numbers or fake urgency");
 });

@@ -406,7 +406,7 @@ test("deal picker: the most sold product the AI says is the topic's item, writte
   const answer = { fits: [false, true, true], emoji: "🎧", headline: "סוף לכבלים מסתבכים", name: "SoundPEATS אוזניות אלחוטיות", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות", "השם צריך להיות קצר"], warning: null };
   const api = openai(answer);
   assert.deepEqual(await createDealPicker({ fetch: api.fetch, env: ENV })(products, "wireless earbuds"), {
-    i: 1, name: "SoundPEATS אוזניות אלחוטיות", emoji: "🎧", headline: "סוף לכבלים מסתבכים", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות"], warning: null, review: null, why: null, template: "classic",
+    i: 1, name: "SoundPEATS אוזניות אלחוטיות", emoji: "🎧", headline: "סוף לכבלים מסתבכים", benefits: ["חיבור Bluetooth יציב", "קלות ונוחות"], warning: null, review: null, why: null, before: null, after: null, quotes: [], closing: null, template: "classic",
   });
   assert.equal(api.requests.length, 2);
   assert.equal(api.requests[0].body.input[0].content, "Topic: wireless earbuds\n3 products:\n0. Cable organizer winder\n1. SoundPEATS wireless earbuds\n2. Lenovo LP40 earbuds");
@@ -474,7 +474,33 @@ test("deal picker styles: the style's instructions go to the write call; 'why' i
   assert.equal((await run("nonsense")).out.template, "classic");
   const asked = [];
   await run((hasReviews) => (asked.push(hasReviews), "short"), {}, []);
-  assert.deepEqual(asked, [false], "the rotation is told whether reviews came");
+  assert.deepEqual(asked, [0], "the rotation is told how many reviews came");
+});
+
+test("deal picker new styles: before/after, 3 buyers' quotes and the closing line, each guarded", async () => {
+  const products = [{ product_title: "Car trunk organizer foldable felt box" }];
+  const reviews = [
+    { stars: 5, country: "IL", text: "Great box, keeps everything in place", photos: [] },
+    { stars: 5, country: "GB", text: "Folds flat when not needed", photos: [] },
+    { stars: 5, country: "KR", text: "Sturdy and big enough for groceries", photos: [] },
+  ];
+  const base = { fits: [true], emoji: "🚗", headline: "תא מטען מסודר", name: "ארגונית לתא המטען", benefits: ["מתקפלת", "גדולה"], warning: null, why: null,
+    review_index: 0, review_quote: "קופסה מעולה, הכל נשאר במקום", more_quotes: [{ review_index: 1, quote: "מתקפלת שטוח כשלא צריך" }, { review_index: 0, quote: "כפול" }, { review_index: 2, quote: "חזקה ונכנסות לה 5 שקיות" }],
+    before: "הכל מתגלגל בתא המטען", after: "כל דבר במקום שלו", closing: "סוף סוף סדר ברכב" };
+  const run = (template, answer = {}) => createDealPicker({ fetch: openai({ ...base, ...answer }).fetch, env: ENV })(products, "car trunk organizer", { reviews: async () => reviews, template });
+  const ba = await run("beforeafter");
+  assert.equal(ba.before, "הכל מתגלגל בתא המטען");
+  assert.equal(ba.after, "כל דבר במקום שלו");
+  assert.deepEqual(ba.benefits, []);
+  assert.equal((await run("classic")).before, null, "before/after only in their style");
+  const three = await run("reviews3");
+  assert.deepEqual(three.quotes.map((q) => q.country), ["IL", "GB"], "a repeated index and a made-up number are dropped");
+  assert.equal(three.closing, "סוף סוף סדר ברכב");
+  for (const closing of ["רק היום במחיר הזה", "2 במחיר של 1", "Grab it now", "סוף סוף סדר ברכב, בלי בלגן ובלי כאב ראש בכלל אף פעם"]) {
+    assert.equal((await run("classic", { closing })).closing, null, closing);
+  }
+  assert.equal((await run("numbers")).benefits.length, 2);
+  assert.equal((await run("reasons")).benefits.length, 2, "reasons keeps the benefits it got");
 });
 test("style: validateIntent keeps style only when true; the pick asks for pretty and plain, kept items only", async () => {
   assert.equal(validateIntent({ ...STRICT_OK, style: true }).style, true);

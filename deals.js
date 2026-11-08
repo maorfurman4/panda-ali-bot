@@ -162,30 +162,60 @@ export function pickReviews(reviews = []) {
 }
 
 // The post styles in turn (owner, 2026-11-08: vary them so the channel reads like something, not a bot). Never the same
-// style twice in a row; "buyers" only when a review came. Specials keep "classic".
-export const TEMPLATES = ["classic", "why", "short", "buyers"];
-export function nextTemplate(last, hasReview) {
+// style twice in a row; "buyers" needs a review and "reviews3" two. Specials keep "classic".
+export const TEMPLATES = ["classic", "why", "numbers", "short", "buyers", "beforeafter", "reasons", "reviews3"];
+const NEEDS_REVIEWS = { buyers: 1, reviews3: 2 };
+export function nextTemplate(last, reviewCount = 0) {
   const from = TEMPLATES.indexOf(last);
   for (let k = 1; k <= TEMPLATES.length; k++) {
     const t = TEMPLATES[(from + k) % TEMPLATES.length];
-    if (t !== last && (t !== "buyers" || hasReview)) return t;
+    if (t !== last && Number(reviewCount) >= (NEEDS_REVIEWS[t] ?? 0)) return t;
   }
   return "classic";
 }
 
+// The line before the buy link when the AI's own closing is missing or was used lately: 60 lines in turn (owner,
+// 2026-11-08: "different closing lines for 60 days"). No numbers, no price, no fake urgency; they fit any product.
+export const CLOSINGS = [
+  "שווה להציץ 👀", "אחד השימושיים שראינו לאחרונה", "קטן, זול, ועושה את העבודה", "מהדברים שקונים פעם אחת ושמחים",
+  "נראה לנו שתאהבו", "הקונים כבר הצביעו בארנק", "בדקנו, וזה שווה", "מושלם גם כמתנה קטנה",
+  "עוד אחד לרשימת \"למה לא קניתי קודם\"", "פתרון קטן לעניין של כל יום", "תשמרו לעצמכם, או תשלחו למי שצריך",
+  "מהמוצרים שפשוט עובדים", "בלי הרבה מילים: שווה", "מישהו בבית עוד יודה לכם", "לפעמים לא צריך יותר מזה",
+  "מהרכישות שלא מתחרטים עליהן", "הדבר הקטן שעושה הבדל", "שימושי יותר ממה שנראה", "תעשו לעצמכם טובה",
+  "קנייה חכמה, בלי לחשוב פעמיים", "אהבנו, ואנחנו לא לבד", "תוסיפו לסל ותודו לנו אחר כך", "עוד מציאה ששווה לשמור",
+  "לפעמים הדברים הפשוטים הם הכי טובים", "מאלה שלא מבינים איך הסתדרו בלעדיהם", "תשלחו למי שתמיד מחפש כאלה",
+  "זה בדיוק מה שהיה חסר", "הפנדה מאשר 🐼", "קונים אחד, ואז עוד אחד למתנה", "סגרנו לכם את החיפוש", "שווה כל שקל",
+  "עובד, נוח, וזהו", "כזה שמשתמשים בו כל יום", "יאללה, מגיע לכם", "הקלה קטנה לשגרה", "מהמוצרים שכולם שואלים \"מאיפה זה?\"",
+  "תנו לזה צ'אנס", "מציאה אמיתית, לא עוד פרסומת", "המלצה חמה מהערוץ", "ממליצים בחום", "מזמינים, שוכחים, ושמחים כשזה מגיע",
+  "פשוט, יעיל, משתלם", "עוד דרך קטנה לחסוך כאב ראש", "בחירה בטוחה", "בשביל זה יש עלי אקספרס", "מאיתנו, באהבה 💛",
+  "קטן בגודל, גדול בתועלת", "לא תצטערו", "שמים בסל, ממשיכים בחיים", "מתנה טובה גם לעצמכם", "ההמלצה שלנו להיום",
+  "מהדברים שעושים את היום קצת יותר קל", "קונים רבים כבר נהנים ממנו", "שווה לפחות הצצה", "מה שצריך, במחיר שנעים לשלם",
+  "מהקניות הקטנות ששמחים עליהן הכי הרבה", "בשביל השקט הנפשי", "עוד אחד ששווה לשמור במועדפים", "תודו שחשבתם על זה גם",
+  "טוב שמצאנו את זה",
+];
+const KEEP_CLOSINGS = 100; // the AI's closing lines remembered, so one that came back lately is not used again
+
+// A country code as its flag (IL -> 🇮🇱); anything else a speech bubble.
+const flag = (code) => (/^[A-Z]{2}$/.test(code ?? "") ? String.fromCodePoint(...[...code].map((c) => 0x1f1a5 + c.charCodeAt(0))) : "💬");
+
 // AI parts (headline, benefits, warning, review, why) are optional: without them the post is the plain card under
 // "הדיל של עכשיו". The data lines (price to the search-bot link) are the same in every style.
-export function formatDeal(p, { name, emoji, headline, benefits = [], warning, review, why, template = "classic" } = {}, banner = null) {
+export function formatDeal(p, { name, emoji, headline, benefits = [], warning, review, why, before, after, quotes = [], closing, template = "classic" } = {}, banner = null) {
   const sold = soldText(p.lastest_volume);
   const title = `<b>${esc(name || shortTitle(p.product_title) || "מוצר")}</b>`;
   const head = `${emoji || "🔥"} <b>${esc(headline || "הדיל של עכשיו")}</b>`;
   const quote = review?.quote && `💬 ${review.country === "IL" ? "קונה מישראל" : "מהביקורות"}: "${esc(review.quote)}"`;
-  const style = template === "buyers" && !review?.quote ? "classic" : template === "why" && !why ? "classic" : template;
+  const ready = { buyers: review?.quote, why, numbers: sold, beforeafter: before && after, reasons: benefits.length >= 2, reviews3: quotes.length >= 2 };
+  const style = template in ready && !ready[template] ? "classic" : template;
   const top = {
     classic: [head, title, ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []), warning && `⚠️ ${esc(warning)}`, quote],
     short: [head, title, warning && `⚠️ ${esc(warning)}`],
     why: [head, title, "", esc(why ?? ""), warning && `⚠️ ${esc(warning)}`, quote && ["", quote]].flat(),
     buyers: [`💬 <b>"${esc(review?.quote ?? "")}"</b>`, `— ${review?.country === "IL" ? "קונה מישראל" : "מהביקורות של הקונים"}`, "", `${emoji || "🛍️"} ${title}`, ...benefits.map((b) => `✅ ${esc(b)}`), warning && `⚠️ ${esc(warning)}`],
+    numbers: [`📦 <b>${sold} קנו את זה</b>`, ratingText(p), "", head, title, ...(benefits.length ? ["", ...benefits.map((b) => `✅ ${esc(b)}`)] : []), warning && `⚠️ ${esc(warning)}`],
+    beforeafter: [head, title, "", `❌ ${esc(before ?? "")}`, `✅ ${esc(after ?? "")}`, warning && `⚠️ ${esc(warning)}`, quote],
+    reasons: [head, title, "", ...benefits.map((b, n) => `${["1️⃣", "2️⃣", "3️⃣"][n]} ${esc(b)}`), warning && `⚠️ ${esc(warning)}`, quote],
+    reviews3: [head, title, "", `${quotes.length} קונים מספרים:`, ...quotes.map((q) => `${flag(q.country)} "${esc(q.quote)}"`), warning && `⚠️ ${esc(warning)}`],
   }[style] ?? [];
   const lines = [
     banner && `<b>${esc(banner)}</b>`,
@@ -195,8 +225,9 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning, r
     discountLine(p),
     couponLine(p),
     vatLine(p),
-    ratingText(p),
-    sold && `📦 נמכרו: ${sold}`, // 🛒 is the buy line
+    style !== "numbers" && ratingText(p), // the numbers style shows these two at the top
+    style !== "numbers" && sold && `📦 נמכרו: ${sold}`, // 🛒 is the buy line
+    closing && `<i>${esc(closing)}</i>`,
     // Short clickable text, not the bare URL (it wrapped over two lines); the same link is also the button under the post.
     `🛒 <a href="${esc(p.promotion_link)}">לרכישה בעלי אקספרס ←</a>`,
     "",
@@ -271,13 +302,17 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     const chosen = list[choice?.i ?? 0];
     const [[short], rated] = await Promise.all([shorten([chosen]), stars ? stars([chosen]).catch(() => null) : null]); // search links are ~1 KB; on failure the long one is kept
     const p = rated?.[0]?.reviewCount ? { ...short, avgStars: rated[0].avgStars, reviewCount: rated[0].reviewCount } : short;
-    const caption = formatDeal(p, choice ?? {}, banner);
+    // The AI's closing line unless it came back lately; else the next of the 60 lines.
+    const fresh = choice?.closing && !(state.closings ?? []).includes(choice.closing) ? choice.closing : null;
+    const turn = fresh ? state.closingTurn ?? -1 : ((state.closingTurn ?? -1) + 1) % CLOSINGS.length;
+    const closing = fresh ?? CLOSINGS[turn];
+    const caption = formatDeal(p, { ...(choice ?? {}), closing }, banner);
     if (api) await sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto: choice?.review?.photo });
     else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
     const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };
     log(`style: ${choice?.template ?? "plain"}`);
-    return { ...state, [topicKey]: topic, ...(rotate && choice?.template ? { template: choice.template } : {}), posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
+    return { ...state, [topicKey]: topic, ...(rotate && choice?.template ? { template: choice.template } : {}), closingTurn: turn, closings: fresh ? [...(state.closings ?? []), fresh].slice(-KEEP_CLOSINGS) : state.closings ?? [], posted: [...posted, String(p.product_id)].slice(-KEEP_POSTED), log: [...(state.log ?? []), entry].slice(-40) };
   }
   log("no topic gave a good item; nothing posted");
   return state;
