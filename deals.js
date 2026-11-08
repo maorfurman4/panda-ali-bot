@@ -430,7 +430,8 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
         }
       : null;
     // rotate: the post styles take turns (state.template is the last one); otherwise the classic post.
-    const template = rotate ? (reviewCount, product) => nextTemplate(state.template, reviewCount, product?.lastest_volume) : "classic";
+    // A worth post already has its numbers in the tag on top, so it never takes the numbers style (sweatband preview, 2026-11-08).
+    const template = rotate ? (reviewCount, product) => nextTemplate(state.template, reviewCount, worth ? 0 : product?.lastest_volume) : "classic";
     // recent: the last posts' headlines and closing lines, so the AI opens differently (2026-11-08: 5 of 15 began "רוצים/מחפשים").
     const recent = { headlines: (state.headlines ?? []).slice(-6), closings: (state.closings ?? []).slice(-6) };
     let choice = await pick(list, words, { reviews: reviewsFor, template, recent });

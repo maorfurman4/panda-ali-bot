@@ -556,5 +556,8 @@ test("specialFor: 'worth it' is the 6th and 12th post; runDeals posts it with th
     log: () => {},
   });
   assert.match(sent[0], /💎 שווה במיוחד: מעל 9,000 קנו, ב-₪4\.00 בלבד/, "the cheap best seller wins the worth post");
+  const asked = [];
+  await postDeal({ template: "why" }, { api: { sendPhoto: async () => {} }, chatId: 1, search: async () => [item("a", { lastest_volume: 90000 })], shorten: async (ps) => ps, pick: async (_l, _w, o) => (asked.push(o.template(3, { lastest_volume: 90000 })), { i: 0, name: "x" }), rotate: true, worth: true, log: () => {} });
+  assert.notEqual(asked[0], "numbers", "a worth post skips the numbers style: its numbers are in the tag");
   assert.ok(state.seen.cheap && state.seen.dear);
 });
