@@ -861,3 +861,13 @@ test("needsEnTitle: the English title goes to the judges only when the Hebrew on
   assert.equal(needsEnTitle("כיסוי מפתח לפריוס", "Key Case For Toyota Prius", req), false, "not for the asked model at all");
   assert.equal(needsEnTitle("אוזניות", "Wireless Earbuds", { he: "אוזניות", en: "wireless earbuds" }), false, "not a device search");
 });
+
+test("needsEnTitle: a named team or brand the Hebrew title garbled gets the English title (Maccabi Haifa stickers, 2026-11-09)", async () => {
+  const { needsEnTitle } = await import("../format.js");
+  const req = { he: "מדבקות של מכבי חיפה", en: "Maccabi Haifa football stickers" };
+  assert.equal(needsEnTitle("9*9cm חיפה 1913 Green Apes Monkey MHFC מדבקות קישוט של מועדון מכבאי", "9*9cm Maccabi Haifa 1913 Green Apes Monkey MHFC Stickers", req), true);
+  assert.equal(needsEnTitle("מדבקות מכבי חיפה 1913 קוף ירוק", "Maccabi Haifa 1913 Green Monkey Stickers", req), false, "the Hebrew names it: no extra cost");
+  assert.equal(needsEnTitle("מדבקות כוכבי כדורגל", "Football Stars Stickers", req), false, "the English doesn't name the team either");
+  assert.equal(needsEnTitle("מדבקות של מכבאי", "Maccabi Tel Aviv Stickers", req), false, "another team");
+  assert.equal(needsEnTitle("אוזניות אלחוטיות", "Wireless Earbuds", { he: "אוזניות בלוטוס", en: "bluetooth earbuds" }), false, "no name asked");
+});

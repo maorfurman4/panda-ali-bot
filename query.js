@@ -557,6 +557,10 @@ holder, a steering wheel cover) is exact too. A listing that names many models i
 the other models it names (Ultra, Pro, Plus, Air, Model Y, S23, other years) never make it near or partial, since the
 shopper picks the model on the product page (a 29,627-sold protector for "S23 S24 S24 Ultra A54" fell to near for "S24",
 owner, 2026-11-04).
+Fan items of a named team, club, band, show or character (stickers, flags, scarves, jerseys, mugs) are exact when the
+title names it, its nickname, initials or a garbled spelling ("MHFC", "Green Apes", "מכבאי חיפה" are Maccabi Haifa);
+another team's or character's items are left out (Maccabi Tel Aviv is not Maccabi Haifa: rivals), and generic ones
+(football star stickers, a plain ball sticker) are partial (owner's search, 2026-11-09).
 A commercial, industrial or restaurant version (a ₪4,000 commercial microwave) is partial for a home shopper unless asked.
 For "ערכת טיפוח" a kit is exact: a multi-head grooming trimmer set (beard, nose, body heads) or a beard or skin care set;
 a single hair clipper or shaver alone is left out (one tool, not a kit: the shopper got hair clippers, 2026-11-01). A

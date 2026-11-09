@@ -680,9 +680,18 @@ export const YEAR_NOTE = "💡 רוב החלקים מתאימים לשנים מ�
 // written "קולולה"; owner's test, 2026-11-07) while the seller's English title names it: the judges get the English one too.
 const lastDevice = (text = "") => [...text.matchAll(new RegExp(DEVICES.source, "gi"))].at(-1)?.[0] ?? null;
 export function needsEnTitle(title = "", titleEn = "", request = {}) {
-  if (!titleEn || !namesModel(request.he ?? "")) return false;
-  const [he, en] = [lastDevice(request.he), lastDevice(request.en ?? "")];
+  if (!titleEn) return false;
   const has = (t, w) => Boolean(w) && t.toLowerCase().includes(w.toLowerCase());
+  if (!namesModel(request.he ?? "")) {
+    // A name in the English keywords (a team, brand or place, capitalized by the reading) that the Hebrew title lost or
+    // garbled: Maccabi Haifa came out "מכבאי", "MHFC" or "Green Apes", and the judges picked Tel Aviv stickers (2026-11-09).
+    // Only when a word of the Hebrew request is missing from the Hebrew title, so a well-translated title costs nothing more.
+    const names = (request.en ?? "").match(/(?<![\w'-])[A-Z][\w'-]+/g) ?? [];
+    const inTitle = (w) => title.includes(w) || (w.length > 3 && /^[לשהבוכמ]/.test(w) && title.includes(w.slice(1)));
+    const lost = (request.he ?? "").split(/[^\u05d0-\u05ea"'׳״]+/).filter((w) => w.length >= 3).some((w) => !inTitle(w));
+    return names.length > 0 && lost && names.every((w) => has(titleEn, w));
+  }
+  const [he, en] = [lastDevice(request.he), lastDevice(request.en ?? "")];
   return !has(title, he) && !has(title, en) && has(titleEn, en);
 }
 export const MODELS_NOTE = "📱 רוב המוצרים מגיעים לכמה דגמים: בדף המוצר בחרו את הדגם שלכם";
