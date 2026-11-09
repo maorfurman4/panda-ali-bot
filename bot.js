@@ -1285,6 +1285,14 @@ export function createBot({
     await ctx.reply(traceOn ? "🔧 אבחון פועל: מתחת לכל חיפוש שלך תופיע שורה שמראה איך נבנה הכרטיס. /trace שוב כדי לכבות." : "🔧 אבחון כבוי.");
   });
 
+  // The owner's "clear history" (2026-11-09): after a fix, the same search runs fresh instead of the day's saved answer.
+  bot.command("clear", async (ctx) => {
+    if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId)) return;
+    const n = resultsCache.size;
+    resultsCache.clear();
+    await ctx.reply(`🧹 נוקו ${n} חיפושים שמורים: כל חיפוש ירוץ מחדש`);
+  });
+
   bot.command("status", async (ctx) => {
     if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId)) return;
     const { startedAt, counters, lastError, lists } = stats.snapshot();

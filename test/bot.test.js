@@ -2059,3 +2059,17 @@ test("createLimiter: at most 2 jobs at once, the others in arrival order; a fail
   assert.deepEqual(started, [1, 2, 3, 4, 5]);
   assert.deepEqual(out.map((r) => r.status), ["fulfilled", "rejected", "fulfilled", "fulfilled", "fulfilled"]);
 });
+
+test("/clear: the owner wipes the saved searches, so the same search runs fresh; others are ignored", async () => {
+  const spy = searchSpy();
+  const ctx = setup({ adminId: "777", healthChecks: async () => [], search: spy.search, understand: async () => ({ status: "ok", corrected_he: "מדבקות של מכבי חיפה", keywords_en: "Maccabi Haifa stickers", max_price_ils: null }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מדבקות של מכבי חיפה"));
+  const searched = spy.queries.length;
+  await ctx.bot.handleUpdate(textUpdate("/clear", { chat: "private", userId: 5 }));
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מדבקות של מכבי חיפה", { userId: 8 }));
+  assert.equal(spy.queries.length, searched, "not the owner: still the saved answer");
+  await ctx.bot.handleUpdate(textUpdate("/clear", { chat: "private", userId: 777 }));
+  assert.match(ctx.sent().at(-1).body, /🧹 נוקו 1 חיפושים שמורים/);
+  await ctx.bot.handleUpdate(textUpdate("חפש לי מדבקות של מכבי חיפה", { userId: 9 })); // another member: no repeat-message limit
+  assert.ok(spy.queries.length > searched, "after /clear the search runs again");
+});
