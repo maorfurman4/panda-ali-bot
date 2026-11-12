@@ -438,6 +438,12 @@ export const hasName = (text, name) => {
   const t = compact(text);
   return words.every((w) => t.includes(w));
 };
+// One word of the name is enough to get into the judges' pool (never onto the card): "Haifa 1913 Green Apes" stickers are
+// Maccabi Haifa's without the word Maccabi (440 and 302 sold); the judges leave out a rival such as Hapoel Haifa.
+export const hasNameWord = (text, name) => {
+  const t = compact(text);
+  return nameWords(name).filter((w) => w.length >= 4).some((w) => t.includes(w));
+};
 const MAX_SPARE = 3; // a rare name's top-up: one free AliExpress list each, plus the name alone
 const MAX_TERMS = 9; // the three readings' other wordings together: one free AliExpress list each
 

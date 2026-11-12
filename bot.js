@@ -8,7 +8,7 @@ import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
-import { createUnderstander, claudeCheck, namesLook, aiSpend, USD_ILS, hasName } from "./query.js";
+import { createUnderstander, claudeCheck, namesLook, aiSpend, USD_ILS, hasName, hasNameWord } from "./query.js";
 import {
   shortTitle,
   soldText,
@@ -408,7 +408,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const brandWords = new Set(brandOnly ? [] : brands.map((b) => `${b} ${keywords}`));
   const shortModel = brandModel(brandOnly, keywords);
   const sizeFree = live ? withoutSize(keywords) : null; // one more list, as the other wordings: nothing else changes
-  const wordings = live ? [...new Set([shortModel, ...brandWordings(brandOnly, keywords), alt, ...terms, ...brandWords, sizeFree].filter((t) => t && t !== keywords))] : [];
+  // A named team, character or brand alone too, from the start (free, in parallel): "Shrek" found 16 Shrek mugs, "Shrek mug" 1;
+  // sellers often title the name without the item (2026-11-12).
+  const nameAlone = typeof brandOnly === "string" && !style ? brandOnly : null;
+  const wordings = live ? [...new Set([shortModel, ...brandWordings(brandOnly, keywords), alt, ...terms, ...brandWords, sizeFree, nameAlone].filter((t) => t && t !== keywords))] : [];
   const plain = live && namesLook(context) && withoutColor(keywords) !== keywords && withoutColor(keywords) ? withoutColor(keywords) : null;
   // A "<brand> <item>" list that comes back empty usually is empty ("QCY white wireless earbuds" in every run, 2026-11-02):
   // no second ask, which would only wait 1.2 s.
@@ -481,13 +484,20 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const poolSize = style ? RELEVANCE_POOL : WIDE_POOL;
     // The shopper named a brand: its items go first in every list, or 25,000-sold generic holders crowd every Baseus one
     // out of the pool ("מעמד טלפון לרכב של Baseus": 8 Baseus holders came back, none reached the AI, 2026-11-02).
-    const brandFirst = (l) => (typeof brandOnly === "string" ? [...l.filter(named), ...l.filter((p) => !named(p))] : l);
+    // For the pool's order only: one word of the name, on a product found by a search that carries the whole name ("Haifa
+    // 1913 Green Apes" in the "Maccabi Haifa stickers" list; "real leather" from a generic list never counts for Real Madrid).
+    const fromName = new Set();
+    const addFrom = (q, ls) => { if (name && hasName(q, name)) for (const l of ls) for (const p of l) fromName.add(keyOf(p)); };
+    addFrom(keywords, mainLists);
+    reworded.forEach((r, i) => r.status === "fulfilled" && addFrom(wordings[i], r.value));
+    const nameHint = (p) => named(p) || (fromName.has(keyOf(p)) && hasNameWord(`${p.product_title ?? ""} ${en.get(keyOf(p)) ?? ""}`, name));
+    const brandFirst = (l) => (typeof brandOnly === "string" ? [...l.filter(nameHint), ...l.filter((p) => !nameHint(p))] : l);
     for (const r of await enTitles) if (r.status === "fulfilled") for (const p of r.value) en.set(keyOf(p), p.product_title ?? "");
     const off = (p) => en.has(keyOf(p)) && !namesItemEn(en.get(keyOf(p)), noun); // English title known and not the item
     const itemFirst = (l) => (en.size ? [...l.filter((p) => !off(p)), ...l.filter(off)] : l);
     let lists = [...mainLists, ...otherLists].map(itemFirst).map(brandFirst);
     const withEn = (p) => (en.has(keyOf(p)) ? { ...p, title_en: en.get(keyOf(p)) } : p); // see needsEnTitle
-    const late = (p) => (off(p) ? 1 : named(p) ? -1 : 0);
+    const late = (p) => (named(p) && !off(p) ? -2 : nameHint(p) ? -1 : off(p) ? 1 : 0); // named first even when the item check misses: sellers write "Sticers" (Maccabi Haifa, 2026-11-12)
     let pool = (style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf, late)).map(withEn); // style searches as approved
     // A rare name: the wordings left out for it (spare) and the name alone are searched too, free, and fill the pool. Real
     // Madrid scarf: 1 on AliExpress, the pool fell to 44 and lost the good football scarves for "close"; "Shrek" alone
@@ -496,6 +506,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     if (name && !style && (pool.filter(named).length < RARE_NAME || pool.length < poolSize)) {
       const asks = [...new Set([...spare, name])].filter((t) => t !== keywords && !wordings.includes(t));
       const got = await Promise.allSettled(asks.map((t) => fetchLists(t, [{}])));
+      got.forEach((r, i) => r.status === "fulfilled" && addFrom(asks[i], r.value));
       got.forEach((r, i) => r.status === "fulfilled" && r.value.forEach((l) => (lists.push(brandFirst(itemFirst(l))), extraNames.push(asks[i]))));
       const before = pool.filter(named).length;
       pool = strongPool(lists, poolSize, keyOf, late).map(withEn);

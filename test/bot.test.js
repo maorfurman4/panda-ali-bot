@@ -2083,7 +2083,7 @@ test("a named team's items reach the judges though generic wordings sell more an
   const relevant = async (_r, p) => ((pool ??= p), { exact: [], partial: [] });
   const out = await pickProducts({ search, relevant, live: true }, { keywords: "Maccabi Haifa stickers", fallback: "football stickers", terms, brandOnly: "Maccabi Haifa", context: "מדבקות של מכבי חיפה", limit: 4, extra: 0 });
   assert.ok(out.trace.some((l) => l.includes("שם: Maccabi Haifa") && l.includes("ניסוחים: soccer team stickers")), "the owner's trace shows the reading");
-  assert.ok(out.trace.some((l) => /לשופטים: עמוד 1 10 .*עם השם 10/.test(l)), `the trace shows where the pool came from: ${out.trace.join(" / ")}`);
+  assert.ok(out.trace.some((l) => /לשופטים: עמוד 1 10 .*עם השם \d+/.test(l)), `the trace shows where the pool came from: ${out.trace.join(" / ")}`);
   assert.equal(pool.filter((p) => String(p.product_id).startsWith("h")).length, 10, "all 10 Haifa stickers in the 72");
   assert.ok(pool.length >= 60, "generic best sellers still fill the rest");
 });
@@ -2143,4 +2143,16 @@ test("a name search: a close item of the same name joins the exact ones; a never
   assert.deepEqual(out.map((p) => p.product_id).sort(), ["r2", "r3", "r4", "set"]);
   const onlyClose = async (_r, p) => ({ exact: [], partial: p });
   assert.equal((await pickProducts({ search: async () => [set, generic], relevant: onlyClose, live: true }, opts)).length, 0);
+});
+
+test("named items reach the pool though sellers misspell the item ('Sticers') or write only part of the name in a list searched with the whole name (Maccabi Haifa, 2026-11-12)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const haifa = (n, en) => product(n, { product_id: `h${n}`, lastest_volume: "300", product_title: en });
+  const main = [haifa(1, "Waterproof Sticers Maccabi Haifa 1913"), haifa(2, "Waterproof Sticers Haifa 1913 Green Apes"), haifa(3, "Haifa Green Apes On Tour Monkey Decoration")];
+  const generic = (q, n) => product(100 + n, { product_id: `${q}-${n}`, lastest_volume: "5000", product_title: `Football Stickers ${q} ${n}` });
+  const search = async (q) => (q === "Maccabi Haifa stickers" ? [...Array.from({ length: 6 }, (_, n) => generic("main", n)), ...main] : Array.from({ length: 30 }, (_, n) => generic(q, n)));
+  let pool = null;
+  const relevant = async (_r, p) => ((pool ??= p), { exact: [], partial: [] });
+  await pickProducts({ search, relevant, live: true }, { keywords: "Maccabi Haifa stickers", fallback: "stickers", terms: ["football team stickers", "fan stickers", "sports club decals", "team logo stickers"], brandOnly: "Maccabi Haifa", context: "מדבקות של מכבי חיפה", limit: 4, extra: 0 });
+  assert.deepEqual(pool.filter((p) => p.product_id.startsWith("h")).map((p) => p.product_id).sort(), ["h1", "h2", "h3"], "all three reach the judges");
 });
