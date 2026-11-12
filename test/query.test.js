@@ -860,3 +860,37 @@ test("the judges see the seller's English title next to a Hebrew one that lost t
   assert.match(sent, /Prius Corolla/);
   assert.doesNotMatch(sent, /Silicone/, "a Hebrew title that names the model goes alone");
 });
+
+test("understand: with a named team or brand, the other readings add only wordings that keep the name (Maccabi Haifa stickers, 2026-11-12)", async () => {
+  const answers = [
+    { ...STRICT_OK, keywords_en: "Maccabi Haifa stickers", alt_en: "Maccabi Haifa decal stickers", brand: "Maccabi Haifa", terms_en: ["MHFC stickers"] },
+    { ...STRICT_OK, keywords_en: "Maccabi Haifa sticker pack", alt_en: "soccer team stickers", brand: "Maccabi Haifa", terms_en: ["fan stickers", "Haifa Maccabi logo stickers"] },
+    { ...STRICT_OK, keywords_en: "football club stickers", alt_en: null, brand: "Maccabi Haifa", terms_en: ["sports fan decals"] },
+  ];
+  const by = (list) => { let i = 0; return async () => ({ ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(list[i++ % 3]) }] }] }) }); };
+  const r = await createUnderstander({ fetch: by(answers), env: ENV })("מדבקות של מכבי חיפה");
+  assert.deepEqual(r.terms_en, ["MHFC stickers", "Maccabi Haifa sticker pack", "Haifa Maccabi logo stickers"], "the first reading's own wordings stay; the others only with the name");
+});
+
+test("hasName: a name matches however sellers space, hyphenate or pluralize it, in any order (2026-11-12)", async () => {
+  const { hasName } = await import("../query.js");
+  assert.ok(hasName("Spider-Man Stickers 50pcs", "Spiderman"));
+  assert.ok(hasName("Spider Man stickers", "Spiderman"));
+  assert.ok(hasName("Spiderman stickers", "Spider-Man"));
+  assert.ok(hasName("Cute Minion Plush Toy", "Minions"));
+  assert.ok(hasName("Haifa 1913 Green Apes MHFC Maccabi", "Maccabi Haifa"));
+  assert.ok(!hasName("Maccabi Tel Aviv stickers", "Maccabi Haifa"));
+  assert.ok(hasName("LG remote control", "LG"));
+  assert.ok(!hasName("small gift box", "LG"), "a short name is a whole word");
+});
+
+test("understand: the wordings left out for a named team are kept aside as spare_en, for a rare name (2026-11-12)", async () => {
+  const answers = [
+    { ...STRICT_OK, keywords_en: "Real Madrid scarf", alt_en: "Real Madrid football scarf", brand: "Real Madrid", terms_en: [] },
+    { ...STRICT_OK, keywords_en: "Real Madrid scarf", alt_en: "soccer fan scarf", brand: "Real Madrid", terms_en: ["knitted scarf"] },
+    { ...STRICT_OK, keywords_en: "football club scarf", alt_en: null, brand: "Real Madrid", terms_en: [] },
+  ];
+  const by = (list) => { let i = 0; return async () => ({ ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(list[i++ % 3]) }] }] }) }); };
+  const r = await createUnderstander({ fetch: by(answers), env: ENV })("צעיף של ריאל מדריד");
+  assert.deepEqual(r.spare_en, ["soccer fan scarf", "knitted scarf", "football club scarf"]);
+});

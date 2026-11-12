@@ -8,7 +8,7 @@ import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
-import { createUnderstander, claudeCheck, namesLook, aiSpend, USD_ILS } from "./query.js";
+import { createUnderstander, claudeCheck, namesLook, aiSpend, USD_ILS, hasName } from "./query.js";
 import {
   shortTitle,
   soldText,
@@ -289,6 +289,7 @@ export function brandWordings(brand, keywords) {
 // never reached the AI. On 20 searches' lists: products with 5,000+ sales reaching the AI 295 -> 472 of 638, no search
 // fewer, every list still in (owner, 2026-11-03).
 const POOL_EACH = 3;
+const RARE_NAME = 10; // fewer named items than this in the pool: the name is rare, its spare wordings are searched too
 const PER_LIST = 0.15;
 
 // Item first (1,500 check, 2026-11-07, 152 searches): sorted by sales, AliExpress mixes in big sellers that only touch the
@@ -361,7 +362,7 @@ export async function checkOptions(search, options, { minIls = null, maxIls = nu
   return (kept.length >= 2 ? kept : ranked.slice(0, 2)).map((x) => x.o);
 }
 
-export async function pickProducts({ search, relevant, look = null, live, hash = null, pickPhoto = null, skus = null }, { keywords, fallback, alt = null, terms = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0, reread = null }) {
+export async function pickProducts({ search, relevant, look = null, live, hash = null, pickPhoto = null, skus = null }, { keywords, fallback, alt = null, terms = [], spare = [], category = null, looks = null, context, maxPriceIls = null, minPriceIls = null, brandOnly = false, cheapest = false, style = false, brands = [], limit = 4, extra = 0, reread = null }) {
   const keyOf = (p) => p.product_id ?? p.promotion_link;
   const started = Date.now();
   // AliExpress's best-seller list often buries the real item under accessories that sell more ("adjustable desk" -> phone
@@ -381,8 +382,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // Up to 10% over the budget is fine (owner, 2026-11-02): such a product says so on its card, at most one per card.
   const cap = maxPriceIls ? maxPriceIls * OVER_BUDGET : null;
   const markOver = (p) => (maxPriceIls && (p.target_sale_price_currency ?? p.sale_price_currency) === "ILS" && Number(p.target_sale_price ?? p.sale_price) > maxPriceIls ? { ...p, overBudget: true } : p);
+  let failed = 0; // AliExpress lists that failed, for the owner's trace
   const fetchLists = async (q, lists) => {
     const got = await Promise.allSettled(lists.map((v) => search(q, { minIls: minPriceIls, maxIls: cap, shorten: false, ...v })));
+    failed += got.filter((r) => r.status === "rejected").length;
     if (got.every((r) => r.status === "rejected")) throw got[0].reason;
     return got.map((r) => (r.status === "fulfilled" ? rankProducts(withinPrice(filterProducts(r.value), cap, minPriceIls).map(markOver)) : []));
   };
@@ -442,6 +445,9 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   let near = []; // one judge said exact, the other close
   let colorPooled = false; // the color-free best sellers already had their photo look (one picker call per search)
   const trace = [`"${keywords}"`];
+  // The reading as searched, so a 🐼 search can be replayed free with its true words (the Maccabi pool, 2026-11-12).
+  const reading = [broader && `רחב: "${fallback}"`, typeof brandOnly === "string" ? `שם: ${brandOnly}` : null, category && `קטגוריה ${category}`, wordings.length && `ניסוחים: ${wordings.join(" | ")}`].filter(Boolean);
+  if (reading.length) trace.push(reading.join(" · "));
   if (sizeFree) trace.push(`בלי מידה: "${sizeFree}"`); // what happened, step by step: the owner sees it under his own searches (2026-11-06)
   // Each candidate's photo in the asked color: first from its variants (SKU API: a "Burgundy" variant's own photo, no AI,
   // 2026-11-06); a listing whose variants decide "not in this color" is out; only the undecided ones (coded colors, no
@@ -463,6 +469,10 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     return found;
   };
   const en = new Map(); // the sellers' English titles of the main words' lists (filled on live searches)
+  // The shopper named a brand or team: its words in any order, in the Hebrew or the seller's English title. The English name
+  // inside a Hebrew title matched 0 of 13 Maccabi Haifa stickers ("מדבקת מכבי חיפה") and 0 of 21 Harry Potter mugs (2026-11-12).
+  const name = typeof brandOnly === "string" ? brandOnly : null;
+  const named = (p) => Boolean(name) && hasName(`${p.product_title ?? ""} ${en.get(keyOf(p)) ?? p.title_en ?? ""}`, name);
   if (live) {
     // Every list (the main words' best sellers, page 2, relevance order and category lists; each other wording; the broader
     // search) puts in its top items in turn, so no way of searching crowds out the others (half the pool for the other
@@ -470,14 +480,34 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
     const poolSize = style ? RELEVANCE_POOL : WIDE_POOL;
     // The shopper named a brand: its items go first in every list, or 25,000-sold generic holders crowd every Baseus one
     // out of the pool ("מעמד טלפון לרכב של Baseus": 8 Baseus holders came back, none reached the AI, 2026-11-02).
-    const named = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
     const brandFirst = (l) => (typeof brandOnly === "string" ? [...l.filter(named), ...l.filter((p) => !named(p))] : l);
     for (const r of await enTitles) if (r.status === "fulfilled") for (const p of r.value) en.set(keyOf(p), p.product_title ?? "");
     const off = (p) => en.has(keyOf(p)) && !namesItemEn(en.get(keyOf(p)), noun); // English title known and not the item
     const itemFirst = (l) => (en.size ? [...l.filter((p) => !off(p)), ...l.filter(off)] : l);
-    const lists = [...mainLists, ...otherLists].map(itemFirst).map(brandFirst);
+    let lists = [...mainLists, ...otherLists].map(itemFirst).map(brandFirst);
     const withEn = (p) => (en.has(keyOf(p)) ? { ...p, title_en: en.get(keyOf(p)) } : p); // see needsEnTitle
-    const pool = (style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf, off)).map(withEn); // style searches as approved
+    const late = (p) => (off(p) ? 1 : named(p) ? -1 : 0);
+    let pool = (style ? inTurn(lists, poolSize) : strongPool(lists, poolSize, keyOf, late)).map(withEn); // style searches as approved
+    // A rare name: the wordings left out for it (spare) and the name alone are searched too, free, and fill the pool. Real
+    // Madrid scarf: 1 on AliExpress, the pool fell to 44 and lost the good football scarves for "close"; "Shrek" alone
+    // found 16 Shrek mugs, "Shrek mug" 1 (2026-11-12).
+    const extraNames = [];
+    if (name && !style && (pool.filter(named).length < RARE_NAME || pool.length < poolSize)) {
+      const asks = [...new Set([...spare, name])].filter((t) => t !== keywords && !wordings.includes(t));
+      const got = await Promise.allSettled(asks.map((t) => fetchLists(t, [{}])));
+      got.forEach((r, i) => r.status === "fulfilled" && r.value.forEach((l) => (lists.push(brandFirst(itemFirst(l))), extraNames.push(asks[i]))));
+      const before = pool.filter(named).length;
+      pool = strongPool(lists, poolSize, keyOf, late).map(withEn);
+      trace.push(`שם נדיר: ${before} עם השם, חיפשתי גם ${asks.map((t) => `"${t}"`).join(", ")}`);
+    }
+    // Where the judges' pool came from: each product counted under the first list that has it.
+    const listNames = [...(main.status === "fulfilled" ? LISTS.map((v) => (v.category ? "קטגוריה" : v.sort ? "רלוונטיות" : `עמוד ${v.page ?? 1}`)) : []), ...reworded.flatMap((r, i) => (r.status === "fulfilled" ? r.value.map(() => wordings[i]) : [])), ...(wide.status === "fulfilled" ? wide.value.map(() => "רחב") : []), ...extraNames];
+    const from = new Map();
+    for (const p of pool) {
+      const at = listNames[lists.findIndex((l) => l.some((q) => keyOf(q) === keyOf(p)))] ?? "?";
+      from.set(at, (from.get(at) ?? 0) + 1);
+    }
+    trace.push(`${pool.length} לשופטים: ${[...from].map(([k, n]) => `${k} ${n}`).join(" · ")}${name ? ` · עם השם ${pool.filter(named).length}` : ""}${failed ? ` · ${failed} רשימות נכשלו` : ""}`);
     // steady: the same verdict every time (temperature 0), on non-style searches only.
     const judge = () => relevant({ he: context, en: keywords, looks, terms: wordings, steady: !style }, pool).catch(() => ({ exact: [], partial: pool }));
     let out = await judge();
@@ -591,7 +621,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   if (special.length) (exact = exact.filter((p) => !special.includes(p))), (partial = [...special, ...partial]);
   // A brand was asked for and found: another brand isn't "close", but the same brand's near items are (Logitech M750 for
   // "ergonomic Logitech mouse"). brandOnly is the brand name, or true when unknown.
-  const ofBrand = (p) => typeof brandOnly === "string" && (p.product_title ?? "").toLowerCase().includes(brandOnly.toLowerCase());
+  const ofBrand = named;
   // A brand search shows the brand; other brands only fill a card that would be short (always 4, owner): the Aruba AP22
   // came alone once found, its close alternatives all removed (2026-11-03).
   const brandFill = brandOnly && exact.length ? partial.filter((p) => !ofBrand(p)) : [];
@@ -1003,6 +1033,7 @@ export function createBot({
         alt: intent?.alt_en ?? null,
         looks: intent?.looks_like ?? null,
         terms: intent?.terms_en ?? [],
+        spare: intent?.spare_en ?? [],
         style: intent?.style ?? false,
         brands: intent?.brands_en ?? [],
         cheapest: CHEAPEST.test(query),
@@ -1035,7 +1066,7 @@ export function createBot({
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
-      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], style: intent.style ?? false, brands: intent.brands_en ?? [], cheapest: CHEAPEST.test(text), header: headerOf(intent.corrected_he, text), maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
+      showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], spare: intent.spare_en ?? [], style: intent.style ?? false, brands: intent.brands_en ?? [], cheapest: CHEAPEST.test(text), header: headerOf(intent.corrected_he, text), maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
     );
   }
 
@@ -1058,7 +1089,7 @@ export function createBot({
     }
   }
 
-  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], looks = null, style = false, brands = [], cheapest = false, header: rawHeader, context = cardTitle(rawHeader), maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
+  async function sendResults(ctx, { keywords, fallback, alt = null, terms = [], spare = [], looks = null, style = false, brands = [], cheapest = false, header: rawHeader, context = cardTitle(rawHeader), maxPriceIls, minPriceIls, floorOnly = false, brandOnly = false, category = null, replyToId, advice = null }) {
     const limit = ctx.chat.type === "private" ? PRIVATE_RESULTS : GROUP_RESULTS;
     const header = cardTitle(rawHeader);
     stats.count("search");
@@ -1073,7 +1104,7 @@ export function createBot({
       } else {
         // The self-check's second reading tells the AI what the first one searched (cached like any reading).
         const reread = (words) => understand(rawHeader, { wrong: words }).then((i) => (i?.status === "ok" ? { keywords: i.keywords_en, alt: i.alt_en ?? null, terms: i.terms_en ?? [], fallback: i.fallback_en, looks: i.looks_like ?? null } : null));
-        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto, skus }, { keywords, fallback, alt, terms, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
+        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto, skus }, { keywords, fallback, alt, terms, spare, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
         // At most searchSlots searches at once (the rest wait their turn): each sends 10-15 AliExpress calls, and 3 at once
         // already hit AppCallLimit (owner, 2026-11-07: 2 at a time).
         const [got, [linked, names, rated]] = await searchSlot(async () => {

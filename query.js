@@ -427,6 +427,18 @@ export function seasonNote(t) {
   return `\n- It is now ${season} in Israel. A general request for a seasonal item means this season's everyday version, in keywords_en, alt_en AND every terms_en wording: ${examples}. A season the shopper names wins.`;
 }
 
+// A brand or team name's words (3+ letters, any order, any case): sellers write "Haifa 1913 Green Apes MHFC Maccabi" and
+// "H-HaifaS - M-MaccabiES". Spaces, hyphens and a plural "s" don't count: "Spider-Man" 41 stickers, "Spiderman" 22 on
+// AliExpress; "Minion" for "Minions" (2026-11-12). A short name ("LG") is a whole word.
+const compact = (t) => String(t).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+export const nameWords = (name) => String(name).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3).map((w) => (w.length > 4 ? w.replace(/s$/, "") : w));
+export const hasName = (text, name) => {
+  const words = nameWords(name);
+  if (!words.length) return new RegExp(`(?<![\\p{L}\\p{N}])${compact(name)}(?![\\p{L}\\p{N}])`, "iu").test(String(text));
+  const t = compact(text);
+  return words.every((w) => t.includes(w));
+};
+const MAX_SPARE = 3; // a rare name's top-up: one free AliExpress list each, plus the name alone
 const MAX_TERMS = 9; // the three readings' other wordings together: one free AliExpress list each
 
 export function createUnderstander({ fetch = globalThis.fetch, env = process.env, now = Date.now, onUsage = () => {} } = {}) {
@@ -469,9 +481,17 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
       }
       if (value.status === "ok" && !value.style) {
         const seen = new Set([value.keywords_en, value.alt_en].filter(Boolean).map((t) => t.toLowerCase()));
-        const words = [...(value.terms_en ?? []), ...readings.filter((r) => r && r !== value && r.status === "ok").flatMap((r) => [r.keywords_en, r.alt_en, ...(r.terms_en ?? [])])];
+        // A named team or brand: the other readings' wordings without it ("fan stickers") each brought a list of big generic
+        // sellers that pushed all 10 Maccabi Haifa stickers out of the judges' 72 (2026-11-12). The first reading's own stay
+        // (sub-lines such as "Redmi Buds" for Xiaomi).
+        const keepsName = (t) => !value.brand || hasName(t, value.brand);
+        const others = readings.filter((r) => r && r !== value && r.status === "ok").flatMap((r) => [r.keywords_en, r.alt_en, ...(r.terms_en ?? [])]).filter(Boolean);
+        const words = [...(value.terms_en ?? []), ...others.filter(keepsName)];
         const terms = words.filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, MAX_TERMS);
         if (terms.length) value.terms_en = terms;
+        // Kept aside: searched only when the name turns out rare (Real Madrid scarf: 1 on AliExpress, see pickProducts' spare).
+        const spare = others.filter((t) => !keepsName(t) && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, MAX_SPARE);
+        if (spare.length) value.spare_en = spare;
       }
       if (value.looks_like) value.looks_like = trimLooks(value.looks_like, [value.keywords_en, value.alt_en, ...(value.terms_en ?? [])]);
       if (value.status === "ok" || value.status === "clarify") {

@@ -2073,3 +2073,40 @@ test("/clear: the owner wipes the saved searches, so the same search runs fresh;
   await ctx.bot.handleUpdate(textUpdate("חפש לי מדבקות של מכבי חיפה", { userId: 9 })); // another member: no repeat-message limit
   assert.ok(spy.queries.length > searched, "after /clear the search runs again");
 });
+
+test("a named team's items reach the judges though generic wordings sell more and the Hebrew title doesn't spell the name in English (Maccabi Haifa, 2026-11-12)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const haifa = (n, lang) => product(n, { product_id: `h${n}`, lastest_volume: "150", product_title: lang === "EN" ? `Maccabi Haifa Football Sticker ${n}` : `מדבקת כדורגל מכבי חיפה ${n}` });
+  const generic = (q, n) => product(100 + n, { product_id: `${q}-${n}`, lastest_volume: "5000", product_title: `Football Star Stickers ${q} ${n}` });
+  const search = async (q, o = {}) => (q === "Maccabi Haifa stickers" ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => haifa(n, o.lang)) : Array.from({ length: 30 }, (_, n) => generic(q, n)));
+  const terms = ["soccer team stickers", "sports decal stickers", "team logo stickers", "football club stickers", "fan stickers", "sports fan decals", "team logo decals"];
+  let pool = null;
+  const relevant = async (_r, p) => ((pool ??= p), { exact: [], partial: [] });
+  const out = await pickProducts({ search, relevant, live: true }, { keywords: "Maccabi Haifa stickers", fallback: "football stickers", terms, brandOnly: "Maccabi Haifa", context: "מדבקות של מכבי חיפה", limit: 4, extra: 0 });
+  assert.ok(out.trace.some((l) => l.includes("שם: Maccabi Haifa") && l.includes("ניסוחים: soccer team stickers")), "the owner's trace shows the reading");
+  assert.ok(out.trace.some((l) => /לשופטים: עמוד 1 10 .*עם השם 10/.test(l)), `the trace shows where the pool came from: ${out.trace.join(" / ")}`);
+  assert.equal(pool.filter((p) => String(p.product_id).startsWith("h")).length, 10, "all 10 Haifa stickers in the 72");
+  assert.ok(pool.length >= 60, "generic best sellers still fill the rest");
+});
+
+test("a rare name: under 10 named items in the pool, the spare wordings and the name alone are searched too and fill the pool (Real Madrid scarf, 2026-11-12)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const asked = [];
+  const scarf = (q, n) => product(200 + n, { product_id: `${q}-${n}`, lastest_volume: "3000", product_title: `Football Fan Scarf ${q} ${n}` });
+  const search = async (q, o = {}) => (asked.push(q), q === "Real Madrid scarf" ? [product(1, { product_id: "rm", lastest_volume: "40", product_title: "Real Madrid Scarf" })] : q === "soccer fan scarf" || q === "Real Madrid" ? Array.from({ length: 40 }, (_, n) => scarf(q, n)) : []);
+  let pool = null;
+  const relevant = async (_r, p) => ((pool ??= p), { exact: p.slice(0, 4), partial: [] });
+  const out = await pickProducts({ search, relevant, live: true }, { keywords: "Real Madrid scarf", fallback: "football scarf", spare: ["soccer fan scarf"], brandOnly: "Real Madrid", context: "צעיף של ריאל מדריד", limit: 4, extra: 0 });
+  assert.ok(asked.includes("soccer fan scarf") && asked.includes("Real Madrid"), `searched: ${[...new Set(asked)]}`);
+  assert.ok(pool.length >= 60, `pool filled: ${pool.length}`);
+  assert.equal(pool[0].product_id, "rm", "the named item still leads");
+  assert.ok(out.trace.some((l) => l.startsWith("שם נדיר")), out.trace.join(" / "));
+});
+
+test("a common name: the spare wordings are not searched (Baseus, 2026-11-12)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const asked = [];
+  const search = async (q) => (asked.push(q), Array.from({ length: 80 }, (_, n) => product(300 + n, { product_id: `${q}-${n}`, product_title: `Baseus Car Phone Holder ${q} ${n}` })));
+  await pickProducts({ search, relevant: async (_r, p) => ({ exact: p.slice(0, 4), partial: [] }), live: true }, { keywords: "Baseus car phone holder", fallback: "car phone holder", spare: ["magnetic car mount"], brandOnly: "Baseus", context: "מחזיק לטלפון לרכב של Baseus", limit: 4, extra: 0 });
+  assert.ok(!asked.includes("magnetic car mount"));
+});
