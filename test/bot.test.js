@@ -940,7 +940,7 @@ test("a brand was asked for and found: only its exact items, no other brands' fi
   const sameBrand = SIX.map((p, i) => (i === 3 ? { ...p, product_title: `Xiaomi ${p.product_title}` } : p));
   const near = setup({ search: async () => sameBrand, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
   await near.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
-  assert.deepEqual(shownIds(near.sent()[0]), ["1", "2"], "a close item of the same brand isn't what was asked either");
+  assert.deepEqual(shownIds(near.sent()[0]), ["1", "2", "4"], "a close item of the same brand still joins (the 4th Maccabi Haifa set, owner 2026-11-12)");
 });
 
 test("a named brand: its items go first into the AI pool, ahead of bigger-selling generic ones", async () => {
@@ -2129,4 +2129,18 @@ test("a name search with no exact match says so honestly, with no card (Real Mad
   await ctx.bot.handleUpdate(textUpdate("חפש לי צעיף של ריאל מדריד", { chat: "private", userId: 51 }));
   assert.equal(ctx.sent()[0].body, nameNotFound("צעיף של ריאל מדריד"));
   assert.match(ctx.sent()[0].body, /ריאל מדריד/);
+});
+
+test("a name search: a close item of the same name joins the exact ones; a never-sold listing isn't shown; no exact -> nothing (owner's Telegram check, 2026-11-12)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const set = product(1, { product_id: "set", lastest_volume: "15", product_title: "9 Pieces Big Size Maccabi Haifa North Block Stickers" });
+  const real = [2, 3, 4].map((n) => product(n, { product_id: `r${n}`, lastest_volume: "400", product_title: `Maccabi Haifa Sticker Pack ${n}` }));
+  const generic = product(5, { product_id: "gen", lastest_volume: "3000", product_title: "Football Star Stickers" });
+  const fresh = product(6, { product_id: "new", lastest_volume: "0", product_title: "Maccabi Haifa Sticker New" });
+  const opts = { keywords: "Maccabi Haifa stickers", brandOnly: "Maccabi Haifa", context: "מדבקות של מכבי חיפה", limit: 4, extra: 0 };
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => /Pack|New/.test(x.product_title)), partial: p.filter((x) => !/Pack|New/.test(x.product_title)) });
+  const out = await pickProducts({ search: async () => [set, ...real, generic, fresh], relevant, live: true }, opts);
+  assert.deepEqual(out.map((p) => p.product_id).sort(), ["r2", "r3", "r4", "set"]);
+  const onlyClose = async (_r, p) => ({ exact: [], partial: p });
+  assert.equal((await pickProducts({ search: async () => [set, generic], relevant: onlyClose, live: true }, opts)).length, 0);
 });

@@ -630,7 +630,15 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // A named team, character or brand: only what was asked, even 2 items, never a close fill; none -> an honest "not on
   // AliExpress" (owner, 2026-11-12: "רק 2 הכוסות של הארי פוטר ... אני לא צריך למצוא דברים שלא ביקשתי"). A part FOR a car
   // or device isn't a name search (brandOnly is off for it above).
-  if (name) (partial = []), (brandFill = []), (near = near.filter(named));
+  // Close items of the same name join a card that has a real one (a 9-sticker Maccabi Haifa set, 15 sold, was the 4th the
+  // owner wanted back); a listing nobody bought isn't shown (a 0-sold "Hermione" mug with a generic anime photo, 2026-11-12).
+  if (name) {
+    const bought = (p) => Number(p.lastest_volume) >= 1;
+    exact = exact.filter(bought);
+    near = near.filter((p) => named(p) && bought(p));
+    partial = exact.length || near.length ? partial.filter((p) => named(p) && bought(p)) : [];
+    brandFill = [];
+  }
   const brandTag = (p) => (/official store/i.test(p.shop_name ?? "") ? "official" : known.has(keyOf(p)) ? "known" : null);
   // match: the card says so when nothing shown is an exact match; brandTag: the card names a trusted brand.
   const tag = (list, match) => list.map((p) => (brandTag(p) ? { ...p, match, brandTag: brandTag(p) } : { ...p, match }));
