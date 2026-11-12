@@ -654,7 +654,7 @@ const DEVICES = new RegExp(`(?:${PHONES}|${CARS})`);
 export const namesModel = (text = "") => new RegExp(`(?:(?<![א-ת])ל(?:-|\\s)?|של\\s+|\\bfor\\s+)${DEVICES.source}`, "i").test(text); // "ל-BYD" too
 // The car or device a part is for isn't the part's brand: "מגב לטויוטה קורולה" read Toyota as the brand and said "מצאתי
 // מעט מוצרים של המותג שביקשתם" (owner's test, 2026-11-07).
-export const fitsDevice = (text = "", brand = "") => namesModel(text) && new RegExp(DEVICES.source, "i").test(brand);
+export const fitsDevice = (text = "", brand = "") => namesModel(text) && new RegExp(`(?:${DEVICES.source}|\\bapple\\b|\\bgoogle\\b)`, "i").test(brand); // the maker too: "Apple" for an iPhone case
 // A car's year (owner, 2026-11-07: 80-100% of model-specific car listings name their years or generation, free study of
 // 8 cars x 6 parts; a 2012 Corolla owner could get 2019+ mats). The request's year counts only on a car request.
 const CAR = new RegExp(`(?:(?<![א-ת])ל(?:-|\\s)?|של\\s+|\\bfor\\s+)(?:${CARS})`, "i");
@@ -896,6 +896,8 @@ export const NO_FOOD = rtl(["😕 עלי אקספרס כמעט לא שולחת �
 // AliExpress's affiliate search returns no sex toys at all ("dildo", "sex toys": 0 results, 2026-11-06); lingerie does come.
 export const NO_ADULT = rtl(["🙈 עלי אקספרס לא מציגה צעצועי מין בחיפוש דרך הבוט, ולכן אין תוצאות.", "אפשר לחפש הלבשה תחתונה, למשל: חפש לי הלבשה תחתונה סקסית"]);
 export const NO_RESULTS = rtl(["🙈 לא מצאתי משהו שמתאים בדיוק, אבל אני כאן בשבילכם!", "נסו לכתוב את זה קצת אחרת או כללי יותר, למשל: חפש לי מטען לאייפון 😊"]);
+// A search for a named team, character or brand with no exact match: said plainly, no lookalikes (owner, 2026-11-12).
+export const nameNotFound = (header) => rtl([`🙈 חיפשתי בעלי אקספרס ולא מצאתי: <b>${esc(header)}</b>`, "כנראה שזה לא נמכר שם כרגע. אפשר לנסות מוצר אחר 😊"]);
 export const HOW_TO_SEARCH = rtl(["🐼 היי! הקבוצה מיועדת לדילים ולמוצרים מעלי אקספרס בלבד.", 'מחפשים משהו? כתבו "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
 export const guideText = (name) => rtl(['🙂 כדי שאוכל לעזור בצורה הכי טובה, כתבו "חפש לי" ואחריו שם המוצר.', `למשל: חפש לי ${esc(name)}`]);
 export const SEARCH_ERROR = rtl(["😕 הייתה תקלה בחיבור לעלי אקספרס. נסו שוב בעוד דקה."]);

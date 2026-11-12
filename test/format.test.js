@@ -821,6 +821,8 @@ test("fitsDevice: the car or phone a part is for isn't the part's brand", async 
   const { fitsDevice } = await import("../format.js");
   assert.equal(fitsDevice("מגב לטויוטה קורולה", "Toyota"), true);
   assert.equal(fitsDevice("כיסוי לאייפון 13", "iPhone"), true);
+  assert.equal(fitsDevice("כיסוי לאייפון 15", "Apple"), true, "the maker of the device too (reading check, 2026-11-12)");
+  assert.equal(fitsDevice("מגן מסך לגלקסי", "Samsung"), true);
   assert.equal(fitsDevice("מטען של אנקר לאייפון", "Anker"), false, "the charger's own brand stays");
   assert.equal(fitsDevice("שעון שיאומי", "Xiaomi"), false, "a Xiaomi watch is a Xiaomi");
 });

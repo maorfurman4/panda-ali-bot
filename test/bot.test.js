@@ -927,21 +927,20 @@ test("the AI's price floor (big-ticket items) filters the search; if it finds no
   assert.equal(ctx.sent()[0].method, "sendPhoto");
 });
 
-test("a brand was asked for and found: the brand first; other brands only fill a short card, and the card says so", async () => {
+test("a brand was asked for and found: only its exact items, no other brands' fill (owner 2026-11-12, replacing 'always 4' of 2026-11-03)", async () => {
   const first2 = (x) => /_p[12]$/.test(x.promotion_link);
   const relevant = async (_r, p) => ({ exact: p.filter(first2), partial: p.filter((x) => !first2(x)) });
   const brand = setup({ search: async () => SIX, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
   await brand.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
-  assert.deepEqual(shownIds(brand.sent()[0]).slice(0, 2), ["1", "2"], "the brand's items first");
-  assert.equal(shownIds(brand.sent()[0]).length, 4, "always 4 (owner, 2026-11-03)");
-  assert.match(brand.sent()[0].body, /הוספתי גם דומים ממותגים אחרים/);
+  assert.deepEqual(shownIds(brand.sent()[0]), ["1", "2"], "only what was asked, even 2");
+  assert.doesNotMatch(brand.sent()[0].body, /הוספתי גם דומים ממותגים אחרים/);
   const plain = setup({ search: async () => SIX, relevant, live: true, understand: async () => intent() });
   await plain.bot.handleUpdate(textUpdate("חפש לי אוזניות"));
   assert.equal(shownIds(plain.sent()[0]).length, 4, "without a brand, close matches still fill the card");
   const sameBrand = SIX.map((p, i) => (i === 3 ? { ...p, product_title: `Xiaomi ${p.product_title}` } : p));
   const near = setup({ search: async () => sameBrand, relevant, live: true, understand: async () => intent({ brand: "Xiaomi" }) });
   await near.bot.handleUpdate(textUpdate("חפש לי אוזניות של שיאומי"));
-  assert.deepEqual(shownIds(near.sent()[0]), ["1", "2", "4", "3"], "a close item of the same brand still shows, before another brand's fill");
+  assert.deepEqual(shownIds(near.sent()[0]), ["1", "2"], "a close item of the same brand isn't what was asked either");
 });
 
 test("a named brand: its items go first into the AI pool, ahead of bigger-selling generic ones", async () => {
@@ -2109,4 +2108,25 @@ test("a common name: the spare wordings are not searched (Baseus, 2026-11-12)", 
   const search = async (q) => (asked.push(q), Array.from({ length: 80 }, (_, n) => product(300 + n, { product_id: `${q}-${n}`, product_title: `Baseus Car Phone Holder ${q} ${n}` })));
   await pickProducts({ search, relevant: async (_r, p) => ({ exact: p.slice(0, 4), partial: [] }), live: true }, { keywords: "Baseus car phone holder", fallback: "car phone holder", spare: ["magnetic car mount"], brandOnly: "Baseus", context: "מחזיק לטלפון לרכב של Baseus", limit: 4, extra: 0 });
   assert.ok(!asked.includes("magnetic car mount"));
+});
+
+test("a name search shows only the exact matches, even 2, with no close fill; a pricey real one that barely sold stays (Harry Potter mugs, owner 2026-11-12)", async () => {
+  const { pickProducts } = await import("../bot.js");
+  const hat = product(1, { product_id: "hat", lastest_volume: "4", target_sale_price: "89.39", product_title: "Harry Potter Sorting Hat Mug" });
+  const straw = product(2, { product_id: "straw", lastest_volume: "10", target_sale_price: "35.00", product_title: "Official Harry Potter Hogwarts Straw Cup" });
+  const mugs = Array.from({ length: 8 }, (_, n) => product(10 + n, { product_id: `m${n}`, lastest_volume: "900", target_sale_price: "20.00", product_title: `Cute Ceramic Coffee Mug ${n}` }));
+  const relevant = async (_r, p) => ({ exact: p.filter((x) => /Harry Potter/.test(x.product_title)), partial: p.filter((x) => !/Harry Potter/.test(x.product_title)) });
+  const out = await pickProducts({ search: async () => [hat, straw, ...mugs], relevant, live: true }, { keywords: "Harry Potter mug", fallback: "coffee mug", brandOnly: "Harry Potter", context: "כוס של הארי פוטר", limit: 4, extra: 0 });
+  assert.deepEqual(out.map((p) => p.product_id).sort(), ["hat", "straw"]);
+  const plain = await pickProducts({ search: async () => [hat, straw, ...mugs], relevant, live: true }, { keywords: "coffee mug", context: "כוס קפה", limit: 4, extra: 0 });
+  assert.ok(plain.length >= 4, "a search without a name still fills the card with close ones");
+});
+
+test("a name search with no exact match says so honestly, with no card (Real Madrid scarf, owner 2026-11-12)", async () => {
+  const { nameNotFound } = await import("../format.js");
+  const understand = async () => ({ status: "ok", corrected_he: "צעיף של ריאל מדריד", keywords_en: "Real Madrid scarf", brand: "Real Madrid", max_price_ils: null });
+  const ctx = setup({ search: async () => SIX, understand, relevant: async (_r, p) => ({ exact: [], partial: p }), live: true });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי צעיף של ריאל מדריד", { chat: "private", userId: 51 }));
+  assert.equal(ctx.sent()[0].body, nameNotFound("צעיף של ריאל מדריד"));
+  assert.match(ctx.sent()[0].body, /ריאל מדריד/);
 });

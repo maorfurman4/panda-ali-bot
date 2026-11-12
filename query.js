@@ -10,7 +10,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
 import { stats } from "./stats.js";
-import { isPartFor, forWhom, namesModel, needsEnTitle, manySizes, whiteByGrammar, whiteOrKids } from "./format.js";
+import { isPartFor, forWhom, namesModel, fitsDevice, needsEnTitle, manySizes, whiteByGrammar, whiteOrKids } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
 // USD per 1M tokens [input, output], for the owner's daily cost line (unknown models are priced as gpt-5.4).
@@ -160,7 +160,7 @@ const SYSTEM = `You turn a shopping request from an Israeli Telegram group (Hebr
 - alt_en = a second, differently worded English search for the same item, the way sellers title it ("baby pacifier" -> "silicone orthodontic pacifier", "cat toy" -> "interactive cat teaser toy"), or null. Keep the brand or model the shopper named ("Baseus solar camera" -> "Baseus outdoor security camera solar", never just "solar security camera"). It names the item itself, never a minor detail that would find only that part ("car screen holder with screws" -> "car tablet holder mount", not "monitor bracket with screws"). It is searched only when the first search finds too few.
 - An emoji alone is the product it shows ("🎧" -> headphones, "⌚" -> watch).
 - fallback_en = the core item as a good standalone AliExpress search, 2-3 English words ("merino arm warmers thumb holes" -> "arm warmers", "Zara men clothing" -> "men casual shirts"; never a vague word like "clothing" or "shoes" alone), used if the first search finds too few, or null when keywords_en is already that.
-- brand = the brand the shopper asked for ("אוזניות של שיאומי" -> "Xiaomi"), or null. A device something is FOR is not a requested brand ("כיסוי לאייפון", "מטען לגלקסי" -> null).
+- brand = the brand the shopper asked for ("אוזניות של שיאומי" -> "Xiaomi"), or null. A device something is FOR is not a requested brand ("כיסוי לאייפון", "מטען לגלקסי" -> null). A named team, club, character, show, film, band or player whose items are wanted is a brand too, written the way sellers title it ("כוס של הארי פוטר" -> "Harry Potter", "מדבקות של מכבי חיפה" -> "Maccabi Haifa", "בובה של סטיץ'" -> "Stitch"), with its fallback_en as for any brand ("coffee mug").
 - Brands: when the shopper names a brand (Nike, Zara, Dior, Rolex, Xiaomi, Lenovo, Apple…), keep it in keywords_en, as shoppers do on AliExpress ("נייקי אייר מקס" -> "Nike Air Max", "נעליים של UGG" -> "UGG boots", "בושם של דיור" -> "Dior perfume", "שעון רולקס" -> "Rolex watch", "בגדים של זארה" -> "Zara women clothing"). fallback_en = the same item WITHOUT the brand name, always ("Zara men clothing" -> fallback "men casual shirts"; "Dior perfume" -> "women perfume long lasting"), because AliExpress often has few or no items of a big brand. Compatibility brands stay too ("כיסוי לאייפון" -> "iPhone case"). A brand that sells a line under its own name is searched by that name, the way sellers title it: Anker earbuds and
 speakers are "Soundcore" ("אוזניות אנקר ליברטי פרו" -> "Soundcore Liberty Pro earbuds", brand "Soundcore"; "Anker Liberty
 Pro" found 2 earbuds, 2026-11-03), Xiaomi's are often "Redmi" or "Mijia", Lenovo's earbuds "thinkplus". A model line the shopper names without its generation number ("אנקר ליברטי פרו", "גלקסי באדס פרו") means the line: terms_en also name its two newest numbered generations the way sellers title them ("Soundcore Liberty 4 Pro", "Soundcore Liberty 5 Pro"; "Galaxy Buds 3 Pro"), only when the shopper wrote the line's name, never for a brand alone ("שעון חכם של שיאומי" stays "Xiaomi smart watch": "Redmi Watch" found mostly straps), because sellers title the number and the bare line name found 1 of the 10 best sellers (2026-11-04). A brand in Hebrew letters is written the way its sellers spell it, small toy brands too: "נידו" -> "NeeDoh" (the squishy fidget toys, not Nido milk) (owner's test 2026-11-02: "Nido" found 0 of 59 NeeDoh calendars).
@@ -479,6 +479,7 @@ export function createUnderstander({ fetch = globalThis.fetch, env = process.env
         if (voters.filter((r) => r.style).length * 2 > voters.length) value.style = true;
         else delete value.style;
       }
+      if (value.brand && fitsDevice(text, value.brand)) delete value.brand; // a case for an iPhone isn't an Apple search
       if (value.status === "ok" && !value.style) {
         const seen = new Set([value.keywords_en, value.alt_en].filter(Boolean).map((t) => t.toLowerCase()));
         // A named team or brand: the other readings' wordings without it ("fan stickers") each brought a list of big generic

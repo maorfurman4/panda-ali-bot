@@ -894,3 +894,12 @@ test("understand: the wordings left out for a named team are kept aside as spare
   const r = await createUnderstander({ fetch: by(answers), env: ENV })("צעיף של ריאל מדריד");
   assert.deepEqual(r.spare_en, ["soccer fan scarf", "knitted scarf", "football club scarf"]);
 });
+
+test("understand: the device a part is for is not the requested name, so the extra wordings stay (iPhone 15 case read as Apple, 2026-11-12)", async () => {
+  const answers = [0, 1, 2].map((i) => ({ ...STRICT_OK, keywords_en: "iPhone 15 case", brand: "Apple", terms_en: i ? ["shockproof phone cover"] : [] }));
+  const by = (list) => { let i = 0; return async () => ({ ok: true, status: 200, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(list[i++ % 3]) }] }] }) }); };
+  const r = await createUnderstander({ fetch: by(answers), env: ENV })("כיסוי לאייפון 15");
+  assert.equal(r.brand, undefined);
+  assert.deepEqual(r.terms_en, ["shockproof phone cover"]);
+  assert.equal(r.spare_en, undefined);
+});

@@ -52,6 +52,7 @@ import {
   GROUP_LINK,
   EMPTY_QUERY,
   NO_RESULTS,
+  nameNotFound,
   NO_FOOD,
   NO_ADULT,
   bigItem,
@@ -594,7 +595,7 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   // a pricey item people do buy stays.
   // The exact model the shopper named is never "too expensive": the ₪928 Aruba AP22 among ₪150 access points (2026-11-03).
   const namesModel = (p) => Boolean(shortModel) && shortModel.split(" ").slice(1).every((w) => (p.product_title ?? "").toLowerCase().includes(w.toLowerCase()));
-  const overpriced = (p) => median && Number(p.target_sale_price ?? p.sale_price) > median * 4 && Number(p.lastest_volume) < PROVEN_SALES && !namesModel(p);
+  const overpriced = (p) => median && Number(p.target_sale_price ?? p.sale_price) > median * 4 && Number(p.lastest_volume) < PROVEN_SALES && !namesModel(p) && !(name && named(p)); // a ₪89 Harry Potter mug among ₪20 mugs
   const keep = (p) => !suspicious(p) && !overpriced(p) && !offTheme(p.product_title, `${context} ${keywords}`) && !fakeLuxury(p.product_title, `${context} ${keywords}`);
   exact = exact.filter(keep);
   partial = partial.filter(keep);
@@ -624,8 +625,12 @@ export async function pickProducts({ search, relevant, look = null, live, hash =
   const ofBrand = named;
   // A brand search shows the brand; other brands only fill a card that would be short (always 4, owner): the Aruba AP22
   // came alone once found, its close alternatives all removed (2026-11-03).
-  const brandFill = brandOnly && exact.length ? partial.filter((p) => !ofBrand(p)) : [];
+  let brandFill = brandOnly && exact.length ? partial.filter((p) => !ofBrand(p)) : [];
   if (brandOnly && exact.length) partial = partial.filter(ofBrand);
+  // A named team, character or brand: only what was asked, even 2 items, never a close fill; none -> an honest "not on
+  // AliExpress" (owner, 2026-11-12: "רק 2 הכוסות של הארי פוטר ... אני לא צריך למצוא דברים שלא ביקשתי"). A part FOR a car
+  // or device isn't a name search (brandOnly is off for it above).
+  if (name) (partial = []), (brandFill = []), (near = near.filter(named));
   const brandTag = (p) => (/official store/i.test(p.shop_name ?? "") ? "official" : known.has(keyOf(p)) ? "known" : null);
   // match: the card says so when nothing shown is an exact match; brandTag: the card names a trusted brand.
   const tag = (list, match) => list.map((p) => (brandTag(p) ? { ...p, match, brandTag: brandTag(p) } : { ...p, match }));
@@ -1134,7 +1139,7 @@ export function createBot({
       stats.report("noResults", `😕 בלי תוצאות: "${header}" (חיפשתי: ${keywords})`);
       const food = FOOD_WORDS.test(`${header} ${keywords}`) && !/מטחנ|כוס|ספל|קופס|grinder|mug|cup|box/i.test(`${header} ${keywords}`);
       const toy = SEX_TOY_WORDS.test(`${header} ${keywords}`);
-      return ctx.reply(toy ? NO_ADULT : food ? NO_FOOD : NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
+      return ctx.reply(toy ? NO_ADULT : food ? NO_FOOD : typeof brandOnly === "string" ? nameNotFound(header) : NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
     const shown = found.slice(0, limit);
     const reasons = advice ? await explain(advice, shown).catch(() => null) : null; // "why it fits" only after advice
