@@ -48,6 +48,7 @@ import {
   cooldownMessage,
   HELP,
   PRIVATE_INVITE,
+  JOIN_CHANNEL,
   PRIVATE_BUTTON,
   GROUP_LINK,
   EMPTY_QUERY,
@@ -95,6 +96,7 @@ const PRIVATE_RESULTS = 4;
 const HELP_COOLDOWN_MS = 10 * 60_000;
 const CLARIFY_TTL_MS = 10 * 60_000;
 const MAX_QUESTIONS = 3;
+const OUR_CHANNEL = "@panda_dilim"; // פנדה דילים יומיים
 const OUR_GROUP_ID = "-1004397097299"; // פנדה אקספרס (@panda_deals_il), read from Telegram getChat on 2026-10-25
 const PHOTO_SPARE = 2; // the photo check sees the products to show plus this many, so a dropped one is replaced
 // A named color: listings show their main photo, often another color than the one asked for (AliExpress's own search shows
@@ -950,6 +952,7 @@ export function createBot({
   doubleTapMs = 1500, // a second tap right after a question changed in place lands on the new question's button
   groupId = process.env.GROUP_CHAT_ID ?? OUR_GROUP_ID, // null = any group (tests)
   privateChat = false, // tests only: serve private chats like the group
+  channel = OUR_CHANNEL, // people must have joined it to be served in the group; null = no such rule (tests)
 }) {
   const bot = new Bot(token, botInfo ? { botInfo } : {});
   const moderation = createModeration({ now });
@@ -968,6 +971,24 @@ export function createBot({
   });
   bot.use(moderation.middleware); // spam is removed before any search logic sees it
   bot.on("message:new_chat_members", moderation.onJoin);
+  // The group serves only people who joined the deals channel (owner, 2026-11-13). Nothing is deleted: a non-member gets
+  // the join notice instead of an answer, at most once per 10 minutes. Seen in the channel once is enough from then on.
+  // Exempt: the owner and group admins (anonymous ones post as the group). Telegram answers only when this bot is an
+  // admin of the channel; a failed check lets the message through, so removing the bot from the channel turns the rule off.
+  const joined = new Set(); // shortcut: in memory, so people are checked again after a restart
+  const inChannel = async (userId) => {
+    const m = await bot.api.getChatMember(channel, userId);
+    return ["creator", "administrator", "member"].includes(m.status) || Boolean(m.is_member);
+  };
+  bot.use(async (ctx, next) => {
+    const type = ctx.chat?.type;
+    if (!channel || typeof ctx.message?.text !== "string" || (type !== "group" && type !== "supergroup")) return next();
+    if (ctx.message.sender_chat?.id === ctx.chat.id || isOwner(ctx) || joined.has(ctx.from.id) || (await moderation.isAdmin(ctx, ctx.from.id))) return next();
+    const member = await inChannel(ctx.from.id).catch((e) => void stats.failure("channel", e.message));
+    if (member === undefined) return next();
+    if (member) return joined.add(ctx.from.id), next();
+    if (hintAllowed(ctx, "join")) return hint(ctx, "join", JOIN_CHANNEL);
+  });
   const searchSlot = createLimiter(searchSlots); // shortcut: per process, fine for a single instance
   const cooldowns = new Map(); // shortcut: in-memory, resets on restart; fine for a single instance
   const groupHelpAt = new Map();
@@ -1346,6 +1367,15 @@ export function createBot({
     const n = resultsCache.size;
     resultsCache.clear();
     await ctx.reply(`🧹 נוקו ${n} חיפושים שמורים: כל חיפוש ירוץ מחדש`);
+  });
+
+  // The owner has no second account to see the channel rule with: the notice as a non-member gets it, and whether the
+  // bot can read the channel's members (it can't until it is an admin there).
+  bot.command("join", async (ctx) => {
+    if (ctx.chat.type !== "private" || !adminId || String(ctx.from.id) !== String(adminId) || !channel) return;
+    await reply(ctx, JOIN_CHANNEL);
+    const member = await inChannel(ctx.from.id).catch(() => undefined);
+    await ctx.reply(member === undefined ? "❌ הכלל כבוי: הבוט לא מנהל בערוץ ולכן לא רואה מי הצטרף" : `✅ הכלל פעיל: הבוט רואה את הערוץ (${member ? "אתה חבר בו" : "אתה לא חבר בו"})`);
   });
 
   bot.command("status", async (ctx) => {

@@ -872,6 +872,8 @@ export const PRIVATE_INVITE = rtl([
   'שם כותבים "חפש לי" ואחריו שם המוצר, ומקבלים את המוצרים הכי שווים מעלי אקספרס.',
   "מחכים לכם בקבוצה 👇",
 ]);
+// Shown in the group to someone who hasn't joined the deals channel (owner's wording, 2026-11-13).
+export const JOIN_CHANNEL = rtl(["🐼 היי! כדי לחפש בקבוצה צריך קודם להצטרף לערוץ הדילים שלנו:", "https://t.me/panda_dilim", "הצטרפתם? כתבו שוב את הבקשה ואני מחפש."]);
 export const PRIVATE_BUTTON = "החיפוש עובד בקבוצת פנדה אקספרס 🐼";
 
 export const NOT_PRODUCT = rtl(["🤔 לא הבנתי מה לחפש.", 'כתבו "חפש לי" ואחריו שם המוצר, למשל: חפש לי אוזניות אלחוטיות']);
