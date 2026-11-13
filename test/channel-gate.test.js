@@ -57,9 +57,11 @@ test("channel rule: joining the channel works at once, also within the 10 minute
 
 test("channel rule: seen in the channel once is enough, also after leaving it", async () => {
   const members = [STRANGER];
-  const { say, notices } = gated({ members });
+  let t = 0;
+  const { say, notices } = gated({ members, now: () => t });
   await say(SEARCH);
   members.length = 0;
+  t = 60_000; // past the search cooldown, when a notice could be sent
   await say("חפש לי מטען");
   assert.equal(notices(), 0);
 });
@@ -71,6 +73,9 @@ test("channel rule: the owner, group admins and anonymous admins are exempt", as
   const anonymous = textUpdate(SEARCH, { userId: 1087968824 });
   anonymous.message.sender_chat = anonymous.message.chat;
   await bot.handleUpdate(anonymous);
+  const channelPost = textUpdate(SEARCH, { userId: 777000 }); // a linked channel's post, forwarded into the group by Telegram
+  Object.assign(channelPost.message, { sender_chat: { id: -100999, type: "channel", title: "C" }, is_automatic_forward: true });
+  await bot.handleUpdate(channelPost);
   assert.equal(notices(), 0);
   assert.equal(calls.some((c) => c.method === "getChatMember"), false);
 });

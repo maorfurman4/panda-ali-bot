@@ -973,7 +973,7 @@ export function createBot({
   bot.on("message:new_chat_members", moderation.onJoin);
   // The group serves only people who joined the deals channel (owner, 2026-11-13). Nothing is deleted: a non-member gets
   // the join notice instead of an answer, at most once per 10 minutes. Seen in the channel once is enough from then on.
-  // Exempt: the owner and group admins (anonymous ones post as the group). Telegram answers only when this bot is an
+  // Exempt: the owner, group admins (anonymous ones post as the group) and a linked channel's own posts. Telegram answers only when this bot is an
   // admin of the channel; a failed check lets the message through, so removing the bot from the channel turns the rule off.
   const joined = new Set(); // shortcut: in memory, so people are checked again after a restart
   const inChannel = async (userId) => {
@@ -983,7 +983,7 @@ export function createBot({
   bot.use(async (ctx, next) => {
     const type = ctx.chat?.type;
     if (!channel || typeof ctx.message?.text !== "string" || (type !== "group" && type !== "supergroup")) return next();
-    if (ctx.message.sender_chat?.id === ctx.chat.id || isOwner(ctx) || joined.has(ctx.from.id) || (await moderation.isAdmin(ctx, ctx.from.id))) return next();
+    if (ctx.message.sender_chat?.id === ctx.chat.id || ctx.message.is_automatic_forward || isOwner(ctx) || joined.has(ctx.from.id) || (await moderation.isAdmin(ctx, ctx.from.id))) return next();
     const member = await inChannel(ctx.from.id).catch((e) => void stats.failure("channel", e.message));
     if (member === undefined) return next();
     if (member) return joined.add(ctx.from.id), next();
