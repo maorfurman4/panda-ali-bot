@@ -1,0 +1,37 @@
+# The Reels approve bot (@panda_reels_approve_bot): every 30 minutes it reads the owner's new videos and button presses,
+# sends previews with "publish" / "skip", and publishes approved Reels to Instagram and the Facebook Page (reels.js, meta.js).
+# A press is acted on at the next run (GitHub may start a scheduled run late). "Run workflow" handles presses at once.
+name: Reels
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+concurrency: reels # two runs at once could publish the same video twice
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The update offset and the videos waiting for a press, carried from run to run (each run saves a new cache entry).
+      - uses: actions/cache@v4
+        with:
+          path: reels-state.json
+          key: reels-state-${{ github.run_id }}
+          restore-keys: reels-state-
+      - name: Handle videos and presses
+        run: npm run reels
+        env:
+          REELS_BOT_TOKEN: ${{ secrets.REELS_BOT_TOKEN }}
+          REELS_OWNER_ID: ${{ secrets.DEALS_OWNER_ID }} # the owner's own Telegram id, already saved for the deals bot
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_IG_ID: ${{ secrets.META_IG_ID }}
