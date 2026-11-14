@@ -21,6 +21,9 @@ const closed = (text) => buttons([[{ text, callback_data: "done" }]]);
 // A video sent as a file (document) keeps its original bytes; Telegram re-encodes what is sent as a video.
 const videoOf = (m) => m?.video ?? m?.document ?? null;
 
+// The preview's caption and buttons: the bot's own previews, and scripts/reels-preview.js (a Reel edited on the Mac).
+export const previewExtra = () => ({ caption: `תצוגה מקדימה. זה הטקסט שיעלה עם הסרטון:\n\n${POST_TEXT}`, ...buttons([[{ text: "✅ לפרסם", callback_data: "pub" }, { text: "⏭ לדלג", callback_data: "skip" }]]) });
+
 export function createReelsHandler({ api, ownerId, publish, download }) {
   const owner = String(ownerId);
   const working = new Set(); // previews being published right now: a second press waits for nothing
@@ -30,7 +33,7 @@ export function createReelsHandler({ api, ownerId, publish, download }) {
     const file = m.video ?? (/^video\//.test(m.document?.mime_type ?? "") ? m.document : null);
     if (!file) return api.sendMessage(owner, HELP);
     if (file.file_size > MAX_BYTES) return api.sendMessage(owner, "⚠️ הקובץ גדול מ-20MB, וטלגרם לא נותן לבוט להוריד אותו. שלחו גרסה קטנה יותר.");
-    const extra = { caption: `תצוגה מקדימה. זה הטקסט שיעלה עם הסרטון:\n\n${POST_TEXT}`, ...buttons([[{ text: "✅ לפרסם", callback_data: "pub" }, { text: "⏭ לדלג", callback_data: "skip" }]]) };
+    const extra = previewExtra();
     return m.video ? api.sendVideo(owner, file.file_id, extra) : api.sendDocument(owner, file.file_id, extra);
   }
 
