@@ -68,3 +68,32 @@ test("digest time: 02:30-02:39 Israel time only", async () => {
   assert.equal(isDigestTime(new Date("2026-10-29T02:45:00+02:00")), false);
   assert.equal(isDigestTime(new Date("2026-10-29T14:35:00+02:00")), false);
 });
+
+test("/reels: the Reels bot's webhook needs the secret header, answers at once and hands the update over (2026-11-14)", async () => {
+  const { bot } = setup();
+  const got = [];
+  let release;
+  const reels = (u) => (got.push(u.update_id), new Promise((r) => (release = r))); // publishing takes minutes
+  const srv = await listen(createApp({ bot, mode: "webhook", webhookSecret: "s3cr3t_Token-1", reels }));
+  try {
+    const send = (headers) => fetch(`${srv.base}/reels`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ update_id: 9 }) });
+    assert.equal((await send({})).status, 401);
+    assert.deepEqual(got, []);
+    assert.equal((await send({ "X-Telegram-Bot-Api-Secret-Token": "s3cr3t_Token-1" })).status, 200, "answered before the work ends");
+    assert.deepEqual(got, [9]);
+    release();
+  } finally {
+    await srv.close();
+  }
+});
+
+test("/reels is off without the Reels bot", async () => {
+  const { bot } = setup();
+  const srv = await listen(createApp({ bot, mode: "webhook", webhookSecret: "s3cr3t_Token-1" }));
+  try {
+    const res = await fetch(`${srv.base}/reels`, { method: "POST", headers: { "content-type": "application/json", "X-Telegram-Bot-Api-Secret-Token": "s3cr3t_Token-1" }, body: "{}" });
+    assert.equal(res.status, 404);
+  } finally {
+    await srv.close();
+  }
+});

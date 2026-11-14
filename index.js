@@ -27,7 +27,24 @@ if (!process.env.OPENAI_API_KEY) {
 const mode = WEBHOOK_URL ? "webhook" : "polling";
 const { stats, moneyReport } = await import("./stats.js");
 const bot = createBot({ token: BOT_TOKEN });
-const app = createApp({ bot, mode, webhookSecret: mode === "webhook" ? WEBHOOK_SECRET : undefined });
+// The Reels approve bot (reels.js) rides on this server in webhook mode, once REELS_BOT_TOKEN is set on Render. The owner
+// is ADMIN_USER_ID; the Meta values publish to Instagram and the Facebook Page (meta.js).
+const reelsApi = mode === "webhook" && process.env.REELS_BOT_TOKEN && process.env.ADMIN_USER_ID ? new (await import("grammy")).Api(process.env.REELS_BOT_TOKEN) : null;
+let reels = null;
+if (reelsApi) {
+  const { createReelsHandler } = await import("./reels.js");
+  const { publishReel } = await import("./meta.js");
+  // The file's address holds the bot token: it is never printed.
+  const download = async (fileId) => {
+    const { file_path } = await reelsApi.getFile(fileId);
+    const res = await fetch(`https://api.telegram.org/file/bot${process.env.REELS_BOT_TOKEN}/${file_path}`);
+    if (!res.ok) throw new Error(`Telegram file download HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  };
+  const publish = (bytes, caption, { only }) => publishReel(bytes, caption, { token: process.env.META_PAGE_TOKEN, igId: process.env.META_IG_ID, pageId: process.env.META_PAGE_ID, only });
+  reels = createReelsHandler({ api: reelsApi, ownerId: process.env.ADMIN_USER_ID, publish, download });
+}
+const app = createApp({ bot, mode, webhookSecret: mode === "webhook" ? WEBHOOK_SECRET : undefined, reels });
 
 function fail(what, e) {
   console.error(`❌ ${what}: ${e.message}`);
@@ -48,6 +65,12 @@ if (mode === "webhook") {
     .setWebhook(`${WEBHOOK_URL.replace(/\/+$/, "")}/webhook`, { secret_token: WEBHOOK_SECRET })
     .catch((e) => fail("setWebhook failed", e));
   console.log(`✅ @${bot.botInfo.username} is running (webhook)`);
+  if (reelsApi) {
+    // A failure here leaves the search bot running: only the Reels bot is off, and the log says why.
+    await reelsApi
+      .setWebhook(`${WEBHOOK_URL.replace(/\/+$/, "")}/reels`, { secret_token: WEBHOOK_SECRET, allowed_updates: ["message", "callback_query"] })
+      .then(() => console.log("✅ Reels approve bot is running (webhook /reels)"), (e) => console.error(`❌ Reels bot setWebhook failed: ${e.message}`));
+  }
   // The server pings its own public URL every 10 minutes within the awake window, so it never sleeps there even if the
   // external wake-up job (cron-job.org) fails; that job is still what wakes it at 05:00.
   const { isAwakeHour, isDigestTime } = await import("./server.js");

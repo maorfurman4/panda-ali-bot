@@ -55,9 +55,9 @@ test("meta: one platform failing leaves the other published, and the error never
   assert.doesNotMatch(JSON.stringify(out), new RegExp(TOKEN));
 });
 
-test("meta: Instagram processing that ends in ERROR is a failure; a platform already done is skipped", async () => {
+test("meta: Instagram processing that ends in ERROR is a failure; a retry of one platform leaves the other alone", async () => {
   const { fetch, calls } = fakeMeta({ igStatus: ["IN_PROGRESS", "ERROR"] });
-  const out = await publishReel(Buffer.from("x"), "c", { ...opts(fetch), skip: { facebook: true } });
+  const out = await publishReel(Buffer.from("x"), "c", { ...opts(fetch), only: "instagram" });
   assert.equal(out.instagram.ok, false);
   assert.match(out.instagram.error, /ERROR/);
   assert.equal(out.facebook, undefined);

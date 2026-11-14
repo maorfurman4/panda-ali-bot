@@ -3,13 +3,22 @@ import express from "express";
 import { webhookCallback } from "grammy";
 import { isMockMode } from "./aliexpress.js";
 
-export function createApp({ bot, mode, webhookSecret }) {
+// reels: the Reels approve bot's update handler (reels.js), or null when its token isn't set on the server.
+export function createApp({ bot, mode, webhookSecret, reels = null }) {
   const app = express();
   app.disable("x-powered-by");
   app.get("/health", (_req, res) => res.json({ ok: true, mode, mock: isMockMode() }));
   if (webhookSecret) {
     // onTimeout "return": answer Telegram fast and keep working, so a slow search isn't redelivered and answered twice.
     app.post("/webhook", express.json(), webhookCallback(bot, "express", { secretToken: webhookSecret, onTimeout: "return" }));
+  }
+  if (webhookSecret && reels) {
+    // Answered at once: publishing a Reel takes minutes, and Telegram resends an update it isn't answered for.
+    app.post("/reels", express.json(), (req, res) => {
+      if (req.get("X-Telegram-Bot-Api-Secret-Token") !== webhookSecret) return res.sendStatus(401);
+      res.sendStatus(200);
+      Promise.resolve(reels(req.body)).catch((e) => console.error(`reels: ${e.message}`));
+    });
   }
   return app;
 }

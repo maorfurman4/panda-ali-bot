@@ -1,7 +1,8 @@
 // The Reels approve bot (@panda_reels_approve_bot): the owner sends a finished video, gets it back with the post text and
-// "publish" / "skip" buttons, and a press publishes it to Instagram and the Facebook Page (meta.js). Runs every 30 minutes
-// on GitHub Actions with getUpdates, so it needs no server. Design: docs/superpowers/specs/2026-11-14-reel-publisher-design.md
-// (owner approved, 2026-11-14).
+// "publish" / "skip" buttons, and a press publishes it to Instagram and the Facebook Page (meta.js). It runs inside the
+// search bot's server on Render (a webhook at /reels), so a press acts at once and the Mac can be off.
+// Design: docs/superpowers/specs/2026-11-14-reel-publisher-design.md (owner approved; Render move, owner 2026-11-14).
+// No memory between updates: a press carries the preview message (with its video), so a Render restart loses nothing.
 
 // Fixed post text (owner, 2026-11-13): no link anywhere in the post; a comment "פנדה" gets the link by private message.
 export const POST_TEXT = [
@@ -12,68 +13,64 @@ export const POST_TEXT = [
 ].join("\n");
 
 const MAX_BYTES = 20 * 1024 * 1024; // the Bot API's getFile limit
-const KEEP = 50; // items remembered between runs (a second press on an old one says it's gone)
 const PLATFORMS = { instagram: "אינסטגרם", facebook: "פייסבוק" };
-const HELP = "שלחו לי סרטון מוכן (mp4, עד 20MB) ואחזיר אותו עם כפתור פרסום לאינסטגרם ולפייסבוק.";
+const HELP = "שלחו לי סרטון מוכן (mp4, עד 20MB) ואחזיר אותו עם כפתור פרסום לאינסטגרם ולפייסבוק.\n💡 שלחו אותו כקובץ (📎 ← קובץ) כדי שטלגרם לא יקטין את האיכות.";
 
 const buttons = (rows) => ({ reply_markup: { inline_keyboard: rows } });
 const closed = (text) => buttons([[{ text, callback_data: "done" }]]);
+// A video sent as a file (document) keeps its original bytes; Telegram re-encodes what is sent as a video.
+const videoOf = (m) => m?.video ?? m?.document ?? null;
 
 export function createReelsHandler({ api, ownerId, publish, download }) {
   const owner = String(ownerId);
-  const fromOwner = (u) => String(u?.from?.id) === owner;
+  const working = new Set(); // previews being published right now: a second press waits for nothing
+  const fromOwner = (x) => String(x?.from?.id) === owner;
 
-  async function onVideo(msg, state) {
-    const file = msg.video ?? (/^video\//.test(msg.document?.mime_type ?? "") ? msg.document : null);
+  async function onMessage(m) {
+    const file = m.video ?? (/^video\//.test(m.document?.mime_type ?? "") ? m.document : null);
     if (!file) return api.sendMessage(owner, HELP);
     if (file.file_size > MAX_BYTES) return api.sendMessage(owner, "⚠️ הקובץ גדול מ-20MB, וטלגרם לא נותן לבוט להוריד אותו. שלחו גרסה קטנה יותר.");
-    const n = (state.next ?? 0) + 1;
-    state.next = n;
-    const sent = await api.sendVideo(owner, file.file_id, {
-      caption: `תצוגה מקדימה. זה הטקסט שיעלה עם הסרטון:\n\n${POST_TEXT}`,
-      ...buttons([[{ text: "✅ לפרסם", callback_data: `pub:${n}` }, { text: "⏭ לדלג", callback_data: `skip:${n}` }]]),
-    });
-    state.items[n] = { fileId: file.file_id, messageId: sent.message_id, status: "pending", done: {} };
+    const extra = { caption: `תצוגה מקדימה. זה הטקסט שיעלה עם הסרטון:\n\n${POST_TEXT}`, ...buttons([[{ text: "✅ לפרסם", callback_data: "pub" }, { text: "⏭ לדלג", callback_data: "skip" }]]) };
+    return m.video ? api.sendVideo(owner, file.file_id, extra) : api.sendDocument(owner, file.file_id, extra);
   }
 
-  async function onPress(q, state) {
-    const [action, n] = String(q.data ?? "").split(":");
-    const item = state.items[n];
+  async function onPress(q) {
+    const [action, only = null] = String(q.data ?? "").split(":");
+    const preview = q.message;
     const answer = (text) => api.answerCallbackQuery(q.id, text ? { text } : {}).catch(() => {}); // an old press can't be answered
-    if (!item) return answer(action === "done" ? "" : "לא מצאתי את הסרטון הזה, שלחו אותו שוב");
-    if (item.status === "published" || item.status === "skipped") return answer("כבר טופל");
+    if (action === "done") return answer("כבר טופל");
+    if (!preview || working.has(preview.message_id)) return answer(preview ? "כבר מפרסם, רגע..." : "");
+    const file = videoOf(preview);
     if (action === "skip") {
-      item.status = "skipped";
       await answer("דולג");
-      return api.editMessageReplyMarkup(owner, item.messageId, closed("⏭ דולג"));
+      return api.editMessageReplyMarkup(owner, preview.message_id, closed("⏭ דולג"));
     }
-    if (action !== "pub") return answer();
-    await answer("מפרסם...");
-    const results = await download(item.fileId)
-      .then((bytes) => publish(bytes, POST_TEXT, { skip: { ...item.done } }))
-      .catch((e) => Object.fromEntries(Object.keys(PLATFORMS).filter((p) => !item.done[p]).map((p) => [p, { ok: false, error: e.message }])));
-    for (const [p, r] of Object.entries(results)) if (r?.ok) item.done[p] = true;
-    const all = Object.keys(PLATFORMS).every((p) => item.done[p]);
-    item.status = all ? "published" : "partial";
-    const line = (p) => `${item.done[p] ? "✅" : "❌"} ${PLATFORMS[p]}: ${item.done[p] ? "פורסם" : `נכשל (${results[p]?.error ?? "לא נוסה"})`}`;
-    await api.sendMessage(owner, Object.keys(PLATFORMS).map(line).join("\n"));
-    await api.editMessageReplyMarkup(owner, item.messageId, all ? closed("✅ פורסם") : buttons([[{ text: "🔁 לנסות שוב את מה שנכשל", callback_data: `pub:${n}` }]]));
+    if (action !== "pub" || !file) return answer("לא מצאתי את הסרטון, שלחו אותו שוב");
+    working.add(preview.message_id);
+    try {
+      await answer("מפרסם...");
+      await api.editMessageReplyMarkup(owner, preview.message_id, closed("⏳ מפרסם..."));
+      const names = only ? [only] : Object.keys(PLATFORMS);
+      const results = await download(file.file_id)
+        .then((bytes) => publish(bytes, POST_TEXT, { only }))
+        .catch((e) => Object.fromEntries(names.map((p) => [p, { ok: false, error: e.message }])));
+      const failed = names.filter((p) => !results[p]?.ok);
+      await api.sendMessage(owner, names.map((p) => `${results[p]?.ok ? "✅" : "❌"} ${PLATFORMS[p]}: ${results[p]?.ok ? "פורסם" : `נכשל (${results[p]?.error ?? "לא נוסה"})`}`).join("\n"));
+      // Retry only what failed: one failed platform is a button of its own; both failed, "pub" again.
+      const retry = failed.length === 1 ? `pub:${failed[0]}` : failed.length ? (only ? `pub:${only}` : "pub") : null;
+      await api.editMessageReplyMarkup(owner, preview.message_id, retry ? buttons([[{ text: "🔁 לנסות שוב את מה שנכשל", callback_data: retry }]]) : closed("✅ פורסם"));
+    } finally {
+      working.delete(preview.message_id);
+    }
   }
 
-  // updates: from getUpdates; state: { offset, next, items } from the previous run. Returns the state to save.
-  return async function handle(updates, previous = {}) {
-    const state = { offset: previous.offset ?? 0, next: previous.next ?? 0, items: { ...(previous.items ?? {}) } };
-    for (const u of updates) {
-      state.offset = Math.max(state.offset, u.update_id + 1);
-      try {
-        if (u.callback_query && fromOwner(u.callback_query)) await onPress(u.callback_query, state);
-        else if (u.message && fromOwner(u.message) && u.message.chat?.type === "private") await onVideo(u.message, state);
-      } catch (e) {
-        console.error(`reels: update ${u.update_id} failed: ${e.message}`);
-      }
+  // One Telegram update (from the /reels webhook). Never throws: an error is logged and the owner can press again.
+  return async function handleUpdate(u) {
+    try {
+      if (u.callback_query && fromOwner(u.callback_query)) await onPress(u.callback_query);
+      else if (u.message && fromOwner(u.message) && u.message.chat?.type === "private") await onMessage(u.message);
+    } catch (e) {
+      console.error(`reels: update ${u.update_id} failed: ${e.message}`);
     }
-    const keep = Object.keys(state.items).map(Number).sort((a, b) => b - a).slice(0, KEEP);
-    state.items = Object.fromEntries(keep.map((k) => [k, state.items[k]]));
-    return state;
   };
 }

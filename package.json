@@ -12,8 +12,7 @@
     "eval:categories": "node --env-file-if-exists=.env scripts/eval-categories.js",
     "eval:personas": "node --env-file-if-exists=.env scripts/eval-personas.js",
     "deal": "node --env-file-if-exists=.env scripts/daily-deal.js",
-    "vocab": "node --env-file-if-exists=.env scripts/build-vocab.js",
-    "reels": "node --env-file-if-exists=.env scripts/reels-run.js"
+    "vocab": "node --env-file-if-exists=.env scripts/build-vocab.js"
   },
   "engines": {
     "node": ">=22"

@@ -41,11 +41,11 @@ async function facebook(bytes, caption, { fetch, token, pageId }) {
   return { id: start.video_id };
 }
 
-// skip: { instagram: true } after a retry, so a platform already published isn't posted twice.
-export async function publishReel(bytes, caption, { fetch = globalThis.fetch, token, igId, pageId, skip = {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+// only: "facebook" on a retry, so a platform already published isn't posted twice.
+export async function publishReel(bytes, caption, { fetch = globalThis.fetch, token, igId, pageId, only = null, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   const missing = !token ? "META_PAGE_TOKEN" : null;
   const jobs = { instagram: () => (igId ? instagram(bytes, caption, { fetch, token, igId, sleep }) : Promise.reject(new Error("META_IG_ID is missing"))), facebook: () => (pageId ? facebook(bytes, caption, { fetch, token, pageId }) : Promise.reject(new Error("META_PAGE_ID is missing"))) };
-  const names = Object.keys(jobs).filter((p) => !skip[p]);
+  const names = Object.keys(jobs).filter((p) => !only || p === only);
   const settled = await Promise.allSettled(names.map((p) => (missing ? Promise.reject(new Error(`${missing} is missing`)) : jobs[p]())));
   const clean = (m) => (token ? String(m).split(token).join("***") : String(m));
   return Object.fromEntries(names.map((p, i) => [p, settled[i].status === "fulfilled" ? { ok: true, id: settled[i].value.id } : { ok: false, error: clean(settled[i].reason?.message ?? "error") }]));
