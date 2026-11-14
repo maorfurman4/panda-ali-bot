@@ -92,3 +92,14 @@ test("reels: 'skip' publishes nothing; a stranger's video and press do nothing; 
   await run(msg({ document: { file_id: "BIG", file_size: 25_000_000, mime_type: "video/mp4" } }));
   assert.match(of("sendMessage").at(-1).args[1], /20MB/);
 });
+
+test("reels: each video is published with the text shown in its own preview, so style 2 and 3 get their own post text (owner, 2026-11-14)", async () => {
+  const { previewExtra } = await import("../reels.js");
+  const { api } = fakeApi();
+  const own = "🧅 בצל ושום קצוצים דק תוך שניות.\nכתבו \"פנדה\" בתגובות ואשלח לכם בפרטי 👇";
+  const texts = [];
+  const run = handler(api, async (_b, caption) => (texts.push(caption), { instagram: { ok: true }, facebook: { ok: true } }));
+  await run(press("pub", { document: { file_id: "D1" }, caption: previewExtra(own).caption }));
+  await run(press("pub", { video: { file_id: "V1" }, caption: "something else" }));
+  assert.deepEqual(texts, [own, POST_TEXT], "an unknown caption falls back to the fixed style-1 text");
+});
