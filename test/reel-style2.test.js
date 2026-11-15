@@ -161,3 +161,9 @@ test("reel guards: post extras never block a video: bad tags are cleaned or fill
   assert.ok(!got.post.includes("99,999"));
   assert.equal(got.dmName, "מוצר");
 });
+
+test("reel guards: no period at a caption's end; the post never repeats the call to action and loses its dashes (first GitHub run, 2026-11-15)", () => {
+  const got = checkSpec(answer({ hook: { img: "s0", line1: "צריכים בצל קצוץ?", line2: "יש פתרון פשוט.", accent: "פתרון פשוט" }, post_lines: ["🔒 מצאתי קוצץ מעולה — באמת", "יש לו 4.9 כוכבים", "אם רוצים את הקישור, כתבו לי."] }), data, choices);
+  assert.equal(got.spec.hook.text, "צריכים בצל קצוץ?<br>יש <b>פתרון פשוט</b>");
+  assert.ok(got.post.startsWith("🔒 מצאתי קוצץ מעולה, באמת\nיש לו 4.9 כוכבים\n\n"), got.post);
+});
