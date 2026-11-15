@@ -1,16 +1,19 @@
-# The morning style-2 Reel (scripts/daily-reel.js): picks a product the deals bot already posted, writes the captions
-# (one AI call, ~1-2¢), renders the video (reels/style2.py) and sends it to the owner through the Reels approve bot with
-# the publish / skip buttons, then every caption and the private message for commenters. Nothing good today: a short note.
+# The morning style-3 Reel (scripts/daily-reel.js): finds a hit product with the seller's own video, Gemini (free tier)
+# watches it and writes the Hebrew script, Gemini TTS speaks it, Whisper times the words (~0.2¢), reels/style3.py renders,
+# and the owner gets it through the Reels approve bot with the publish / skip buttons, then what is said and the private
+# message for commenters. Nothing good today: a short note. Nothing is published without the owner's press.
 # 03:00 UTC = 05:00 Israel winter time (06:00 summer): GitHub may start it late, it still arrives in the morning.
 name: Daily reel
 
 on:
+  push: # temporary: the first real run on the test branch (removed before merging)
+    branches: [test/reel-style3]
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
     inputs:
       product:
-        description: "Make the reel for this product id (empty: the newest posted deal that qualifies)"
+        description: "Make the reel for this product id (empty: the best seller with a seller video found today)"
         type: string
         default: ""
       dry:
@@ -40,20 +43,13 @@ jobs:
           ffmpeg -version | head -1
           CHROME="$(command -v google-chrome || command -v google-chrome-stable)"; echo "chrome: $CHROME"; "$CHROME" --version
           echo "CHROME=$CHROME" >> "$GITHUB_ENV"
-      # Free checks before the AI call: Chrome renders a Hebrew pill and ffmpeg has every filter the build uses.
+      # Free checks before any AI call: Chrome renders a Hebrew pill and ffmpeg has every filter the build uses.
       - name: Preflight
         run: |
           printf '<html><body style="margin:0;background:#fff;font:800 54px Heebo">\xd7\xa4\xd7\xa0\xd7\x93\xd7\x94</body></html>' > /tmp/p.html
           "$CHROME" --headless=new --no-sandbox --disable-gpu --window-size=300,100 --screenshot=/tmp/p.png file:///tmp/p.html
           test -s /tmp/p.png
-          for f in zoompan xfade alphamerge gblur tpad alimiter ebur128 amix adelay; do ffmpeg -hide_banner -filters | grep -qw "$f" || { echo "ffmpeg has no $f"; exit 1; }; done
-      # The deals bot's state (its posted product ids), read only. The path must be the deals workflow's own
-      # (deals-state.json): the cache version is tied to it. restore-only, so this run never saves a deals-state- entry.
-      - uses: actions/cache/restore@v4
-        with:
-          path: deals-state.json
-          key: deals-state-for-reel-${{ github.run_id }}
-          restore-keys: deals-state-
+          for f in zoompan xfade gblur tpad alimiter ebur128 amix adelay minterpolate sidechaincompress cropdetect alphaextract; do ffmpeg -hide_banner -filters | grep -qw "$f" || { echo "ffmpeg has no $f"; exit 1; }; done
       - uses: actions/cache/restore@v4
         with:
           path: reels-state.json
@@ -67,8 +63,8 @@ jobs:
           REEL_DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry }}
           REELS_BOT_TOKEN: ${{ secrets.REELS_BOT_TOKEN }}
           DEALS_OWNER_ID: ${{ secrets.DEALS_OWNER_ID }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # Claude backup when OpenAI fails (empty: no backup)
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # script, frames and voice (free tier)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }} # Whisper word times, ~0.2¢
           ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
           ALI_APP_SECRET: ${{ secrets.ALI_APP_SECRET }}
           ALI_TRACKING_ID: ${{ secrets.ALI_TRACKING_ID }}
@@ -88,5 +84,7 @@ jobs:
             reel-out/*.png
             reel-out/*.txt
             reel-out/*/spec.json
-            reel-out/*/data.json
+            reel-out/*/product.json
+            reel-out/*/script-*.json
+            reel-out/*/words.json
           retention-days: 14

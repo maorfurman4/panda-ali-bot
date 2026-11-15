@@ -1,21 +1,24 @@
-// The morning style-2 Reel (by .github/workflows/daily-reel.yml): picks a product the deals bot already posted, writes the
-// captions (one AI call), renders the video (reels/style2.py) with the next house track, and sends the owner, through the
-// Reels approve bot: (1) the video with its post text and the publish / skip buttons, (2) every caption in order, (3) the
-// private message for commenters. A press on "publish" is handled by the server (reels.js), as for any preview.
-// Nothing good today, or captions that fail the checks twice: a short note instead of a video.
-// Env: REELS_BOT_TOKEN, DEALS_OWNER_ID (or ADMIN_USER_ID), OPENAI_API_KEY (ANTHROPIC_API_KEY: backup), ALI_APP_KEY,
-// ALI_APP_SECRET, ALI_TRACKING_ID. DEALS_STATE (deals-state.json, read only), REELS_STATE (reels-state.json),
-// REEL_PRODUCT: this product id instead of the pick; REEL_DRY=true: build, send nothing, keep the state; REEL_OUT: work dir.
+// The morning style-3 Reel (by .github/workflows/daily-reel.yml): finds a hit product with the seller's own video, has
+// Gemini watch it and write the Hebrew script (free tier), speaks it (Gemini TTS, free), times the words (Whisper, ~0.2¢),
+// renders the video (reels/style3.py) with the next house track, and sends the owner, through the Reels approve bot:
+// (1) the video with its post text and the publish / skip buttons, (2) what is said, in order, (3) the private message for
+// commenters. A press on "publish" is handled by the server (reels.js), as for any preview.
+// Nothing good today, or a script that fails the checks twice: a short note instead of a video.
+// Env: REELS_BOT_TOKEN, DEALS_OWNER_ID (or ADMIN_USER_ID), GEMINI_API_KEY, OPENAI_API_KEY (Whisper), ALI_APP_KEY,
+// ALI_APP_SECRET, ALI_TRACKING_ID. REELS_STATE (reels-state.json), REEL_PRODUCT: this product id instead of the pick;
+// REEL_DRY=true: build, send nothing, keep the state; REEL_OUT: work dir.
 // Usage: node scripts/daily-reel.js
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Api, InputFile } from "grammy";
-import { apiCall, skuDetails, generateAffiliateLink } from "../aliexpress.js";
-import { aiSpend } from "../query.js";
+import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js";
 import { previewExtra } from "../reels.js";
-import { pickProduct, photoChoices, writeSpec, nextTrack, markUsed, captionList, dmText } from "../reel-style2.js";
+import {
+  pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
+  captionList, dmText, VIDEO_HOST, MIN_VIDEO_S,
+} from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const env = process.env;
@@ -24,86 +27,97 @@ const owner = env.DEALS_OWNER_ID || env.ADMIN_USER_ID;
 const api = env.REELS_BOT_TOKEN ? new Api(env.REELS_BOT_TOKEN) : null;
 const out = env.REEL_OUT || join(ROOT, "reel-out");
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, "utf8")); } catch { return {}; } };
-const deals = readJson(env.DEALS_STATE || "deals-state.json");
 const stateFile = env.REELS_STATE || "reels-state.json";
 const state = readJson(stateFile);
 if (!dry && (!api || !owner)) throw new Error("sending needs REELS_BOT_TOKEN and DEALS_OWNER_ID (or REEL_DRY=true)");
-const note = async (text) => (console.log(`note: ${text}`), dry ? null : api.sendMessage(owner, `🎬 סרטון הבוקר (סגנון 2): ${text}`));
+if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is missing");
+const note = async (text) => (console.log(`note: ${text}`), dry ? null : api.sendMessage(owner, `🎬 סרטון הבוקר: ${text}`));
+const log = (l) => console.log(`  ${l}`);
+const ff = (args) => execFileSync("ffmpeg", ["-nostdin", "-hide_banner", "-loglevel", "error", "-y", ...args]);
+const duration = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
 
-// The public review feed, buyer photos only, 2 pages (same source as fetchReviews in aliexpress.js).
-const FEEDBACK = "https://feedback.aliexpress.com/pc/searchEvaluation.do";
-async function photoReviews(id) {
-  let stats = null;
-  const reviews = [];
-  for (const page of [1, 2]) {
-    const url = `${FEEDBACK}?productId=${id}&lang=en_US&country=IL&page=${page}&pageSize=20&filter=image&sort=complex_default`;
-    const d = await fetch(url, { headers: { "user-agent": "Mozilla/5.0", referer: "https://www.aliexpress.com/" }, signal: AbortSignal.timeout(8000) }).then((r) => r.json()).catch(() => null);
-    stats ??= d?.data?.productEvaluationStatistic ?? null;
-    for (const r of d?.data?.evaViewList ?? [])
-      reviews.push({ stars: Number(r.buyerEval) / 20, country: String(r.buyerCountry ?? ""), date: r.evalDate, text: String(r.buyerTranslationFeedback || r.buyerFeedback || "").trim(), photos: (r.images ?? []).filter((u) => /^https:\/\//.test(u ?? "")) });
+async function product() {
+  if (env.REEL_PRODUCT) {
+    const r = await apiCall("aliexpress.affiliate.productdetail.get", { product_ids: env.REEL_PRODUCT, target_currency: "ILS", target_language: "EN", country: "IL", tracking_id: env.ALI_TRACKING_ID });
+    const p = [].concat(r.products?.product ?? [])[0];
+    if (!p) throw new Error(`product ${env.REEL_PRODUCT} not found`);
+    log(`forced product: ${weakness(p) ?? "qualifies"}`);
+    return p;
   }
-  // The number AliExpress shows: every star count added up (same rule as addStars in aliexpress.js).
-  const ratings = stats ? ["five", "four", "three", "two", "one"].reduce((n, k) => n + (Number(stats[`${k}StarNum`]) || 0), 0) : null;
-  return { stats, ratings, reviews };
+  const day = Math.floor(Date.now() / 864e5);
+  return pickProduct(queriesFor(day), { used: (state.used ?? []).map((u) => u.id), search: (q) => searchProducts(q, { lang: "EN", shorten: false }), log });
 }
-const details = async (ids) => {
-  const r = await apiCall("aliexpress.affiliate.productdetail.get", { product_ids: ids.join(","), target_currency: "ILS", target_language: "EN", country: "IL", tracking_id: env.ALI_TRACKING_ID });
-  return [].concat(r.products?.product ?? []);
-};
 
-// Photos arrive as WebP whatever the extension: saved as PNG so ffmpeg and Chrome read them alike.
-async function savePhoto(dir, { id, url }) {
-  const png = join(dir, `${id}.png`), raw = join(dir, `${id}.src`);
-  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(25000) });
-  if (!res.ok) throw new Error(`photo ${id}: HTTP ${res.status}`);
-  writeFileSync(raw, Buffer.from(await res.arrayBuffer()));
-  execFileSync("ffmpeg", ["-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", raw, "-frames:v", "1", png]);
-  rmSync(raw);
+// 2 frames a second (at most 90), 384 px wide: what Gemini watches
+function frames(video, dir, dur) {
+  mkdirSync(dir, { recursive: true });
+  const fps = Math.min(2, 90 / dur);
+  ff(["-i", video, "-vf", `fps=${fps},scale=384:-2`, "-q:v", "4", join(dir, "f%03d.jpg")]);
+  return readdirSync(dir).filter((f) => f.endsWith(".jpg")).sort().map((f, i) => ({ t: i / fps, jpeg: readFileSync(join(dir, f)) }));
 }
 
 async function main() {
-  const posted = [...(deals.posted ?? [])].reverse(); // newest first
-  const ids = env.REEL_PRODUCT ? [env.REEL_PRODUCT] : posted;
-  console.log(env.REEL_PRODUCT ? `forced product ${env.REEL_PRODUCT}` : `${posted.length} posted products in the deals state`);
-  const picked = await pickProduct(ids, { used: env.REEL_PRODUCT ? [] : (state.used ?? []).map((u) => u.id), details, reviews: photoReviews, log: (l) => console.log(`  skip ${l}`) });
-  if (!picked) return note(ids.length ? "לא מצאתי היום מוצר שעבר את התנאים (10,000+ נמכרו, 4.8 כוכבים, 3 ביקורות 5 כוכבים עם תמונות). אין סרטון היום." : "לא מצאתי את רשימת המוצרים של ערוץ הדילים. אין סרטון היום.");
-  const id = String(picked.product.product_id);
-  const { promotion_link, ...product } = picked.product;
-  const variants = (await skuDetails([id]).catch(() => new Map())).get(id) ?? [];
-  const data = { fetchedAt: new Date().toISOString(), product, variants, stats: picked.stats, ratings: picked.ratings, reviews: picked.reviews };
-  console.log(`product ${id}: ${product.product_title}\n  ₪${product.target_sale_price} (was ₪${product.target_original_price}), sold ${product.lastest_volume}, ${data.stats?.evarageStar}★ ${data.ratings} ratings, ${data.reviews.length} photo reviews, ${variants.length} variants`);
-
+  const p = await product();
+  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר, 10,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
+  const id = String(p.product_id);
+  console.log(`product ${id}: ${p.product_title}\n  ₪${p.target_sale_price}, sold ${p.lastest_volume}, ${p.evaluate_rate} positive`);
   const work = join(out, id);
-  mkdirSync(join(work, "img"), { recursive: true });
-  writeFileSync(join(work, "data.json"), JSON.stringify(data, null, 1));
-  const choices = photoChoices(data);
-  await Promise.all(choices.photos.map((p) => savePhoto(join(work, "img"), p)));
+  mkdirSync(work, { recursive: true });
+  writeFileSync(join(work, "product.json"), JSON.stringify(p, null, 1));
 
-  const cost = { usd: 0 };
-  const written = await aiSpend.run(cost, () => writeSpec(data, choices, { log: console.log, onAnswer: (n, raw) => writeFileSync(join(work, `ai-try${n}.json`), JSON.stringify(raw, null, 1)) }));
-  console.log(`AI: ${written.tries} ${written.tries === 1 ? "try" : "tries"}, $${cost.usd.toFixed(4)} (${(cost.usd * 100).toFixed(2)}¢) ${JSON.stringify(cost.parts ?? {})}`);
-  if (written.errors) return note(`הכיתובים שה-AI כתב ל${product.product_title.slice(0, 60)} לא עברו את הבדיקות פעמיים, אז לא בניתי סרטון. (${written.errors.slice(0, 3).join("; ")})`);
+  if (!String(p.product_video_url ?? "").startsWith(VIDEO_HOST)) return note(`למוצר ${id} אין סרטון של המוכר.`);
+  const video = join(work, "seller.mp4");
+  const res = await fetch(p.product_video_url, { signal: AbortSignal.timeout(60000) });
+  if (!res.ok) throw new Error(`seller video: HTTP ${res.status}`);
+  writeFileSync(video, Buffer.from(await res.arrayBuffer()));
+  const dur = duration(video);
+  if (dur < MIN_VIDEO_S) return note(`הסרטון של המוכר ל${id} קצר מדי (${dur.toFixed(1)} שניות). אין סרטון היום.`);
 
+  const fr = frames(video, join(work, "frames"), dur);
+  console.log(`seller video ${dur.toFixed(1)} s, ${fr.length} frames to Gemini`);
+  let written, heard, ends, voice;
+  for (let round = 1; round <= 2; round++) { // a take that breaks the timing rules: the script is written once more
+    written = await writeScript(p, dur, fr, { log, onAnswer: (n, raw) => writeFileSync(join(work, `script-r${round}-try${n}.json`), JSON.stringify(raw, null, 1)) });
+    if (written.errors) return note(`התסריט ש-Gemini כתב ל${p.product_title.slice(0, 50)} לא עבר את הבדיקות, אז לא בניתי סרטון. (${written.errors.slice(0, 3).join("; ")})`);
+    const says = sentences(written.script);
+    voice = join(work, "voice.wav");
+    writeFileSync(voice, await speak(says.join(" "), { log }));
+    heard = await wordTimes(readFileSync(voice));
+    writeFileSync(join(work, "words.json"), JSON.stringify(heard));
+    ends = sentenceEnds(says, heard);
+    const problems = timingProblems(ends, heard, says);
+    console.log(`round ${round}: ${says.join(" ")}\n  heard: ${heard.map((w) => w.word).join(" ")}\n  ends ${JSON.stringify(ends)} ${problems.join("; ") || "timing ok"}`);
+    if (!problems.length) break;
+    if (round === 2) return note(`הקריינות ל${p.product_title.slice(0, 50)} לא עמדה בכללי הזמנים פעמיים (${problems.slice(0, 2).join("; ")}). אין סרטון היום.`);
+  }
+
+  const sc = written.script;
   const beats = JSON.parse(readFileSync(join(ROOT, "reels", "music", "beats.json"), "utf8"));
   const track = nextTrack(state, Object.keys(beats));
-  const spec = { ...written.spec, track: { file: track, bpm: beats[track].bpm, start: beats[track].start } };
+  const spec = {
+    video, voice, words: heard, ends, keep: sc.keep,
+    shots: [sc.hook, ...sc.scenes, sc.proof, sc.end].map(({ a, b, half }) => ({ a, b, half: half ?? "full" })),
+    pills: { hook: sc.hook.pill, scenes: sc.scenes.map((s) => ({ text: s.pill, step: s.step })) },
+    proof: { sold: Number(p.lastest_volume), rate: `${Math.round(parseFloat(p.evaluate_rate))}%`, price: p.target_sale_price },
+    track: { file: join(ROOT, "reels", "music", track), bpm: beats[track].bpm, start: beats[track].start },
+  };
   writeFileSync(join(work, "spec.json"), JSON.stringify(spec, null, 1));
-  const video = join(out, `reel-${id}.mp4`);
-  execFileSync("python3", [join(ROOT, "reels", "style2.py"), work, video], { stdio: "inherit" });
+  const reel = join(out, `reel-${id}.mp4`);
+  execFileSync("python3", [join(ROOT, "reels", "style3.py"), join(work, "spec.json"), reel], { stdio: "inherit" });
 
   const link = await generateAffiliateLink(`https://www.aliexpress.com/item/${id}.html`);
-  const captions = captionList(spec, data), dm = dmText(written.dmName, link);
+  const captions = captionList(sc, p), dm = dmText(written.dmName, link);
   writeFileSync(join(out, "post.txt"), written.post);
   writeFileSync(join(out, "captions.txt"), captions);
   writeFileSync(join(out, "dm.txt"), dm);
   console.log(`track ${track}\n\n${captions}\n\n--- post ---\n${written.post}\n\n--- dm ---\n${dm}`);
   if (dry) return console.log("dry run: nothing sent, state unchanged");
 
-  await api.sendDocument(owner, new InputFile(video, `reel-${id}.mp4`), previewExtra(written.post));
+  await api.sendDocument(owner, new InputFile(reel, `reel-${id}.mp4`), previewExtra(written.post));
   await api.sendMessage(owner, captions);
   await api.sendMessage(owner, dm, { link_preview_options: { is_disabled: true } });
   writeFileSync(stateFile, JSON.stringify(markUsed(state, id, track))); // only after the owner has it
-  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "sent=true\n"); // the workflow saves the reel state only then
+  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "sent=true\n");
   console.log(`sent to the owner; reel state saved (${(state.used ?? []).length + 1} products used)`);
 }
 
