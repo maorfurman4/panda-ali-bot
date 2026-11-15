@@ -182,7 +182,7 @@ export const sentences = (sc) => [sc.hook.say, ...sc.scenes.map((s) => s.say), s
 const API = "https://generativelanguage.googleapis.com/v1beta/models";
 export async function gemini(model, body, { fetch = globalThis.fetch, env = process.env, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), log = () => {} } = {}) {
   for (let i = 0; ; i++) {
-    const r = await fetch(`${API}/${model}:generateContent`, { method: "POST", headers: { "x-goog-api-key": env.GEMINI_API_KEY, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(180000) });
+    const r = await fetch(`${API}/${model}:generateContent`, { method: "POST", headers: { "x-goog-api-key": env.GEMINI_API_KEY, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(env.GEMINI_TIMEOUT_MS ? Number(env.GEMINI_TIMEOUT_MS) : 300000) });
     const j = await r.json().catch(() => ({}));
     // free tier: a few requests a minute; Google says how long to wait
     if ((r.status === 429 || r.status === 503) && i < 3) {
@@ -196,12 +196,13 @@ export async function gemini(model, body, { fetch = globalThis.fetch, env = proc
   }
 }
 
-// frames: [{ t, jpeg (Buffer) }]. A rejected answer is asked once more with the reasons.
+// frames: [{ t, jpeg (Buffer) }]. A rejected answer is asked again with the reasons, a failed call (Gemini took over 5
+// minutes on GitHub once, 2026-11-15) simply again: 3 tries in all.
 export async function writeScript(p, duration, frames, deps = {}) {
   const parts = [{ text: prompt(p, duration, frames.map((f) => f.t)) }, ...frames.flatMap((f) => [{ text: `frame t=${f.t.toFixed(1)}` }, { inlineData: { mimeType: "image/jpeg", data: f.jpeg.toString("base64") } }])];
   let errors = [];
-  for (let tries = 1; tries <= 2; tries++) {
-    const again = errors.length ? [{ text: `Your last answer was rejected for: ${errors.slice(0, 12).join("; ")}. Write it again with these fixed.` }] : [];
+  for (let tries = 1; tries <= 3; tries++) {
+    const again = errors.length && !errors[0].startsWith("AI call failed") ? [{ text: `Your last answer was rejected for: ${errors.slice(0, 12).join("; ")}. Write it again with these fixed.` }] : [];
     const out = await gemini(deps.model ?? SCRIPT_MODEL, { contents: [{ parts: [...parts, ...again] }], generationConfig: { responseMimeType: "application/json", responseJsonSchema: SCHEMA, temperature: 0.7 } }, deps)
       .then((j) => JSON.parse(j.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") || "null"))
       .catch((e) => ({ failed: e.message }));
@@ -210,9 +211,8 @@ export async function writeScript(p, duration, frames, deps = {}) {
     if (!checked.errors) return { ...checked, tries };
     errors = checked.errors;
     deps.log?.(`script try ${tries} rejected: ${errors.join("; ")}`);
-    if (out?.failed) break;
   }
-  return { errors, tries: 2 };
+  return { errors, tries: 3 };
 }
 
 // ---------------- the voice ----------------

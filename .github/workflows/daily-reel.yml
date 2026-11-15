@@ -2,14 +2,15 @@
 # watches it and writes the Hebrew script, Gemini TTS speaks it, Whisper times the words (~0.2¢), reels/style3.py renders,
 # and the owner gets it through the Reels approve bot with the publish / skip buttons, then what is said and the private
 # message for commenters. Nothing good today: a short note. Nothing is published without the owner's press.
-# 03:00 UTC = 05:00 Israel winter time (06:00 summer): GitHub may start it late, it still arrives in the morning.
+# 02:40 UTC = 04:40 Israel winter time (05:40 summer). Off the top of the hour, when GitHub's scheduled runs start late,
+# and ~10 minutes of build: the owner gets it at about 05:00 (owner, 2026-11-15: "as early as possible, from 05:00").
 name: Daily reel
 
 on:
   push: # temporary: the first real run on the test branch (removed before merging)
     branches: [test/reel-style3]
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "40 2 * * *"
   workflow_dispatch:
     inputs:
       product:
@@ -26,7 +27,7 @@ concurrency: daily-reel
 jobs:
   reel:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
