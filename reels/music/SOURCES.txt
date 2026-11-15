@@ -1,0 +1,20 @@
+House tracks for Reels styles 2 and 3 (owner approved the downloads 2026-11-14/15). Source: pixabay.com/music, Pixabay Content License (free commercial use, no attribution; Content ID claims possible).
+Only a 31 s section of each is kept here (the full songs stay on the owner's Mac, ~/Desktop/panda-reels/music/):
+  ffmpeg -ss <sourceStart - 1> -i <source> -t 31 -af afade=t=out:st=30.5:d=0.5 -c:a aac -b:a 128k -ar 48000 -ac 2 <name>.m4a
+beats.json, per file: bpm; phase (the first beat, start mod one beat); start = the section's first beat in the trimmed file (1.0 s, every beat after it is start + k*60/bpm);
+sourceStart = the same moment in the full song. The section is 4 beats of lead-in, then 32 strong kicks (reels/beatgrid.py,
+kick band, BPM refined to 0.01; the kicks over the used 17.5 s were checked to sit within 26 ms of the grid).
+03 is the owner's hand pick (drop on the first cut); the others were picked by the same rule without listening.
+06 Fashion Electro is left out: its low band has as many onsets on the off-beat as on the beat, so the grid could not be trusted.
+
+03 Meeting in Berlin - White_Records - https://pixabay.com/music/upbeat-meeting-in-berlin-background-house-music-for-video-stories-short-401040/  (owner's pick, 2026-11-14)
+04 Jupiter - SoSimpleAudio - https://pixabay.com/music/house-jupiter-632868/
+05 Fashion Lifestyle - Sub_Clair - https://pixabay.com/music/house-fashion-lifestyle-628637/
+06 Fashion Electro - Sub_Clair - https://pixabay.com/music/house-fashion-electro-623466/  (not in the pool, see above)
+07 Summer Party - Kulakovka - https://pixabay.com/music/dance-summer-party-620566/
+08 Luxury Life - Kulakovka - https://pixabay.com/music/house-luxury-life-620531/
+09 House Music - AtlasAudio - https://pixabay.com/music/house-house-music-617575/
+10 House Beat - Monume - https://pixabay.com/music/house-house-beat-629840/
+11 Ibiza House - Monume - https://pixabay.com/music/house-ibiza-house-629786/
+12 Festival Party Dance - Monume - https://pixabay.com/music/house-festival-festival-party-dance-629849/
+13 House - Monume - https://pixabay.com/music/house-house-629802/
