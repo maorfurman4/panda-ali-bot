@@ -302,7 +302,7 @@ export function validateIntent(o) {
 // One strict-JSON call, with a backup sent if the first is slow (see HEDGE_MS) or fails at once: Claude when its key is set
 // (OpenAI's own slow spells hit every request alike), else OpenAI again. The first answer wins; it fails only when every
 // request sent has failed.
-async function requestJson({ hedgeMs = HEDGE_MS, timeoutMs = TIMEOUT_MS, ...opts }) {
+export async function requestJson({ hedgeMs = HEDGE_MS, timeoutMs = TIMEOUT_MS, ...opts }) {
   const first = () => requestOnce({ ...opts, timeoutMs });
   const claude = Boolean(opts.env?.ANTHROPIC_API_KEY);
   const backup = () => (claude ? requestClaude({ ...opts, model: claudeFor(opts.model), timeoutMs, backup: true }) : requestOnce({ ...opts, timeoutMs }));

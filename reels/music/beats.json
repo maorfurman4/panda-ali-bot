@@ -1,0 +1,72 @@
+{
+ "03-house-berlin.m4a": {
+  "bpm": 125.0,
+  "phase": 0.04,
+  "start": 1.0,
+  "source": "3-house-berlin.mp3",
+  "sourceStart": 33.0
+ },
+ "04-jupiter.m4a": {
+  "bpm": 120.0,
+  "phase": 0.0,
+  "start": 1.0,
+  "source": "04-jupiter-sosimpleaudio.mp3",
+  "sourceStart": 127.849
+ },
+ "05-fashion-lifestyle.m4a": {
+  "bpm": 120.0,
+  "phase": 0.0,
+  "start": 1.0,
+  "source": "05-fashion-lifestyle-subclair.mp3",
+  "sourceStart": 31.161
+ },
+ "07-summer-party.m4a": {
+  "bpm": 122.0,
+  "phase": 0.0164,
+  "start": 1.0,
+  "source": "07-summer-party-kulakovka.mp3",
+  "sourceStart": 86.009
+ },
+ "08-luxury-life.m4a": {
+  "bpm": 120.0,
+  "phase": 0.0,
+  "start": 1.0,
+  "source": "08-luxury-life-kulakovka.mp3",
+  "sourceStart": 79.63
+ },
+ "09-house-music.m4a": {
+  "bpm": 120.0,
+  "phase": 0.0,
+  "start": 1.0,
+  "source": "09-house-music-atlasaudio.mp3",
+  "sourceStart": 17.557
+ },
+ "10-house-beat.m4a": {
+  "bpm": 125.0,
+  "phase": 0.04,
+  "start": 1.0,
+  "source": "10-house-beat-monume.mp3",
+  "sourceStart": 60.335
+ },
+ "11-ibiza-house.m4a": {
+  "bpm": 120.0,
+  "phase": 0.0,
+  "start": 1.0,
+  "source": "11-ibiza-house-monume.mp3",
+  "sourceStart": 44.536
+ },
+ "12-festival-party.m4a": {
+  "bpm": 125.0,
+  "phase": 0.04,
+  "start": 1.0,
+  "source": "12-festival-party-monume.mp3",
+  "sourceStart": 59.615
+ },
+ "13-house.m4a": {
+  "bpm": 120.0,
+  "phase": 0.0,
+  "start": 1.0,
+  "source": "13-house-monume.mp3",
+  "sourceStart": 96.63
+ }
+}
