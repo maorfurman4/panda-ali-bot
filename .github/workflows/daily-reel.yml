@@ -5,8 +5,6 @@
 name: Daily reel
 
 on:
-  push: # TEMPORARY: one real run from the branch before merge (owner, 2026-11-15); removed in the next commit
-    branches: [reels-auto-style2]
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
