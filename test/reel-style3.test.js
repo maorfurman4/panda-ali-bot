@@ -106,3 +106,21 @@ test("style 3: a different house track each day, none again within 10 days", () 
   assert.deepEqual(got.slice(0, 3).sort(), pool);
   assert.equal(got[3], "a");
 });
+
+test("style 3: a shot never crosses the seller video's own cut, never repeats another shot's seconds, and is long enough for its sentence (owner: 'the frames were mixed up', 2026-11-15)", async () => {
+  const { sectionsOf } = await import("../reel-style3.js");
+  const sections = sectionsOf([5.07, 7.47, 14.13], 20.48); // the oil sprayer's own cuts
+  assert.deepEqual(sections, [[0, 5.07], [5.07, 7.47], [7.47, 14.13], [14.13, 20.48]]);
+  const bad = (f) => { const o = good(); f(o); return checkScript(o, P, 47, sectionsOf([9, 14.5, 16, 24], 47)).errors?.join(" | ") ?? ""; };
+  assert.match(bad((o) => { o.scenes[0].a = 8; o.scenes[0].b = 10.5; }), /crosses the video's own cut/);
+  assert.match(bad((o) => { o.scenes[0].a = 21.5; o.scenes[0].b = 23.5; }), /same seconds/);
+  const ok = checkScript(good(), P, 47, sectionsOf([9, 14.5, 16, 24], 47));
+  assert.equal(ok.errors, undefined);
+  assert.deepEqual(ok.script.scenes[0].sec, [0, 9]);
+  // GitHub's first reel: "זה שפריצר שמן שקוף ונוח לשימוש." spoken for 3.1 s over a 1.5 s shot -> written again
+  const says = ["נשפך לכם שמן?", "זה שפריצר שמן שקוף ונוח לשימוש.", "סוף."];
+  const heard = [{ word: "נשפך", start: 0, end: 0.5 }, { word: "שמן", start: 0.5, end: 2.4 }, { word: "לשימוש", start: 2.4, end: 5.5 }, { word: "סוף", start: 5.5, end: 6 }];
+  const shots = [{ a: 1.5, b: 3.5 }, { a: 0, b: 1.5 }, { a: 14, b: 18 }];
+  assert.match(timingProblems([1, 2, 3], heard, says, shots).join(" "), /only 1\.5 s/);
+  assert.deepEqual(timingProblems([1, 2, 3], heard, says, [shots[0], { a: 0, b: 2.0 }, shots[2]]), []);
+});

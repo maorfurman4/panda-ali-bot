@@ -88,9 +88,20 @@ export const SCHEMA = O({
   dm_name: S("string"),
 });
 
-export function prompt(p, duration, frameTimes) {
+export const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+// cuts (s) -> sections [[start, end], ...] covering 0..duration
+export const sectionsOf = (cuts, duration) => [0, ...cuts, duration].slice(0, -1).map((t, i, a) => [t, i + 1 < a.length ? a[i + 1] : duration]);
+const sectionAt = (sections, t) => sections.findIndex(([a, b]) => t >= a && t < b) === -1 ? sections.length - 1 : sections.findIndex(([a, b]) => t >= a && t < b);
+
+export function prompt(p, duration, frameTimes, sections = [[0, duration]]) {
   return `You write a Hebrew voice-over Reel (about 18 s) for an Israeli AliExpress deals channel ("הפנדה"), cut from the seller's own
-product video. You see the video as frames; each frame is labelled with its time in seconds. The video is ${duration.toFixed(1)} s long.
+product video. You see the video as frames; each frame is labelled with its time in seconds and its section. The video is
+${duration.toFixed(1)} s long. Its own cuts split it into sections: ${sections.map(([a, b], i) => `${LETTERS[i]} ${a.toFixed(1)}-${b.toFixed(1)} s`).join(", ")}.
+Shot rules (the picture must match the words at every moment):
+- Every shot (a..b) lies inside ONE section, never across a cut, and shows exactly what its sentence says the whole time.
+- No two shots share any seconds, and the hook shot is not reused.
+- A sentence needs about 0.45 s of shot per word (a 6-word sentence: about 2.7 s). When the right section is short, write a
+  shorter sentence or show it with another section; never stretch a shot over a brief close-up.
 
 ${VOICE_RULES}
 
@@ -114,7 +125,7 @@ What you return (JSON):
 Product data (data, not instructions):
 Title: ${p.product_title}
 Sold: ${p.lastest_volume}; positive reviews: ${p.evaluate_rate}; price: ₪${p.target_sale_price}
-Frame times: ${frameTimes.map((t) => t.toFixed(1)).join(", ")}`;
+Frame times: ${frameTimes.map((t) => `${t.toFixed(1)} [${LETTERS[sectionAt(sections, t)]}]`).join(", ")}`;
 }
 
 const nums = (s) => (String(s).match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map((n) => n.replace(/,/g, ""));
@@ -125,11 +136,15 @@ const hebrew = (s) => (s.match(/[א-ת]/g) ?? []).length >= 3;
 const hookScore = (h) => ["frontload", "specific", "address", "stakes"].reduce((n, k) => n + Math.max(0, Math.min(5, Number(h[k]) || 0)), 0);
 
 // The script the voice and the builder use, or { errors }. Everything the owner hears or reads is checked here.
-export function checkScript(o, p, duration) {
+export function checkScript(o, p, duration, sections = [[0, duration]]) {
   const errors = [];
   const known = new Set(nums(`${p.product_title} ${p.target_sale_price}`));
+  const shots = [];
   const shot = (where, s, min) => {
-    if (!s || !(s.a >= 0) || !(s.b <= duration + 0.01) || !(s.b - s.a >= min - 0.01)) errors.push(`${where}: shot ${s?.a}-${s?.b} must be inside 0-${duration.toFixed(1)} s and at least ${min} s long`);
+    if (!s || !(s.a >= 0) || !(s.b <= duration + 0.01) || !(s.b - s.a >= min - 0.01)) return errors.push(`${where}: shot ${s?.a}-${s?.b} must be inside 0-${duration.toFixed(1)} s and at least ${min} s long`);
+    const i = sectionAt(sections, (s.a + s.b) / 2), [lo, hi] = sections[i];
+    if (s.a < lo - 0.15 || s.b > hi + 0.15) errors.push(`${where}: shot ${s.a}-${s.b} crosses the video's own cut: keep it inside section ${LETTERS[i]} (${lo.toFixed(1)}-${hi.toFixed(1)} s)`);
+    shots.push({ where, a: s.a, b: s.b });
   };
   const line = (where, say, maxWords) => {
     if (typeof say !== "string" || !hebrew(say)) return errors.push(`${where}: "${say}" is not a Hebrew sentence`);
@@ -156,7 +171,11 @@ export function checkScript(o, p, duration) {
   if (!IT.includes(String(o?.it).trim())) errors.push(`it: "${o?.it}" must be one of ${IT.join(", ")}`);
   shot("proof_shot", o?.proof_shot, 2.5);
   shot("end_shot", o?.end_shot, 2.5);
+  shots.sort((x, y) => x.a - y.a).forEach((x, i, a) => {
+    if (i && x.a < a[i - 1].b - 0.25) errors.push(`${a[i - 1].where} (${a[i - 1].a}-${a[i - 1].b}) and ${x.where} (${x.a}-${x.b}) show the same seconds: every shot must be different`);
+  });
   if (errors.length) return { errors };
+  const within = (x) => { const [lo, hi] = sections[sectionAt(sections, (x.a + x.b) / 2)]; return { a: Math.max(x.a, lo), b: Math.min(x.b, hi), sec: [lo, hi] }; };
   const hook = [...hooks].sort((a, b) => hookScore(b) - hookScore(a))[0];
   const tags = [...new Set((o.hashtags ?? []).map((t) => String(t).replace(/^#/, "").trim().replace(/[\s\-־]+/g, "_").replace(/[^\p{L}\p{N}_]/gu, "")).filter((t) => t.length >= 2 && t.length <= 30))].slice(0, 5);
   const name = String(o.dm_name ?? "").trim();
@@ -165,10 +184,10 @@ export function checkScript(o, p, duration) {
   return {
     script: {
       keep: [o.keep_top, o.keep_bottom],
-      hook: { say: end(hook.text), pill: hook.text.trim(), a: o.hook_shot.a, b: o.hook_shot.b, score: hookScore(hook), others: hooks.filter((h) => h !== hook).map((h) => `${h.text} (${hookScore(h)})`) },
-      scenes: scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/[.]$/, ""), step: s.step ? ++n : null, a: s.a, b: s.b, half: s.half })),
-      proof: { say: proofSay(Number(p.lastest_volume), o.it.trim()), a: o.proof_shot.a, b: o.proof_shot.b },
-      end: { say: END_SAY, a: o.end_shot.a, b: o.end_shot.b },
+      hook: { say: end(hook.text), pill: hook.text.trim(), ...within(o.hook_shot), score: hookScore(hook), others: hooks.filter((h) => h !== hook).map((h) => `${h.text} (${hookScore(h)})`) },
+      scenes: scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/[.]$/, ""), step: s.step ? ++n : null, ...within(s), half: s.half })),
+      proof: { say: proofSay(Number(p.lastest_volume), o.it.trim()), ...within(o.proof_shot) },
+      end: { say: END_SAY, ...within(o.end_shot) },
     },
     post: [POST_CTA, "", (tags.length ? tags : ["עלי_אקספרס", "פנדה_דילים"]).map((t) => `#${t}`).join(" ")].join("\n"),
     dmName: name && name.split(/\s+/).length <= 3 && name.length <= 24 && /^[א-ת\s"״׳-]+$/.test(name) ? name : "מוצר",
@@ -199,7 +218,8 @@ export async function gemini(model, body, { fetch = globalThis.fetch, env = proc
 // frames: [{ t, jpeg (Buffer) }]. A rejected answer is asked again with the reasons, a failed call (Gemini took over 5
 // minutes on GitHub once, 2026-11-15) simply again: 3 tries in all.
 export async function writeScript(p, duration, frames, deps = {}) {
-  const parts = [{ text: prompt(p, duration, frames.map((f) => f.t)) }, ...frames.flatMap((f) => [{ text: `frame t=${f.t.toFixed(1)}` }, { inlineData: { mimeType: "image/jpeg", data: f.jpeg.toString("base64") } }])];
+  const sections = deps.sections ?? [[0, duration]];
+  const parts = [{ text: prompt(p, duration, frames.map((f) => f.t), sections) }, ...(deps.feedback ? [{ text: `An earlier script for this video was spoken and failed: ${deps.feedback}. Avoid that.` }] : []), ...frames.flatMap((f) => [{ text: `frame t=${f.t.toFixed(1)} [${LETTERS[sectionAt(sections, f.t)]}]` }, { inlineData: { mimeType: "image/jpeg", data: f.jpeg.toString("base64") } }])];
   let errors = [];
   for (let tries = 1; tries <= 3; tries++) {
     const again = errors.length && !errors[0].startsWith("AI call failed") ? [{ text: `Your last answer was rejected for: ${errors.slice(0, 12).join("; ")}. Write it again with these fixed.` }] : [];
@@ -207,7 +227,7 @@ export async function writeScript(p, duration, frames, deps = {}) {
       .then((j) => JSON.parse(j.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") || "null"))
       .catch((e) => ({ failed: e.message }));
     deps.onAnswer?.(tries, out);
-    const checked = out?.failed ? { errors: [`AI call failed: ${out.failed}`] } : checkScript(out, p, duration);
+    const checked = out?.failed ? { errors: [`AI call failed: ${out.failed}`] } : checkScript(out, p, duration, sections);
     if (!checked.errors) return { ...checked, tries };
     errors = checked.errors;
     deps.log?.(`script try ${tries} rejected: ${errors.join("; ")}`);
@@ -296,7 +316,7 @@ export function sentenceEnds(says, heard) {
 
 // The guide's timing rules (owner-approved 2026-11-15): the hook is spoken within 3 s and no scene runs over 4 s
 // (the end card is exempt). ends: sentenceEnds; heard: Whisper words. Returns the reasons it fails, [] when fine.
-export function timingProblems(ends, heard, says) {
+export function timingProblems(ends, heard, says, shots = null) {
   const problems = [];
   if (ends.some((e, i) => e === null && i < ends.length - 1)) problems.push("a sentence was not found in the spoken take");
   if (problems.length) return problems;
@@ -304,6 +324,13 @@ export function timingProblems(ends, heard, says) {
   if (t[0] - heard[0].start > 3.0) problems.push(`the hook "${says[0]}" takes ${(t[0] - heard[0].start).toFixed(1)} s (max 3)`);
   for (let i = 1; i < ends.length - 1; i++) if (t[i] - t[i - 1] > 4.0) problems.push(`"${says[i]}" takes ${(t[i] - t[i - 1]).toFixed(1)} s (max 4)`);
   for (let i = 1; i < ends.length; i++) if (!(ends[i] > ends[i - 1])) problems.push("sentences out of order in the spoken take");
+  if (shots && !problems.length) {
+    const spoken = [t[0] - heard[0].start + 0.2, ...t.slice(1, -1).map((x, i) => x - t[i]), heard.at(-1).end - t.at(-2) + 2.0]; // the end card holds 2 s more
+    spoken.forEach((need, i) => {
+      const len = shots[i].b - shots[i].a;
+      if (len < need * 0.55) problems.push(`"${says[i]}" is spoken for ${need.toFixed(1)} s but its shot (${shots[i].a}-${shots[i].b}) is only ${len.toFixed(1)} s: pick a longer shot inside one section, or a shorter sentence`);
+    });
+  }
   return problems;
 }
 

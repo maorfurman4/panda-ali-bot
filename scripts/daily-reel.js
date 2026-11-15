@@ -17,7 +17,7 @@ import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js
 import { previewExtra } from "../reels.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
-  captionList, dmText, VIDEO_HOST, MIN_VIDEO_S,
+  captionList, dmText, sectionsOf, VIDEO_HOST, MIN_VIDEO_S,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -73,11 +73,14 @@ async function main() {
   const dur = duration(video);
   if (dur < MIN_VIDEO_S) return note(`הסרטון של המוכר ל${id} קצר מדי (${dur.toFixed(1)} שניות). אין סרטון היום.`);
 
+  // the seller video's own cuts: a shot never runs across one (it showed the next, unrelated shot, owner 2026-11-15)
+  const probe = JSON.parse(execFileSync("python3", [join(ROOT, "reels", "style3.py"), "--probe", video]).toString());
+  const sections = sectionsOf(probe.cuts, dur);
   const fr = frames(video, join(work, "frames"), dur);
-  console.log(`seller video ${dur.toFixed(1)} s, ${fr.length} frames to Gemini`);
-  let written, heard, ends, voice;
+  console.log(`seller video ${dur.toFixed(1)} s, picture ${probe.area}, cuts ${probe.cuts.join(", ") || "none"}; ${fr.length} frames to Gemini`);
+  let written, heard, ends, voice, feedback = "";
   for (let round = 1; round <= 2; round++) { // a take that breaks the timing rules: the script is written once more
-    written = await writeScript(p, dur, fr, { log, onAnswer: (n, raw) => writeFileSync(join(work, `script-r${round}-try${n}.json`), JSON.stringify(raw, null, 1)) });
+    written = await writeScript(p, dur, fr, { log, sections, feedback, onAnswer: (n, raw) => writeFileSync(join(work, `script-r${round}-try${n}.json`), JSON.stringify(raw, null, 1)) });
     if (written.errors) return note(`התסריט ש-Gemini כתב ל${p.product_title.slice(0, 50)} לא עבר את הבדיקות, אז לא בניתי סרטון. (${written.errors.slice(0, 3).join("; ")})`);
     const says = sentences(written.script);
     voice = join(work, "voice.wav");
@@ -85,9 +88,11 @@ async function main() {
     heard = await wordTimes(readFileSync(voice));
     writeFileSync(join(work, "words.json"), JSON.stringify(heard));
     ends = sentenceEnds(says, heard);
-    const problems = timingProblems(ends, heard, says);
+    const sc0 = written.script;
+    const problems = timingProblems(ends, heard, says, [sc0.hook, ...sc0.scenes, sc0.proof, sc0.end]);
     console.log(`round ${round}: ${says.join(" ")}\n  heard: ${heard.map((w) => w.word).join(" ")}\n  ends ${JSON.stringify(ends)} ${problems.join("; ") || "timing ok"}`);
     if (!problems.length) break;
+    feedback = problems.slice(0, 4).join("; ");
     if (round === 2) return note(`הקריינות ל${p.product_title.slice(0, 50)} לא עמדה בכללי הזמנים פעמיים (${problems.slice(0, 2).join("; ")}). אין סרטון היום.`);
   }
 
@@ -96,7 +101,7 @@ async function main() {
   const track = nextTrack(state, Object.keys(beats));
   const spec = {
     video, voice, words: heard, ends, keep: sc.keep,
-    shots: [sc.hook, ...sc.scenes, sc.proof, sc.end].map(({ a, b, half }) => ({ a, b, half: half ?? "full" })),
+    shots: [sc.hook, ...sc.scenes, sc.proof, sc.end].map(({ a, b, half, sec }) => ({ a, b, sec, half: half ?? "full" })),
     pills: { hook: sc.hook.pill, scenes: sc.scenes.map((s) => ({ text: s.pill, step: s.step })) },
     proof: { sold: Number(p.lastest_volume), rate: `${Math.round(parseFloat(p.evaluate_rate))}%`, price: p.target_sale_price },
     track: { file: join(ROOT, "reels", "music", track), bpm: beats[track].bpm, start: beats[track].start },

@@ -157,6 +157,24 @@ def active_area(f, sw, sh):
     return (x, y, w, h) if w >= sw * 0.25 and h >= sh * 0.25 else (0, 0, sw, sh)
 
 
+def cuts(f, area, dur, th=0.25):
+    """the seller video's own cuts (scene changes measured inside the picture, so black bars don't hide them), as seconds;
+    cuts closer than 0.4 s to another cut or to either end are dropped"""
+    x, y, w, h = area
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", f, "-vf", f"crop={w}:{h}:{x}:{y},select='gt(scene,{th})',showinfo", "-f", "null", "-"],
+                       capture_output=True, text=True).stderr
+    out = []
+    for t in sorted(float(m) for m in re.findall(r"pts_time:([\d.]+)", r)):
+        if 0.4 <= t <= dur - 0.4 and (not out or t - out[-1] >= 0.4): out.append(round(t, 2))
+    return out
+
+
+def probe(f):
+    sw, sh = src_size(f)
+    area = active_area(f, sw, sh)
+    return {"area": area, "duration": round(k.dur(f), 2), "cuts": cuts(f, area, k.dur(f))}
+
+
 def box_for(spec, half, area):
     """inside the picture: the keep band (no burned-in text), narrowed to one half of a split-screen frame when asked"""
     ax, ay, aw, ah = area
@@ -169,13 +187,15 @@ def box_for(spec, half, area):
     return ax // 2 * 2, y0, aw // 2 * 2, y1 - y0
 
 
-def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, dur=None):
-    """source a..b slowed (never sped up) to fill `frames`; under 0.8x motion-interpolated; a short source is stretched to
-    the video's end first, and the last frame held if still short"""
+def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, sec=None):
+    """source a..b slowed (never sped up, at most to 0.5x) to fill `frames`; under 0.8x motion-interpolated. A short shot
+    grows only inside its own section `sec` of the seller video (never into the next shot); the last frame is held if
+    it is still short (scripts/daily-reel.js asks for a longer shot before it comes to that)"""
     need = frames / FPS + 0.03
-    if b - a < need * 0.6: b = min(dur, a + need * 0.6)
-    if b - a < need * 0.6: a = max(0.0, b - need * 0.6)
-    speed = min(1.0, round((b - a) / need, 3))
+    lo, hi = sec or (a, b)
+    if b - a < need * 0.5: b = min(hi, a + need * 0.5)
+    if b - a < need * 0.5: a = max(lo, b - need * 0.5)
+    speed = max(0.5, min(1.0, round((b - a) / need, 3)))
     x, y, w, h = box
     slow = "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1," if speed < 0.8 else ""
     z = f"(1+{push}*t/{frames / FPS:.3f})"
@@ -234,7 +254,6 @@ def main(spec_path, out):
     sw, sh = src_size(spec["video"])
     area = active_area(spec["video"], sw, sh)
     print(f"source {sw}x{sh}, picture {area}")
-    vdur = k.dur(spec["video"])
     beat = 60 / spec["track"]["bpm"]
     v = tighten(spec, work)
     shots, ends = spec["shots"], spec["ends"]
@@ -251,10 +270,10 @@ def main(spec_path, out):
     files = []
     for i, s in enumerate(shots):
         box = box_for(spec, s.get("half", "full"), area)
-        files.append(clip(spec, work, f"shot{i}", s["a"], s["b"], N[i], box, punch=(i == 1), push=0.08 if i >= last - 1 else 0.0, dur=vdur))
+        files.append(clip(spec, work, f"shot{i}", s["a"], s["b"], N[i], box, punch=(i == 1), push=0.08 if i >= last - 1 else 0.0, sec=s.get("sec")))
     hook = shots[0]
-    if hook["a"] >= 0.35:  # the end dissolves into the hook's first frame, so the replay has no seam
-        pre = clip(spec, work, "pre", hook["a"] - 0.32, hook["a"], SEAM, box_for(spec, hook.get("half", "full"), area), dur=vdur)
+    if hook["a"] - (hook.get("sec") or [0])[0] >= 0.35:  # the end dissolves into the hook's first frame (same shot), so the replay has no seam
+        pre = clip(spec, work, "pre", hook["a"] - 0.32, hook["a"], SEAM, box_for(spec, hook.get("half", "full"), area))
         endx = os.path.join(work, "end-seam.mp4")
         k.run(["-i", files[last], "-i", pre, "-filter_complex",
                f"[0][1]xfade=transition=fade:duration={(SEAM - 1) / FPS:.4f}:offset={(N[last] - SEAM) / FPS:.4f},{k.TO_YUV}", *ENC, "-frames:v", str(N[last]), endx])
@@ -301,4 +320,5 @@ def main(spec_path, out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    if sys.argv[1] == "--probe": print(json.dumps(probe(sys.argv[2])))  # scripts/daily-reel.js, before Gemini
+    else: main(sys.argv[1], sys.argv[2])
