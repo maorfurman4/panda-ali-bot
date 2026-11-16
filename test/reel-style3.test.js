@@ -124,3 +124,21 @@ test("style 3: a shot never crosses the seller video's own cut, never repeats an
   assert.match(timingProblems([1, 2, 3], heard, says, shots).join(" "), /only 1\.5 s/);
   assert.deepEqual(timingProblems([1, 2, 3], heard, says, [shots[0], { a: 0, b: 2.0 }, shots[2]]), []);
 });
+
+test("style 3: one reel a day (Israel date), however many times the morning run is started", async () => {
+  const { sentToday, markUsed } = await import("../reel-style3.js");
+  const at = Date.parse("2026-11-16T02:45:00Z"); // 04:45 Israel
+  const s = markUsed({}, 1, "a", at);
+  assert.equal(sentToday(s, Date.parse("2026-11-16T04:45:00Z")), true);
+  assert.equal(sentToday(s, Date.parse("2026-11-16T22:30:00Z")), false, "00:30 Israel is the next day");
+  assert.equal(sentToday({}, at), false);
+});
+
+test("style 3: an overloaded Gemini model hands over to the next one", async () => {
+  const { geminiAny } = await import("../reel-style3.js");
+  const asked = [];
+  const fetch = async (url) => { const m = url.split("/models/")[1].split(":")[0]; asked.push(m); return m === "b" ? { ok: true, status: 200, json: async () => ({ answer: m }) } : { ok: false, status: 503, json: async () => ({ error: { status: "UNAVAILABLE", message: "high demand" } }) }; };
+  const j = await geminiAny(["a", "b", "c"], {}, { fetch, env: { GEMINI_API_KEY: "k" }, sleep: async () => {} });
+  assert.equal(j.answer, "b");
+  assert.deepEqual(asked, ["a", "a", "b"]);
+});

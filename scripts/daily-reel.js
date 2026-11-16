@@ -17,7 +17,7 @@ import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js
 import { previewExtra } from "../reels.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
-  captionList, dmText, sectionsOf, VIDEO_HOST, MIN_VIDEO_S,
+  captionList, dmText, sectionsOf, sentToday, VIDEO_HOST, MIN_VIDEO_S,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -57,6 +57,7 @@ function frames(video, dir, dur) {
 }
 
 async function main() {
+  if (!env.REEL_PRODUCT && !dry && sentToday(state)) return console.log("today's reel already reached the owner: nothing to do");
   const p = await product();
   if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר, 10,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
   const id = String(p.product_id);
@@ -81,7 +82,9 @@ async function main() {
   let written, heard, ends, voice, feedback = "";
   for (let round = 1; round <= 2; round++) { // a take that breaks the timing rules: the script is written once more
     written = await writeScript(p, dur, fr, { log, sections, feedback, onAnswer: (n, raw) => writeFileSync(join(work, `script-r${round}-try${n}.json`), JSON.stringify(raw, null, 1)) });
-    if (written.errors) return note(`התסריט ש-Gemini כתב ל${p.product_title.slice(0, 50)} לא עבר את הבדיקות, אז לא בניתי סרטון. (${written.errors.slice(0, 3).join("; ")})`);
+    if (written.errors) return note(written.errors.every((e) => e.startsWith("AI call failed"))
+      ? `Gemini לא ענה הבוקר (עומס אצל גוגל, ניסיתי 3 מודלים), אז אין סרטון. אפשר ללחוץ Run workflow ב-GitHub מאוחר יותר. (${written.errors[0].slice(0, 160)})`
+      : `התסריט ש-Gemini כתב ל${p.product_title.slice(0, 50)} לא עבר את הבדיקות, אז לא בניתי סרטון. (${written.errors.slice(0, 3).join("; ")})`);
     const says = sentences(written.script);
     voice = join(work, "voice.wav");
     writeFileSync(voice, await speak(says.join(" "), { log }));

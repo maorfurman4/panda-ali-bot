@@ -13,8 +13,10 @@ export const CHANNEL = "t.me/panda_dilim";
 export const END_SAY = "רוצים את הקישור? כתבו פנדה בתגובות.";
 export const POST_CTA = 'כתבו "פנדה" ואשלח לכם קישור לפרטי 👇'; // the whole post, with the hashtags (owner, 2026-11-15)
 export const VOICE = "Sadachbia";
-export const TTS_MODEL = "gemini-3.8-flash-tts";
-export const SCRIPT_MODEL = "gemini-3.8-flash";
+// Fallback chains: the first model that answers wins. gemini-3.8-flash timed out and said "high demand" three times on
+// 2026-11-16 at 12:15 Israel time; 3.5-flash wrote a good script in 29 s the same hour.
+export const SCRIPT_MODELS = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-2.5-flash"];
+export const TTS_MODELS = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-3.1-flash-tts-preview"];
 const VOICE_RULES = readFileSync(new URL("./reels/voice.md", import.meta.url), "utf8");
 const TTS_STYLE = `### DIRECTOR'S NOTES (do not read aloud)
 Speaker: a native Israeli man with a natural Israeli accent. Style: an energetic, charismatic Israeli Instagram creator excitedly telling a friend about a gadget he loves. Fast, punchy, warm, confident, real enthusiasm.
@@ -58,6 +60,11 @@ export function nextTrack(state, pool, now = Date.now()) {
   const rested = pool.filter((f) => !(now - (last[f] ?? -Infinity) < TRACK_GAP_DAYS * DAY));
   return (rested.length ? rested : pool).reduce((a, b) => ((last[b] ?? 0) < (last[a] ?? 0) ? b : a));
 }
+// One reel a day: the morning run is started twice (cron-job.org at 04:40 and 06:40, GitHub's own schedule as a backup that
+// once came 7.5 hours late, 2026-11-16); a run after the day's reel reached the owner does nothing.
+const israelDay = (t) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
+export const sentToday = (state, now = Date.now()) => (state.used ?? []).some((u) => israelDay(u.at) === israelDay(now));
+
 export const markUsed = (state, id, track, now = Date.now()) => ({
   ...state,
   used: [...(state.used ?? []), { id: String(id), at: now }].slice(-500),
@@ -201,10 +208,11 @@ export const sentences = (sc) => [sc.hook.say, ...sc.scenes.map((s) => s.say), s
 const API = "https://generativelanguage.googleapis.com/v1beta/models";
 export async function gemini(model, body, { fetch = globalThis.fetch, env = process.env, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), log = () => {} } = {}) {
   for (let i = 0; ; i++) {
-    const r = await fetch(`${API}/${model}:generateContent`, { method: "POST", headers: { "x-goog-api-key": env.GEMINI_API_KEY, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(env.GEMINI_TIMEOUT_MS ? Number(env.GEMINI_TIMEOUT_MS) : 300000) });
+    const r = await fetch(`${API}/${model}:generateContent`, { method: "POST", headers: { "x-goog-api-key": env.GEMINI_API_KEY, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(env.GEMINI_TIMEOUT_MS ? Number(env.GEMINI_TIMEOUT_MS) : 240000) });
     const j = await r.json().catch(() => ({}));
-    // free tier: a few requests a minute; Google says how long to wait
-    if ((r.status === 429 || r.status === 503) && i < 3) {
+    // free tier: a few requests a minute (429): Google says how long to wait. Overloaded (503): one more try, then the
+    // caller moves to the next model.
+    if ((r.status === 429 && i < 3) || (r.status === 503 && i < 1)) {
       const wait = Number(String(JSON.stringify(j)).match(/retry in ([\d.]+)s|"retryDelay":"(\d+)s"/)?.slice(1).find(Boolean) ?? 30);
       log(`gemini ${model}: ${r.status}, waiting ${Math.ceil(wait)} s`);
       await sleep((Math.ceil(wait) + 2) * 1000);
@@ -215,6 +223,15 @@ export async function gemini(model, body, { fetch = globalThis.fetch, env = proc
   }
 }
 
+// The first model in `models` that answers. A model that is overloaded, times out or fails moves on to the next.
+export async function geminiAny(models, body, deps = {}) {
+  let last;
+  for (const m of models) {
+    try { return await gemini(m, body, deps); } catch (e) { last = e; deps.log?.(`${m} failed: ${e.message.slice(0, 160)}`); }
+  }
+  throw last;
+}
+
 // frames: [{ t, jpeg (Buffer) }]. A rejected answer is asked again with the reasons, a failed call (Gemini took over 5
 // minutes on GitHub once, 2026-11-15) simply again: 3 tries in all.
 export async function writeScript(p, duration, frames, deps = {}) {
@@ -223,7 +240,10 @@ export async function writeScript(p, duration, frames, deps = {}) {
   let errors = [];
   for (let tries = 1; tries <= 3; tries++) {
     const again = errors.length && !errors[0].startsWith("AI call failed") ? [{ text: `Your last answer was rejected for: ${errors.slice(0, 12).join("; ")}. Write it again with these fixed.` }] : [];
-    const out = await gemini(deps.model ?? SCRIPT_MODEL, { contents: [{ parts: [...parts, ...again] }], generationConfig: { responseMimeType: "application/json", responseJsonSchema: SCHEMA, temperature: 0.7 } }, deps)
+    // a failed call starts the chain one model further on, so 3 tries reach 3 different models
+    const failedBefore = errors.length && errors[0].startsWith("AI call failed") ? tries - 1 : 0;
+    const models = deps.model ? [deps.model] : [...SCRIPT_MODELS.slice(failedBefore), ...SCRIPT_MODELS.slice(0, failedBefore)];
+    const out = await geminiAny(models, { contents: [{ parts: [...parts, ...again] }], generationConfig: { responseMimeType: "application/json", responseJsonSchema: SCHEMA, temperature: 0.7 } }, deps)
       .then((j) => JSON.parse(j.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") || "null"))
       .catch((e) => ({ failed: e.message }));
     deps.onAnswer?.(tries, out);
@@ -262,7 +282,7 @@ export function wav(pcm, rate = 24000) {
 }
 
 export async function speak(text, deps = {}) {
-  const j = await gemini(TTS_MODEL, { contents: [{ parts: [{ text: `${TTS_STYLE}\n${text}` }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE } } } } }, deps);
+  const j = await geminiAny(TTS_MODELS, { contents: [{ parts: [{ text: `${TTS_STYLE}\n${text}` }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE } } } } }, deps);
   const part = j.candidates?.[0]?.content?.parts?.find((x) => x.inlineData);
   if (!part) throw new Error("gemini tts: no audio");
   return wav(cleanTail(Buffer.from(part.inlineData.data, "base64")));
