@@ -17,7 +17,7 @@ import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js
 import { previewExtra } from "../reels.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
-  captionList, dmText, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S,
+  captionList, dmText, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -46,7 +46,28 @@ async function product() {
     return p;
   }
   const day = Math.floor(Date.now() / 864e5);
-  return pickProduct(queriesFor(day), { used: (state.used ?? []).map((u) => u.id), search: (q) => searchProducts(q, { lang: "EN", shorten: false }), log });
+  return pickProduct(queriesFor(day), { used: (state.used ?? []).map((u) => u.id), search: (q) => searchProducts(q, { lang: "EN", shorten: false }), log,
+    accept: async (p) => {
+      const s = await sellerVideo(p);
+      return s.dur < MIN_VIDEO_S ? `seller video only ${s.dur.toFixed(1)} s` : s.probe.area[3] < MIN_PICTURE_H ? `seller video too small (${s.probe.area[2]}x${s.probe.area[3]})` : true;
+    } });
+}
+
+// The seller's video, downloaded and measured once per product (picture area inside black bars, its own cuts).
+const videos = new Map();
+async function sellerVideo(p) {
+  const id = String(p.product_id);
+  if (videos.has(id)) return videos.get(id);
+  if (!String(p.product_video_url ?? "").startsWith(VIDEO_HOST)) throw new Error("no seller video");
+  const dir = join(out, id);
+  mkdirSync(dir, { recursive: true });
+  const video = join(dir, "seller.mp4");
+  const res = await fetch(p.product_video_url, { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(60000) });
+  if (!res.ok) throw new Error(`seller video: HTTP ${res.status}`);
+  writeFileSync(video, Buffer.from(await res.arrayBuffer()));
+  const s = { video, dur: duration(video), probe: JSON.parse(execFileSync("python3", [join(ROOT, "reels", "style3.py"), "--probe", video]).toString()) };
+  videos.set(id, s);
+  return s;
 }
 
 // 2 frames a second (at most 90), 384 px wide: what Gemini watches
@@ -60,7 +81,7 @@ function frames(video, dir, dur) {
 async function main() {
   if (auto && !env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) return console.log(`today's ${REELS_PER_DAY} automatic reels already reached the owner: nothing to do`);
   const p = await product();
-  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר, 10,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
+  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, 10,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
   const id = String(p.product_id);
   console.log(`product ${id}: ${p.product_title}\n  ₪${p.target_sale_price}, sold ${p.lastest_volume}, ${p.evaluate_rate} positive`);
   const work = join(out, id);
@@ -68,15 +89,10 @@ async function main() {
   writeFileSync(join(work, "product.json"), JSON.stringify(p, null, 1));
 
   if (!String(p.product_video_url ?? "").startsWith(VIDEO_HOST)) return note(`למוצר ${id} אין סרטון של המוכר.`);
-  const video = join(work, "seller.mp4");
-  const res = await fetch(p.product_video_url, { signal: AbortSignal.timeout(60000) });
-  if (!res.ok) throw new Error(`seller video: HTTP ${res.status}`);
-  writeFileSync(video, Buffer.from(await res.arrayBuffer()));
-  const dur = duration(video);
+  const { video, dur, probe } = await sellerVideo(p);
   if (dur < MIN_VIDEO_S) return note(`הסרטון של המוכר ל${id} קצר מדי (${dur.toFixed(1)} שניות). אין סרטון היום.`);
 
   // the seller video's own cuts: a shot never runs across one (it showed the next, unrelated shot, owner 2026-11-15)
-  const probe = JSON.parse(execFileSync("python3", [join(ROOT, "reels", "style3.py"), "--probe", video]).toString());
   const sections = sectionsOf(probe.cuts, dur);
   const fr = frames(video, join(work, "frames"), dur);
   console.log(`seller video ${dur.toFixed(1)} s, picture ${probe.area}, cuts ${probe.cuts.join(", ") || "none"}; ${fr.length} frames to Gemini`);

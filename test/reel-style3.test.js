@@ -149,3 +149,12 @@ test("style 3: an overloaded Gemini model hands over to the next one", async () 
   assert.equal(j.answer, "b");
   assert.deepEqual(asked, ["a", "a", "b"]);
 });
+
+test("style 3: a product whose seller video is too small or too short is passed over for the next best seller (garden sprayer, 360x480, came out soft, 2026-11-16)", async () => {
+  const lists = { a: [{ ...P, product_id: 1, lastest_volume: "90000" }, { ...P, product_id: 2, lastest_volume: "50000" }], b: [{ ...P, product_id: 3, lastest_volume: "40000" }] };
+  const tried = [];
+  const accept = async (p) => (tried.push(p.product_id), p.product_id === 3 ? true : p.product_id === 1 ? "seller video too small (360x480)" : "seller video only 9.0 s");
+  const p = await pickProduct(["a", "b"], { search: async (q) => lists[q], accept });
+  assert.equal(p.product_id, 3);
+  assert.deepEqual(tried, [1, 2, 3]);
+});

@@ -8,6 +8,9 @@ import { lookalikeBrand } from "./format.js";
 export const MIN_SOLD = 10000;   // a proven hit only (owner, 2026-11-15)
 export const MIN_POSITIVE = 95;  // % positive reviews
 export const MIN_VIDEO_S = 12;   // shorter seller videos don't hold 6-8 different moments
+// The seller's picture must be at least this tall: a full-screen reel blows it up to 1920, and a 480-high video (the garden
+// sprayer, 2026-11-16) came out visibly soft. 700+ keeps the blow-up under ~3.4x after cutting off burned-in text.
+export const MIN_PICTURE_H = 700;
 export const VIDEO_HOST = "https://video.aliexpress-media.com/";
 export const CHANNEL = "t.me/panda_dilim";
 export const END_SAY = "רוצים את הקישור? כתבו פנדה בתגובות.";
@@ -39,14 +42,20 @@ export function weakness(p) {
 }
 
 // The best seller with a video among the searches, skipping products already used. search(q) -> products.
-export async function pickProduct(queries, { used = [], search, maxQueries = 8, log = () => {} }) {
+// accept(p): true, or why the product can't carry a reel after all (its video is too small or too short): the next one is tried.
+export async function pickProduct(queries, { used = [], search, accept = async () => true, maxQueries = 8, log = () => {} }) {
   const skip = new Set(used.map(String));
   for (const q of queries.slice(0, maxQueries)) {
     const ok = (await search(q).catch((e) => (log(`${q}: ${e.message}`), [])))
       .filter((p) => !skip.has(String(p.product_id)) && !weakness(p))
       .sort((a, b) => Number(b.lastest_volume) - Number(a.lastest_volume));
     log(`${q}: ${ok.length} qualify`);
-    if (ok.length) return ok[0];
+    for (const p of ok) {
+      skip.add(String(p.product_id));
+      const why = await accept(p).catch((e) => e.message);
+      if (why === true) return p;
+      log(`  ${p.product_id}: ${why}`);
+    }
   }
   return null;
 }

@@ -324,7 +324,8 @@ def main(spec_path, out):
         fc.append(f"[{lab}][p{i}]overlay=0:0:format=gbrp:enable='between(t,{max(s, 0):.2f},{e:.2f})'[v{i}]"); lab = f"v{i}"
     fc.append(f"[{lab}]{k.TO_YUV}[vout]")
     k.run([*inp, "-i", audio, "-filter_complex", ";".join(fc), "-map", "[vout]", "-map", f"{len(pills) + 1}:a", "-t", f"{D:.3f}",
-           "-c:v", "libx264", "-preset", "medium", "-profile:v", "high", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30", "-g", "60",
+           # capped at 6 Mb/s: a busy 21 s reel came out at 18.1 MB, near the approve bot's 20 MB download limit (2026-11-16)
+           "-c:v", "libx264", "-preset", "medium", "-profile:v", "high", "-crf", "20", "-maxrate", "6M", "-bufsize", "12M", "-pix_fmt", "yuv420p", "-r", "30", "-g", "60",
            "-keyint_min", "60", "-sc_threshold", "0", *k.TAGS, "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", out])
     sheet = out.replace(".mp4", "-contact.png")
     k.run(["-i", out, "-vf", "fps=2,scale=216:-1,tile=10x5:padding=4", "-frames:v", "1", sheet])
