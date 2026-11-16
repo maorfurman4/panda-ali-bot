@@ -469,5 +469,3 @@ export function captionList(sc, p) {
 }
 
 // The private message for whoever comments "פנדה" (owner, 2026-11-14): the product link first, then the deals channel.
-// The deals-channel post that goes out with the reel itself when the owner presses publish (reels.js).
-export const channelText = (name, price, link) => [`🎬 מהרילס של היום: ${name}`, `💰 ₪${price}`, `👉 ${link}`].join("\n");
