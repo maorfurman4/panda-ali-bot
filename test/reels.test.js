@@ -37,9 +37,8 @@ test("reels: a video sent as a FILE keeps its full quality: the preview is the s
   assert.deepEqual(got, ["D1"]);
 });
 
-test("reels: no link in the post text (owner, 2026-11-13: comments get the link instead)", () => {
-  assert.doesNotMatch(POST_TEXT, /https?:|t\.me|www\./i);
-  assert.match(POST_TEXT, /פנדה/);
+test("reels: the post text is only the bio line, no link and no hashtags (owner, 2026-11-16)", () => {
+  assert.equal(POST_TEXT, "🔗 הקישור לערוץ הדילים בביו 👆");
 });
 
 test("reels: 'publish' shows it is working at once, publishes, reports each platform and closes the buttons", async () => {
