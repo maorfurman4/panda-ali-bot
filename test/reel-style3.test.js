@@ -15,9 +15,7 @@ const good = () => ({
   ],
   hero: "15 גרם?!",
   hook_shot: { a: 21, b: 23.4, pos: "middle" },
-  tease: { say: "ורגע, חכו למחיר.", a: 40, b: 42, pos: "upper" },
   slowmo: 1,
-  emoji: [{ scene: 1, char: "😮" }],
   scenes: [
     { say: "הכף הזאת היא גם משקל.", pill: "כף שהיא גם משקל", step: false, a: 5, b: 8.8, half: "full" },
     { say: "גורפים, והמשקל מופיע מיד.", pill: "1. גורפים, והמשקל מופיע מיד", step: true, a: 10.4, b: 13, half: "full" },
@@ -52,7 +50,8 @@ test("style 3: the price line is code's, rounded up the honest way (owner, 2026-
   assert.equal(priceWords("52.32"), "פחות מ-55 שקל");
   assert.equal(priceWords("116.98"), "פחות מ-120 שקל");
   assert.equal(priceWords("30.00"), "רק 30 שקל");
-  assert.equal(priceSay("14.09"), "והמחיר? פחות מ-15 שקל.");
+  assert.equal(priceSay("14.09"), "תנחשו כמה זה עולה? פחות מ-15 שקל.");
+  assert.equal(priceSay("14.09", "כמה זה עולה לדעתכם?"), "כמה זה עולה לדעתכם? פחות מ-15 שקל.");
 });
 
 test("style 3: a good script becomes the voice text, the post is only the call to action, the best-scored hook wins (owner, 2026-11-15)", () => {
@@ -60,13 +59,11 @@ test("style 3: a good script becomes the voice text, the post is only the call t
   assert.equal(r.errors, undefined);
   assert.equal(r.script.hook.say, "עוד מנחשים כמה גרם יש בכף?");
   assert.equal(r.script.hook.pill, "עוד מנחשים כמה גרם יש בכף?", "the hook on screen is the spoken words");
-  assert.deepEqual(r.script.scenes.map((s) => s.step), [null, 1, null, 2, 3]);
-  assert.equal(r.script.scenes[2].tease, true, "the tease goes after the second scene");
+  assert.deepEqual(r.script.scenes.map((s) => s.step), [null, 1, 2, 3]);
   assert.equal(r.script.slowmo, 1);
-  assert.deepEqual(r.script.emoji, [{ scene: 1, char: "😮" }]);
   assert.equal(r.script.hero, "15 גרם?!");
   assert.equal(r.script.scenes[1].pill, "גורפים, והמשקל מופיע מיד", "the step number is the circle's, not the text's");
-  assert.deepEqual(sentences(r.script).slice(-2), ["והמחיר? פחות מ-15 שקל.", END_SAY]);
+  assert.deepEqual(sentences(r.script).slice(-2), ["תנחשו כמה זה עולה? פחות מ-15 שקל.", END_SAY], "the price comes as the answer to a guess (owner, 2026-11-16)");
   assert.equal(r.post.split("\n")[0], POST_CTA);
   assert.doesNotMatch(r.post, /\d{2},\d{3}|קנו/, "no buyer count in the post (owner, 2026-11-15)");
   assert.equal(r.dmName, "כף");
@@ -82,8 +79,6 @@ test("style 3: what the owner rejected never passes: a different sentence on scr
   assert.match(bad((o) => { o.scenes[2].b = 60; }), /shot/);
   assert.match(bad((o) => { o.keep_bottom = 0.4; }), /keep/);
   assert.match(bad((o) => { o.hero = "מברשת מדהימה לכל הבית"; }), /hero/);
-  assert.match(bad((o) => { o.emoji = [{ scene: 0, char: "🍕" }]; }), /emoji/);
-  assert.match(bad((o) => { o.tease.say = "אל תפספסו את המחיר."; }), /banned/);
 });
 
 test("style 3: each sentence's end is found in Whisper's words, though Whisper spells words its own way", () => {

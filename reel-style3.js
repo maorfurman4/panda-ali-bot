@@ -122,7 +122,10 @@ export function priceWords(price) {
   const shekel = (n) => `${n} ${n <= 10 ? "שקלים" : "שקל"}`;
   return Math.abs(up - p) < 0.005 ? `רק ${shekel(up)}` : `פחות מ-${shekel(up)}`;
 }
-export const priceSay = (price) => `והמחיר? ${priceWords(price)}.`;
+// The question before the number builds the wait the old mid-video tease didn't (owner, 2026-11-16: "חכו למחיר" excited
+// nobody): the old price shows and is struck while it is asked, the counter runs down and lands as the number is said.
+export const PRICE_ASKS = ["תנחשו כמה זה עולה?", "כמה זה עולה לדעתכם?"];
+export const priceSay = (price, ask = PRICE_ASKS[0]) => `${ask} ${priceWords(price)}.`;
 
 // ---------------- the script (one Gemini call: frames + data -> JSON) ----------------
 const S = (type, extra = {}) => ({ type, ...extra });
@@ -133,9 +136,7 @@ export const SCHEMA = O({
   hero: S("string"),
   hook_shot: O({ a: S("number"), b: S("number"), pos: S("string") }),
   scenes: S("array", { items: O({ say: S("string"), pill: S("string"), step: S("boolean"), a: S("number"), b: S("number"), half: S("string"), pos: S("string") }) }),
-  tease: O({ say: S("string"), a: S("number"), b: S("number"), pos: S("string") }),
   slowmo: S("integer"),
-  emoji: S("array", { items: O({ scene: S("integer"), char: S("string") }) }),
   proof_shot: O({ a: S("number"), b: S("number"), pos: S("string") }),
   end_shot: O({ a: S("number"), b: S("number"), pos: S("string") }),
   hashtags: S("array", { items: S("string") }),
@@ -171,13 +172,10 @@ What you return (JSON):
   caption: the same words as say or a short exact part of them, up to 30 characters), step (true when the sentence is a usage
   step, numbered 1, 2, 3 on screen), a and b (the source moment that shows exactly what the sentence says, b - a >= 1.5),
   half ("top", "bottom" or "full": a split-screen frame shows two pictures; pick the half that shows the sentence).
-- pos (in hook_shot, every scene, tease, proof_shot, end_shot): where the words go on screen so they never cover the product:
+- pos (in hook_shot, every scene, proof_shot, end_shot): where the words go on screen so they never cover the product:
   "upper", "middle" or "lower", the part of the frame the product is NOT in during that shot ("middle" when unsure).
-- tease: a short spoken line (up to 5 words, ending with ".") said after the second scene that makes the viewer wait for the
-  price at the end ("ורגע, חכו למחיר."), with its own shot a, b (b - a >= 1.5) and pos.
 - slowmo: the index (0-based, in scenes) of the scene whose shot shows the most satisfying moment, played in slow motion
   (its shot at least 1.5 s); -1 when none is worth it.
-- emoji: 1 or 2 items on the strongest moments only: scene (0-based index in scenes) and char, one of 😮 🔥 👀 ✨ 🤯 😍 👌 💯.
   Do not mention the price (code says it) or how many people bought it, and do not ask for comments: code adds those.
 - proof_shot: the best-looking moment of the product (the price is said over it) (b - a >= 2.5). end_shot: another one, different (b - a >= 2.5).
 - Every shot moment different; never a frame with a close-up face only, packaging only, or a title card.
@@ -195,12 +193,11 @@ const EMOJI = /\p{Extended_Pictographic}/u;
 const BANNED = /אל תפספסו|חובה|חייבים|מטורף|פנומנלי|משנה חיים|לא תאמינו|הסוד|בלי להתפשר|המושלם|הכי טוב בעולם|תודו לי|[—–!]/;
 export const words = (s) => String(s).replace(/[֑-ׇ]/g, "").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
 const hebrew = (s) => (s.match(/[א-ת]/g) ?? []).length >= 3;
-export const EMOJIS = ["😮", "🔥", "👀", "✨", "🤯", "😍", "👌", "💯"];
 const POS = ["upper", "middle", "lower"];
 const hookScore = (h) => ["frontload", "specific", "address", "stakes"].reduce((n, k) => n + Math.max(0, Math.min(5, Number(h[k]) || 0)), 0);
 
 // The script the voice and the builder use, or { errors }. Everything the owner hears or reads is checked here.
-export function checkScript(o, p, duration, sections = [[0, duration]]) {
+export function checkScript(o, p, duration, sections = [[0, duration]], opts = {}) {
   const errors = [];
   const known = new Set(nums(`${p.product_title} ${p.target_sale_price}`));
   const shots = [];
@@ -232,11 +229,8 @@ export function checkScript(o, p, duration, sections = [[0, duration]]) {
     if (EMOJI.test(s.pill) || BANNED.test(s.pill)) errors.push(`scene ${i}: pill "${s.pill}" has an emoji, a dash or "!"`);
     if (!["top", "bottom", "full"].includes(s.half)) errors.push(`scene ${i}: half must be top, bottom or full`);
   });
-  if (o?.tease) { line("tease", o.tease.say, 6); shot("tease", o.tease, 1.5); } else errors.push("tease: missing");
   const hero = String(o?.hero ?? "").trim();
   if (!/[א-ת]/.test(hero) || [...hero].length > 14 || hero.split(/\s+/).length > 2 || BANNED.test(hero.replace(/\?!$/, "")) || EMOJI.test(hero)) errors.push(`hero: "${hero}" must be one or two Hebrew words, up to 12 letters`);
-  const emoji = Array.isArray(o?.emoji) ? o.emoji : [];
-  if (emoji.length > 2 || emoji.some((e) => !EMOJIS.includes(String(e.char).trim()) || !(e.scene >= 0 && e.scene < scenes.length))) errors.push(`emoji: 1 or 2 items, each a scene index and one of ${EMOJIS.join(" ")}`);
   if (!(o?.slowmo === -1 || (o?.slowmo >= 0 && o.slowmo < scenes.length))) errors.push(`slowmo: -1 or a scene index (0-${scenes.length - 1})`);
   shot("proof_shot", o?.proof_shot, 2.5);
   shot("end_shot", o?.end_shot, 2.5);
@@ -252,19 +246,14 @@ export function checkScript(o, p, duration, sections = [[0, duration]]) {
   let n = 0;
   const pos = (x) => (POS.includes(x?.pos) ? x.pos : "middle");
   const made = scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/^\d+\s*[.)\-:]\s*/, "").replace(/[.]$/, ""), step: s.step ? ++n : null, ...within(s), half: s.half, pos: pos(s) }));
-  // the tease goes after the second scene (owner, 2026-11-16: "a line that holds the viewer to the end"); indexes after it move by one
-  const at = Math.min(2, made.length);
-  made.splice(at, 0, { say: end(o.tease.say), pill: o.tease.say.trim().replace(/[.]$/, ""), step: null, tease: true, ...within(o.tease), half: "full", pos: pos(o.tease) });
-  const moved = (i) => (i >= at ? i + 1 : i);
   return {
     script: {
       keep: [o.keep_top, o.keep_bottom],
       hero,
       hook: { say: end(hook.text), pill: hook.text.trim(), ...within(o.hook_shot), pos: pos(o.hook_shot), score: hookScore(hook), others: hooks.filter((h) => h !== hook).map((h) => `${h.text} (${hookScore(h)})`) },
       scenes: made,
-      slowmo: o.slowmo >= 0 ? moved(o.slowmo) : -1, // index in scenes (after the tease is in)
-      emoji: emoji.map((e) => ({ scene: moved(e.scene), char: String(e.char).trim() })),
-      proof: { say: priceSay(p.target_sale_price), ...within(o.proof_shot), pos: pos(o.proof_shot) },
+      slowmo: o.slowmo >= 0 ? o.slowmo : -1, // index in scenes
+      proof: { say: priceSay(p.target_sale_price, opts.priceAsk), ...within(o.proof_shot), pos: pos(o.proof_shot) },
       end: { say: END_SAY, ...within(o.end_shot), pos: pos(o.end_shot) },
     },
     post: [POST_CTA, "", (tags.length ? tags : ["עלי_אקספרס", "פנדה_דילים"]).map((t) => `#${t}`).join(" ")].join("\n"),
@@ -318,7 +307,7 @@ export async function writeScript(p, duration, frames, deps = {}) {
       .then((j) => JSON.parse(j.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") || "null"))
       .catch((e) => ({ failed: e.message }));
     deps.onAnswer?.(tries, out);
-    const checked = out?.failed ? { errors: [`AI call failed: ${out.failed}`] } : checkScript(out, p, duration, sections);
+    const checked = out?.failed ? { errors: [`AI call failed: ${out.failed}`] } : checkScript(out, p, duration, sections, { priceAsk: deps.priceAsk });
     if (!checked.errors) return { ...checked, tries };
     errors = checked.errors;
     deps.log?.(`script try ${tries} rejected: ${errors.join("; ")}`);
@@ -472,7 +461,6 @@ export function lookFor(state, sc, timeline, p) {
     hero: sc.hero,
     captions: timeline,
     slowmo: sc.slowmo >= 0 ? sc.slowmo + 1 : -1, // shot index (shot 0 is the hook)
-    emoji: sc.emoji.map((e) => ({ shot: e.scene + 1, char: e.char })),
   };
 }
 
@@ -481,7 +469,7 @@ export function captionList(sc, p) {
   const lines = [
     `0. מילה ענקית בפתיחה: ${sc.hero}`,
     `1. פתיחה: ${sc.hook.say} (ציון ${sc.hook.score}/20; האחרות: ${sc.hook.others.join(" · ")})`,
-    ...sc.scenes.map((s, i) => `${i + 2}. ${s.say}${s.tease ? " [משפט מתח]" : ""}${i === sc.slowmo ? " [הילוך איטי]" : ""}${sc.emoji.filter((e) => e.scene === i).map((e) => ` ${e.char}`).join("")}`),
+    ...sc.scenes.map((s, i) => `${i + 2}. ${s.say}${i === sc.slowmo ? " [הילוך איטי]" : ""}`),
     `${sc.scenes.length + 2}. ${sc.proof.say}  ←  על המסך: ₪${p.target_sale_price}`,
     `${sc.scenes.length + 3}. ${sc.end.say}`,
   ];

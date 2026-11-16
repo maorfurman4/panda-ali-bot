@@ -2,7 +2,6 @@
 - a giant word lands in the first half-second (it drops, slams or slides in, rotating per reel), with a boom;
 - the spoken words appear 2-3 at a time, in big white letters with a soft shadow, the word being said in the accent colour
   (rotating per reel), placed where the product isn't (Gemini's "pos" for each shot), inside Meta's safe zone;
-- one or two emoji pop on the strongest moments;
 - the price: the old one shows, a red line strikes it, then the number counts down to the real price, with a ka-ching, and
   stays to the end above the call to action;
 - sounds only at the strong moments (the opening word, the drop, the price).
@@ -61,8 +60,8 @@ def sequence(work, name, frames, D):
 def chunks(words, most=3, chars=16):
     out, cur = [], []
     for w in words:
-        if cur and (len(cur) >= most or sum(len(x["w"]) for x in cur) + len(w["w"]) > chars):
-            out.append(cur); cur = []
+        if cur and (len(cur) >= most or sum(len(x["w"]) for x in cur) + len(w["w"]) > chars or cur[-1]["w"][-1] in "?,"):
+            out.append(cur); cur = []  # a question mark or comma ends a group: "עולה?" and "פחות מ-12" never share the screen
         cur.append(w)
     return out + ([cur] if cur else [])
 
@@ -109,20 +108,6 @@ def hero_layers(spec, work, y=860):
     return [(p, 0.0, end, ("0", f"-1000*(1-{fx.back_out(0.0, 0.28)})"))], 0.25  # drop: falls from above, a small bounce
 
 
-# ---------------- emoji ----------------
-def emoji_layers(spec, t, work):
-    out = []
-    for e in spec.get("emoji", [])[:2]:
-        i = e["shot"]
-        if not (0 < i < len(t) - 1): continue
-        y = Y[spec["shots"][i].get("pos", "middle")] - 190
-        def body(size):
-            return f"<div style='position:absolute;left:120px;top:{y}px;transform:translateY(-50%);font-size:{size}px;line-height:1'>{esc(e['char'])}</div>"
-        s = t[i] + 0.15
-        out += [(png(work, body(230)), s, s + 0.08, None), (png(work, body(170)), s + 0.08, s + 1.4, None)]
-    return out
-
-
 # ---------------- the price ----------------
 def price_body(old, new_text, strike, accent):
     old_html = ""
@@ -135,24 +120,32 @@ def price_body(old, new_text, strike, accent):
             f"font-weight:900;{SHADOW}'>{old_html}{new_html}</div>")
 
 
-def price_frames(spec, t, last, D, work):
-    """the old price, struck by a red line, then the number counting down to the real price; returns (frames, landing time)"""
+def price_frames(spec, t, last, D, work, rt=None):
+    """the old price shows as the question is asked ("תנחשו כמה זה עולה?"), a red line strikes it, then the number counts
+    down and lands as the voice says the price; returns (frames, landing time)"""
     accent = spec["accent"]
     new = float(spec["proof"]["price"])
     old = float(spec["proof"].get("old_price") or 0)
     old = old if old > new * 1.05 else 0
     s = t[last - 1]
+    if rt and len(spec.get("captions", [])) >= 2:  # the old price shows with the question's first word, not at the cut
+        s = max(s, rt(spec["captions"][-2]["words"][0]["t0"]))
+    said = s + 1.6  # when the voice says the number: its first word with a digit, else 1.6 s into the price line
+    if rt and len(spec.get("captions", [])) >= 2:
+        num = next((w for w in spec["captions"][-2]["words"] if any(c.isdigit() for c in w["w"])), None)
+        if num: said = rt(num["t0"])
     if not old:
-        land = s + 0.35
+        land = max(s + 0.35, said)
         return [(png(work, price_body(None, f"₪{new:.2f}", 0, accent)), land, D)], land
     old_txt = f"{old:.2f}"
     frames = [(png(work, price_body(old_txt, "", 0, accent)), s, s + 0.35)]
     for j, p in enumerate([0.25, 0.5, 0.75, 1.0]):  # the strike is drawn across
         frames.append((png(work, price_body(old_txt, "", p, accent)), s + 0.35 + 0.06 * j, s + 0.41 + 0.06 * j))
-    steps = fx.price_steps(old, new, 12)
+    land = max(said, s + 1.2)  # the counter needs at least 0.6 s to read as a countdown
     c0 = s + 0.6
+    steps = fx.price_steps(old, new, max(8, min(18, round((land - c0) / 0.07) + 1)))
+    dt = (land - c0) / (len(steps) - 1)
     for j, val in enumerate(steps[:-1]):
-        frames.append((png(work, price_body(old_txt, f"₪{val}", 1.0, accent)), c0 + 0.075 * j, c0 + 0.075 * (j + 1)))
-    land = c0 + 0.075 * (len(steps) - 1)
+        frames.append((png(work, price_body(old_txt, f"₪{val}", 1.0, accent)), c0 + dt * j, c0 + dt * (j + 1)))
     frames.append((png(work, price_body(old_txt, f"₪{new:.2f}", 1.0, accent)), land, D))
     return frames, land
