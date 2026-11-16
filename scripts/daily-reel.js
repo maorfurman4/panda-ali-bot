@@ -17,7 +17,7 @@ import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js
 import { previewExtra } from "../reels.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
-  captionList, dmText, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
+  captionList, channelText, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -133,16 +133,15 @@ async function main() {
   execFileSync("python3", [join(ROOT, "reels", "style3.py"), join(work, "spec.json"), reel], { stdio: "inherit" });
 
   const link = await generateAffiliateLink(`https://www.aliexpress.com/item/${id}.html`);
-  const captions = captionList(sc, p), dm = dmText(written.dmName, link);
+  const captions = captionList(sc, p), dm = channelText(written.dmName, p.target_sale_price, link);
   writeFileSync(join(out, "post.txt"), written.post);
   writeFileSync(join(out, "captions.txt"), captions);
   writeFileSync(join(out, "dm.txt"), dm);
-  console.log(`track ${track}\n\n${captions}\n\n--- post ---\n${written.post}\n\n--- dm ---\n${dm}`);
+  console.log(`track ${track}\n\n${captions}\n\n--- post ---\n${written.post}\n\n--- deals channel, on publish ---\n${dm}`);
   if (dry) return console.log("dry run: nothing sent, state unchanged");
 
-  await api.sendDocument(owner, new InputFile(reel, `reel-${id}.mp4`), previewExtra(written.post));
+  await api.sendDocument(owner, new InputFile(reel, `reel-${id}.mp4`), previewExtra(written.post, dm));
   await api.sendMessage(owner, captions);
-  await api.sendMessage(owner, dm, { link_preview_options: { is_disabled: true } });
   writeFileSync(stateFile, JSON.stringify(markUsed(state, id, track, Date.now(), auto))); // only after the owner has it
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "sent=true\n");
   console.log(`sent to the owner; reel state saved (${(state.used ?? []).length + 1} products used)`);

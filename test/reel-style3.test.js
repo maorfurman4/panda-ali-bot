@@ -62,7 +62,9 @@ test("style 3: a good script becomes the voice text, the post is only the call t
   assert.equal(r.script.slowmo, 1);
   assert.equal(r.script.scenes[1].pill, "גורפים, והמשקל מופיע מיד", "the step number is the circle's, not the text's");
   assert.deepEqual(sentences(r.script).slice(-2), ["תנחשו כמה זה עולה? פחות מ-15 שקל.", END_SAY], "the price comes as the answer to a guess (owner, 2026-11-16)");
-  assert.equal(r.post.split("\n")[0], POST_CTA);
+  assert.ok(r.post.startsWith(POST_CTA), "the post is the bio line, the channel link for Facebook, then the hashtags");
+  assert.match(r.post, /בביו/);
+  assert.doesNotMatch(r.post, /פנדה"? ואשלח|בתגובות/, "no \"comment פנדה\" for now (owner, 2026-11-16)");
   assert.doesNotMatch(r.post, /\d{2},\d{3}|קנו/, "no buyer count in the post (owner, 2026-11-15)");
   assert.equal(r.dmName, "כף");
 });
@@ -79,7 +81,7 @@ test("style 3: what the owner rejected never passes: a different sentence on scr
 });
 
 test("style 3: each sentence's end is found in Whisper's words, though Whisper spells words its own way", () => {
-  const says = ["עוד מנחשים כמה גרם יש בכף?", "הכף הזאת היא גם משקל.", "גורפים, והמשקל מופיע מיד.", "כמעט 13 אלף אנשים כבר קנו אותה.", END_SAY];
+  const says = ["עוד מנחשים כמה גרם יש בכף?", "הכף הזאת היא גם משקל.", "גורפים, והמשקל מופיע מיד.", "כמעט 13 אלף אנשים כבר קנו אותה.", "רוצים את הקישור? כתבו פנדה בתגובות."];
   const heard = "עוד מנחשים כמה גרם יש בקף? הקף הזאת היא גם משקל גורפים והמשקל מופיע מיד כמעט 13,000 אנשים כבר קנו אותה רוצים את הכישור? כתבו פנדה בתגובות"
     .split(" ").map((word, i) => ({ word, start: i * 0.3, end: i * 0.3 + 0.28 }));
   const ends = sentenceEnds(says, heard);

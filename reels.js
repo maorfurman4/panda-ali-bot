@@ -25,10 +25,16 @@ const videoOf = (m) => m?.video ?? m?.document ?? null;
 // The post text travels in the preview's own caption, so each video can have its own (styles 2 and 3, owner 2026-11-14)
 // and the server still needs no memory: a press publishes the text the owner saw.
 const PREVIEW_HEAD = "תצוגה מקדימה. זה הטקסט שיעלה עם הסרטון:\n\n";
-export const previewExtra = (text = POST_TEXT) => ({ caption: `${PREVIEW_HEAD}${text}`, ...buttons([[{ text: "✅ לפרסם", callback_data: "pub" }, { text: "⏭ לדלג", callback_data: "skip" }]]) });
-const postTextOf = (preview) => (preview?.caption?.startsWith(PREVIEW_HEAD) && preview.caption.length > PREVIEW_HEAD.length ? preview.caption.slice(PREVIEW_HEAD.length) : POST_TEXT);
+// The reel's own product goes to the deals channel with the video when it is published, so whoever comes from the bio link
+// finds it there (owner, 2026-11-16). It rides in the preview too, under this line, so the server still needs no memory.
+const CHANNEL_HEAD = "\n\n📢 ובערוץ הדילים יעלה:\n";
+export const DEALS_CHANNEL = "@panda_dilim";
+export const previewExtra = (text = POST_TEXT, channel = "") => ({ caption: `${PREVIEW_HEAD}${text}${channel ? CHANNEL_HEAD + channel : ""}`, ...buttons([[{ text: "✅ לפרסם", callback_data: "pub" }, { text: "⏭ לדלג", callback_data: "skip" }]]) });
+const bodyOf = (preview) => (preview?.caption?.startsWith(PREVIEW_HEAD) && preview.caption.length > PREVIEW_HEAD.length ? preview.caption.slice(PREVIEW_HEAD.length) : null);
+const postTextOf = (preview) => bodyOf(preview)?.split(CHANNEL_HEAD)[0] || POST_TEXT;
+const channelTextOf = (preview) => bodyOf(preview)?.split(CHANNEL_HEAD)[1] ?? null;
 
-export function createReelsHandler({ api, ownerId, publish, download }) {
+export function createReelsHandler({ api, ownerId, publish, download, toChannel = null }) {
   const owner = String(ownerId);
   const working = new Set(); // previews being published right now: a second press waits for nothing
   const fromOwner = (x) => String(x?.from?.id) === owner;
@@ -58,11 +64,19 @@ export function createReelsHandler({ api, ownerId, publish, download }) {
       await answer("מפרסם...");
       await api.editMessageReplyMarkup(owner, preview.message_id, closed("⏳ מפרסם..."));
       const names = only ? [only] : Object.keys(PLATFORMS);
+      let bytes = null;
       const results = await download(file.file_id)
-        .then((bytes) => publish(bytes, postTextOf(preview), { only }))
+        .then((b) => publish((bytes = b), postTextOf(preview), { only }))
         .catch((e) => Object.fromEntries(names.map((p) => [p, { ok: false, error: e.message }])));
       const failed = names.filter((p) => !results[p]?.ok);
-      await api.sendMessage(owner, names.map((p) => `${results[p]?.ok ? "✅" : "❌"} ${PLATFORMS[p]}: ${results[p]?.ok ? "פורסם" : `נכשל (${results[p]?.error ?? "לא נוסה"})`}`).join("\n"));
+      const lines = names.map((p) => `${results[p]?.ok ? "✅" : "❌"} ${PLATFORMS[p]}: ${results[p]?.ok ? "פורסם" : `נכשל (${results[p]?.error ?? "לא נוסה"})`}`);
+      // the deals channel: once, on the first press, when at least one platform has the reel (a retry doesn't post it again)
+      const channel = channelTextOf(preview);
+      if (channel && !only && toChannel && bytes && failed.length < names.length) {
+        const sent = await toChannel(bytes, channel).then(() => null, (e) => e.message);
+        lines.push(sent ? `❌ ערוץ הדילים: נכשל (${sent})` : "✅ ערוץ הדילים: פורסם");
+      }
+      await api.sendMessage(owner, lines.join("\n"));
       // Retry only what failed: one failed platform is a button of its own; both failed, "pub" again.
       const retry = failed.length === 1 ? `pub:${failed[0]}` : failed.length ? (only ? `pub:${only}` : "pub") : null;
       await api.editMessageReplyMarkup(owner, preview.message_id, retry ? buttons([[{ text: "🔁 לנסות שוב את מה שנכשל", callback_data: retry }]]) : closed("✅ פורסם"));
