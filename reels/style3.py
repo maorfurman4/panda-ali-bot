@@ -17,6 +17,7 @@ import array, hashlib, json, math, os, re, subprocess, sys, wave
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import kit as k  # noqa: E402
+import fx  # noqa: E402
 
 FPS, W, H = 30, 1080, 1920
 BLUE = "#2AABEE"
@@ -52,6 +53,20 @@ def price_body(price):
     return (f'<div class="wrap"><div class="pill" style="flex-direction:column;gap:4px;padding:30px 70px">'
             f'<span style="font-size:46px;font-weight:600;color:#3b3f47">המחיר</span>'
             f'<span style="direction:ltr;font-size:104px;color:{BLUE};line-height:1.05">₪{esc(price)}</span></div></div>')
+
+
+def old_price_body(price):
+    """the price card's top: "המחיר" and the old price, struck in red (room left below for the new price)"""
+    return (f'<div class="wrap"><div class="pill" style="flex-direction:column;gap:4px;padding:26px 76px 160px;min-width:620px">'
+            f'<span style="font-size:54px;font-weight:600;color:#3b3f47">המחיר</span>'
+            f'<span style="direction:ltr;font-size:72px;color:#a4a7ad;text-decoration:line-through;text-decoration-color:#e53935;'
+            f'text-decoration-thickness:7px">₪{esc(price)}</span></div></div>')
+
+
+def new_price_body(price):
+    """the sale price alone, sized and placed to sit in the card's empty lower part"""
+    return (f'<div class="wrap" style="top:478px"><span style="direction:ltr;font:800 112px Heebo,sans-serif;color:{BLUE};'
+            f'text-shadow:0 4px 18px rgba(255,255,255,.9)">₪{esc(price)}</span></div>')
 
 
 END = ('<div class="wrap mid"><div class="pill end"><span>רוצים את הקישור?</span>'
@@ -225,7 +240,7 @@ def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, sec=None, f
     return out
 
 
-def mix(spec, v, D, work, out):
+def mix(spec, v, D, work, out, sfx=None):
     """house track from its first beat, ducked DUCK_DB under the voice (speech-keyed sidechain); whole mix to -15 LUFS"""
     tr = spec["track"]
     bed, voice, key, raw = (os.path.join(work, f) for f in ("bed.wav", "voice.wav", "key.wav", "mix-raw.wav"))
@@ -250,6 +265,11 @@ def mix(spec, v, D, work, out):
     music_db = VOICE_LUFS - k.ebur(bed)[0]  # music as loud as the voice when it is up, so it never covers him
     k.run(["-i", bed, "-i", key, "-i", voice, "-filter_complex",
            f"[0:a]volume={music_db:.2f}dB[m];[m][1:a]{duck}[md];[md][2:a]amix=inputs=2:normalize=0[a]", "-map", "[a]", "-c:a", "pcm_f32le", raw])
+    if sfx:  # effects' loudest moment 5 LU under the voice
+        g_sfx = VOICE_LUFS - 5 - k.ebur(sfx)[2]
+        k.run(["-i", raw, "-i", sfx, "-filter_complex", f"[1:a]volume={g_sfx:.2f}dB[s];[0:a][s]amix=inputs=2:normalize=0[a]", "-map", "[a]",
+               "-c:a", "pcm_f32le", raw + ".fx.wav"])
+        os.replace(raw + ".fx.wav", raw)
     gain = k.MIX_LUFS - k.ebur(raw)[0]
     for _ in range(3):  # the limiter takes some loudness off: add it back and limit again
         k.run(["-i", raw, "-af", f"volume={gain:.2f}dB,alimiter=limit={10 ** ((k.MIX_TP - 1) / 20):.4f}:level=false:attack=3:release=60",
@@ -285,7 +305,9 @@ def main(spec_path, out):
     files = []
     for i, s in enumerate(shots):
         box = box_for(spec, s.get("half", "full"), area)
-        files.append(clip(spec, work, f"shot{i}", s["a"], s["b"], N[i], box, punch=(i == 1), push=0.08 if i >= last - 1 else 0.0, sec=s.get("sec"), focus=s.get("focus", 0.5)))
+        pack = spec.get("fx")
+        files.append(clip(spec, work, f"shot{i}", s["a"], s["b"], N[i], box, punch=(i == 1 or (pack and i == 0)),
+                          push=0.08 if i >= last - 1 else (0.16 if pack and i == 2 else 0.0), sec=s.get("sec"), focus=s.get("focus", 0.5)))
     hook = shots[0]
     if hook["a"] - (hook.get("sec") or [0])[0] >= 0.35:  # the end dissolves into the hook's first frame (same shot), so the replay has no seam
         pre = clip(spec, work, "pre", hook["a"] - 0.32, hook["a"], SEAM, box_for(spec, hook.get("half", "full"), area), focus=hook.get("focus", 0.5))
@@ -314,17 +336,56 @@ def main(spec_path, out):
         x0, y0, x1, y1 = body_box(png)
         assert 269 <= y0 and y1 <= 1248 and x0 >= 65 and x1 <= 1015, ("pill outside Meta's safe zone", png, x0, y0, x1, y1)
 
+    pack = spec.get("fx")
+    layers = [(png, s, e, None) for png, s, e in pills]  # (png, start, end, (x expr, y expr) or None)
+    events = []
+    if pack:
+        assert pack in fx.PACKS, pack
+        kind = "rise" if pack == "punchy" else "side"
+        tp0 = t[last - 1]  # the price moment: "והמחיר?"
+        layers = [(png, s, e, fx.enter(kind, s)) for png, s, e in pills[:-2]]
+        old = float(spec["proof"].get("old_price") or 0)
+        new = float(pr["price"])
+        land = tp0 + 0.75  # the sale price lands as the voice says it
+        card = pill(work, old_price_body(f"{old:.2f}") if old > new * 1.05 else price_body(pr["price"]))
+        layers.append((card, tp0, t[last], fx.from_bottom(tp0) if pack == "punchy" else fx.from_side(tp0)))
+        if old > new * 1.05:
+            if pack == "punchy":
+                layers.append((pill(work, new_price_body(pr["price"])), land, t[last], fx.from_bottom(land, 0.4)))
+            else:  # the price rolls down from the old one to the sale price, 0.06 s a number
+                steps = fx.price_steps(old, new)
+                for j, val in enumerate(steps):
+                    a = land - 0.06 * (len(steps) - 1 - j)
+                    layers.append((pill(work, new_price_body(val)), a, a + 0.06 if j < len(steps) - 1 else t[last], None))
+        layers.append((pills[-1][0], t[last], D + 1, fx.enter(kind, t[last])))
+        events = [(0.0, "whoosh"), (t[1] - 0.02, "boom")] + [(x - 0.12, "whoosh") for x in t[2:last + 1]] \
+            + [(s, "pop") for _, s, _, _ in layers[:len(pills) - 2]] + [(land, "kaching")]
+    sfx = None
+    if events:
+        sfx = os.path.join(work, "sfx.wav")
+        fx.write_sfx(sfx, D, events)
     audio = os.path.join(work, "audio.wav")
-    lufs, tp = mix(spec, v, D, work, audio)
+    lufs, tp = mix(spec, v, D, work, audio, sfx)
     FI, FO = 0.1, 0.07
-    inp, fc, lab = ["-i", body], ["[0:v]scale=in_color_matrix=bt709:in_range=tv,format=gbrp[b]"], "b"
-    for i, (png, s, e) in enumerate(pills, 1):
+    base = "[0:v]scale=in_color_matrix=bt709:in_range=tv,format=gbrp"
+    if pack:  # the drop: a short shake and a white flash on the first cut, where the music kicks in
+        sx, sy = fx.shake(t[1])
+        base += f",crop=w=iw-28:h=ih-28:x='{sx}':y='{sy}',scale=1080:1920"
+    inp, fc, lab = ["-i", body], [base + "[b]"], "b"
+    if pack:
+        inp += ["-f", "lavfi", "-t", f"{D:.3f}", "-i", "color=white:s=1080x1920:r=30"]
+        fc.append(f"[1:v]format=rgba,colorchannelmixer=aa=0.75,fade=out:st={t[1]:.3f}:d=0.2:alpha=1[w]")
+        fc.append(f"[b][w]overlay=0:0:format=gbrp:enable='between(t,{t[1]:.2f},{t[1] + 0.2:.2f})'[bw]"); lab = "bw"
+    n0 = 2 if pack else 1
+    for i, (png, s, e, move) in enumerate(layers, n0):
         s, e = s - FI / 2, e + FO / 2
         inp += ["-loop", "1", "-framerate", "30", "-t", f"{D:.3f}", "-i", png]
         fc.append(f"[{i}:v]format=rgba,fade=in:st={max(s, 0):.3f}:d={FI}:alpha=1,fade=out:st={e - FO:.3f}:d={FO}:alpha=1[p{i}]")
-        fc.append(f"[{lab}][p{i}]overlay=0:0:format=gbrp:enable='between(t,{max(s, 0):.2f},{e:.2f})'[v{i}]"); lab = f"v{i}"
+        x, y = move or ("0", "0")
+        fc.append(f"[{lab}][p{i}]overlay=x='{x}':y='{y}':format=gbrp:enable='between(t,{max(s, 0):.2f},{e:.2f})'[v{i}]"); lab = f"v{i}"
     fc.append(f"[{lab}]{k.TO_YUV}[vout]")
-    k.run([*inp, "-i", audio, "-filter_complex", ";".join(fc), "-map", "[vout]", "-map", f"{len(pills) + 1}:a", "-t", f"{D:.3f}",
+    n_in = len(layers) + n0
+    k.run([*inp, "-i", audio, "-filter_complex", ";".join(fc), "-map", "[vout]", "-map", f"{n_in}:a", "-t", f"{D:.3f}",
            # capped at 6 Mb/s: a busy 21 s reel came out at 18.1 MB, near the approve bot's 20 MB download limit (2026-11-16)
            "-c:v", "libx264", "-preset", "medium", "-profile:v", "high", "-crf", "20", "-maxrate", "6M", "-bufsize", "12M", "-pix_fmt", "yuv420p", "-r", "30", "-g", "60",
            "-keyint_min", "60", "-sc_threshold", "0", *k.TAGS, "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", out])
