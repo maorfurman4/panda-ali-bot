@@ -18,6 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import kit as k  # noqa: E402
 import fx  # noqa: E402
+import bold  # noqa: E402
 
 FPS, W, H = 30, 1080, 1920
 BLUE = "#2AABEE"
@@ -139,7 +140,7 @@ def tighten(spec, work):
     end = V0 + max(i for i, d in enumerate(ydb) if d >= SIL_DB) / 100 + 0.01
     quiet = [(V0 + a, V0 + b) for a, b in silences(ydb, 0.12)]
     words = [{**w, "start": w["start"] - lead, "end": w["end"] - lead} for w in spec["words"]]
-    return dict(path=out, db=db, new_t=new_t, end=end, quiet=quiet, words=words)
+    return dict(path=out, db=db, new_t=new_t, end=end, quiet=quiet, words=words, lead=lead)
 
 
 def boundary(v, i, beat):
@@ -214,7 +215,7 @@ def fill_box(box, focus=0.5):
     return x, y + (h - nh) // 2 // 2 * 2, w, nh
 
 
-def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, sec=None, focus=0.5):
+def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, sec=None, focus=0.5, slowmo=False):
     """source a..b slowed (never sped up, at most to 0.5x) to fill `frames`; under 0.8x motion-interpolated. A short shot
     grows only inside its own section `sec` of the seller video (never into the next shot); the last frame is held if
     it is still short (scripts/daily-reel.js asks for a longer shot before it comes to that)"""
@@ -222,6 +223,7 @@ def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, sec=None, f
     lo, hi = sec or (a, b)
     if b - a < need * 0.5: b = min(hi, a + need * 0.5)
     if b - a < need * 0.5: a = max(lo, b - need * 0.5)
+    if slowmo: b = min(b, a + need * 0.5)  # the most satisfying moment at half speed (owner, 2026-11-16)
     speed = max(0.5, min(1.0, round((b - a) / need, 3)))
     fill = spec.get("fill", True)
     x, y, w, h = fill_box(box, focus) if fill else box
@@ -307,7 +309,7 @@ def main(spec_path, out):
         box = box_for(spec, s.get("half", "full"), area)
         pack = spec.get("fx")
         files.append(clip(spec, work, f"shot{i}", s["a"], s["b"], N[i], box, punch=(i == 1 or (pack and i == 0)),
-                          push=0.08 if i >= last - 1 else (0.16 if pack and i == 2 else 0.0), sec=s.get("sec"), focus=s.get("focus", 0.5)))
+                          push=0.08 if i >= last - 1 else (0.16 if pack and i == 2 else 0.0), sec=s.get("sec"), focus=s.get("focus", 0.5), slowmo=(i == spec.get("slowmo", -1))))
     hook = shots[0]
     if hook["a"] - (hook.get("sec") or [0])[0] >= 0.35:  # the end dissolves into the hook's first frame (same shot), so the replay has no seam
         pre = clip(spec, work, "pre", hook["a"] - 0.32, hook["a"], SEAM, box_for(spec, hook.get("half", "full"), area), focus=hook.get("focus", 0.5))
@@ -318,12 +320,13 @@ def main(spec_path, out):
 
     # the hook pill is burned into the hook shot, so it is fully in on frame 0 (thumbnail, replay)
     P = spec["pills"]
+    look = spec.get("look")
     hook_png = pill(work, hook_body(P["hook"]))
     hookp = os.path.join(work, "hookp.mp4")
     k.run(["-i", files[0], "-loop", "1", "-framerate", "30", "-t", f"{N[0] / FPS:.3f}", "-i", hook_png, "-filter_complex",
            "[0:v]fps=30,scale=in_color_matrix=bt709:in_range=tv,format=gbrp[b];"
            f"[1:v]format=rgba,fade=out:st={(N[0] - 2) / FPS:.4f}:d={2 / FPS:.4f}:alpha=1[p];[b][p]overlay=0:0:format=gbrp,{k.TO_YUV}", *ENC, "-frames:v", str(N[0]), hookp])
-    files[0] = hookp
+    if look != "bold": files[0] = hookp  # the bold look has no caption bubble: the giant word and the spoken words instead
     body = os.path.join(work, "body.mp4")
     k.run([*[a for f in files for a in ("-i", f)], "-filter_complex", "".join(f"[{i}:v]" for i in range(len(files))) + f"concat=n={len(files)}:v=1:a=0,fps=30,settb=1/30", *ENC, body])
     D = k.dur(body)
@@ -332,13 +335,22 @@ def main(spec_path, out):
     pr = spec["proof"]
     pills = [(pill(work, step_body(p["text"], p["step"]) if p.get("step") else plain_body(p["text"])), t[i + 1], t[i + 2]) for i, p in enumerate(P["scenes"])]
     pills += [(pill(work, price_body(pr["price"])), t[last - 1], t[last]), (pill(work, END), t[last], D + 1)]
-    for png, _, _ in pills + [(hook_png, 0, 0)]:
+    for png, _, _ in ([] if look == "bold" else pills + [(hook_png, 0, 0)]):
         x0, y0, x1, y1 = body_box(png)
         assert 269 <= y0 and y1 <= 1248 and x0 >= 65 and x1 <= 1015, ("pill outside Meta's safe zone", png, x0, y0, x1, y1)
 
     pack = spec.get("fx")
     layers = [(png, s, e, None) for png, s, e in pills]  # (png, start, end, (x expr, y expr) or None)
     events = []
+    seqs = []  # image sequences (concat inputs), overlaid in one go each
+    if look == "bold":
+        pack = None
+        rt = lambda x: v["new_t"](x - v["lead"])
+        hero, hero_land = bold.hero_layers(spec, work, bold.Y[spec["shots"][0].get("pos", "middle")])
+        price, land = bold.price_frames(spec, t, last, D, work)
+        layers = hero + bold.emoji_layers(spec, t, work)
+        seqs = [bold.sequence(work, "captions", bold.caption_frames(spec, rt, t, last, D, work), D), bold.sequence(work, "price", price, D)]
+        events = [(hero_land, "boom"), (t[1] - 0.02, "boom"), (land, "kaching")]  # sounds only at the strong moments
     if pack:
         assert pack in fx.PACKS, pack
         kind = "rise" if pack == "punchy" else "side"
@@ -368,15 +380,20 @@ def main(spec_path, out):
     lufs, tp = mix(spec, v, D, work, audio, sfx)
     FI, FO = 0.1, 0.07
     base = "[0:v]scale=in_color_matrix=bt709:in_range=tv,format=gbrp"
-    if pack:  # the drop: a short shake and a white flash on the first cut, where the music kicks in
+    if pack or look == "bold":  # the drop: a short shake and a white flash on the first cut, where the music kicks in
         sx, sy = fx.shake(t[1])
         base += f",crop=w=iw-28:h=ih-28:x='{sx}':y='{sy}',scale=1080:1920"
     inp, fc, lab = ["-i", body], [base + "[b]"], "b"
-    if pack:
+    if pack or look == "bold":
         inp += ["-f", "lavfi", "-t", f"{D:.3f}", "-i", "color=white:s=1080x1920:r=30"]
         fc.append(f"[1:v]format=rgba,colorchannelmixer=aa=0.75,fade=out:st={t[1]:.3f}:d=0.2:alpha=1[w]")
         fc.append(f"[b][w]overlay=0:0:format=gbrp:enable='between(t,{t[1]:.2f},{t[1] + 0.2:.2f})'[bw]"); lab = "bw"
-    n0 = 2 if pack else 1
+    n0 = 2 if (pack or look == "bold") else 1
+    for args in seqs:  # captions and price: one image sequence each
+        inp += args
+        fc.append(f"[{n0}:v]fps=30,format=rgba[q{n0}]")
+        fc.append(f"[{lab}][q{n0}]overlay=0:0:format=gbrp:shortest=0[s{n0}]"); lab = f"s{n0}"
+        n0 += 1
     for i, (png, s, e, move) in enumerate(layers, n0):
         s, e = s - FI / 2, e + FO / 2
         inp += ["-loop", "1", "-framerate", "30", "-t", f"{D:.3f}", "-i", png]

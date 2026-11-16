@@ -17,7 +17,7 @@ import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js
 import { previewExtra } from "../reels.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
-  captionList, dmText, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H,
+  captionList, dmText, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -121,9 +121,11 @@ async function main() {
   const track = nextTrack(state, Object.keys(beats));
   const spec = {
     video, voice, words: heard, ends, keep: sc.keep,
-    shots: [sc.hook, ...sc.scenes, sc.proof, sc.end].map(({ a, b, half, sec }) => ({ a, b, sec, half: half ?? "full" })),
+    shots: [sc.hook, ...sc.scenes, sc.proof, sc.end].map(({ a, b, half, sec, pos }) => ({ a, b, sec, half: half ?? "full", pos })),
+    // the bold look (owner's 14 answers, 2026-11-16): word-by-word captions, a giant opening word, the price counting down
+    ...lookFor(state, sc, wordTimeline(sentences(sc), heard), p),
     pills: { hook: sc.hook.pill, scenes: sc.scenes.map((s) => ({ text: s.pill, step: s.step })) },
-    proof: { price: p.target_sale_price },
+    proof: { price: p.target_sale_price, old_price: p.target_original_price },
     track: { file: join(ROOT, "reels", "music", track), bpm: beats[track].bpm, start: beats[track].start },
   };
   writeFileSync(join(work, "spec.json"), JSON.stringify(spec, null, 1));
