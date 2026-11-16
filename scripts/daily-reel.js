@@ -46,7 +46,7 @@ async function product() {
     return p;
   }
   const day = Math.floor(Date.now() / 864e5);
-  return pickProduct(queriesFor(day), { used: (state.used ?? []).map((u) => u.id), search: (q) => searchProducts(q, { lang: "EN", shorten: false }), log,
+  return pickProduct(queriesFor(day), { used: (state.used ?? []).map((u) => u.id), search: async (q) => (await Promise.all([1, 2].map((page) => searchProducts(q, { lang: "EN", shorten: false, page }).catch(() => [])))).flat(), log,
     accept: async (p) => {
       const s = await sellerVideo(p);
       return s.dur < MIN_VIDEO_S ? `seller video only ${s.dur.toFixed(1)} s` : s.probe.area[3] < MIN_PICTURE_H ? `seller video too small (${s.probe.area[2]}x${s.probe.area[3]})` : true;
@@ -81,7 +81,7 @@ function frames(video, dir, dur) {
 async function main() {
   if (auto && !env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) return console.log(`today's ${REELS_PER_DAY} automatic reels already reached the owner: nothing to do`);
   const p = await product();
-  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, 10,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
+  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, 5,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
   const id = String(p.product_id);
   console.log(`product ${id}: ${p.product_title}\n  ₪${p.target_sale_price}, sold ${p.lastest_volume}, ${p.evaluate_rate} positive`);
   const work = join(out, id);

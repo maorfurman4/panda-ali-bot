@@ -29,7 +29,8 @@ test("style 3: only a proven hit with the seller's own video qualifies", () => {
   assert.equal(weakness(P), null);
   assert.equal(weakness({ ...P, product_video_url: "" }), "no seller video");
   assert.equal(weakness({ ...P, product_video_url: "https://evil.example/x.mp4" }), "no seller video");
-  assert.match(weakness({ ...P, lastest_volume: "9000" }), /sold/);
+  assert.match(weakness({ ...P, lastest_volume: "4900" }), /sold/);
+  assert.equal(weakness({ ...P, lastest_volume: "5000" }), null, "5,000 sold is enough (owner, 2026-11-16)");
   assert.match(weakness({ ...P, evaluate_rate: "93.1%" }), /rating/);
 });
 

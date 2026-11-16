@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { lookalikeBrand } from "./format.js";
 
-export const MIN_SOLD = 10000;   // a proven hit only (owner, 2026-11-15)
+export const MIN_SOLD = 5000;    // a proven hit (owner, 2026-11-16: 10,000 left too few products with a seller video)
 export const MIN_POSITIVE = 95;  // % positive reviews
 export const MIN_VIDEO_S = 12;   // shorter seller videos don't hold 6-8 different moments
 // The seller's picture must be at least this tall: a full-screen reel blows it up to 1920, and a 480-high video (the garden
@@ -26,10 +26,41 @@ Speaker: a native Israeli man with a natural Israeli accent. Style: an energetic
 
 ### TRANSCRIPT (read only this, once)`;
 
-// Searches that find gadgets with a seller video (2.5% of hits have one); a different start each day.
-export const QUERIES = ["kitchen gadget", "cleaning tool", "car accessories", "bathroom gadget", "storage organizer", "baking tools", "pet grooming",
-  "phone accessories", "home gadget", "travel accessories", "garden tool", "bike accessories", "camping gadget", "desk gadget", "beauty tool",
-  "oil sprayer", "vegetable chopper", "mini sealing machine", "cable organizer", "kitchen scale", "electric screwdriver", "car vacuum cleaner"];
+// Searches that find gadgets with a seller video (~2.5% of hits have one, and only some sell 5,000+): many topics, a
+// different start each day, 2 pages each; a run stops at the first product that qualifies (owner, 2026-11-16: 2 a day).
+export const QUERIES = [
+  // kitchen
+  "kitchen gadget", "kitchen tools", "vegetable chopper", "garlic press", "oil sprayer", "kitchen scale", "baking tools", "egg tools",
+  "fruit cutter", "peeler", "can opener", "bottle opener", "spice organizer", "food storage container", "lunch box", "silicone lid",
+  "mini sealing machine", "vacuum sealer", "milk frother", "coffee tools", "tea infuser", "ice cube tray", "measuring spoon", "dish rack",
+  "sink organizer", "sponge holder", "cutting board", "knife sharpener", "grater", "pizza cutter", "bbq tools", "air fryer accessories",
+  // cleaning & home
+  "cleaning tool", "cleaning brush", "lint remover", "dust cleaner", "window cleaner", "mop", "scraper cleaning", "drain cleaner",
+  "toilet brush", "shower gadget", "bathroom gadget", "bathroom organizer", "towel holder", "storage organizer", "drawer organizer",
+  "closet organizer", "fridge organizer", "shoe rack", "cable organizer", "hooks wall", "door stopper", "home gadget", "smart home",
+  "laundry gadget", "clothes hanger", "ironing", "sewing tools", "shoe care", "pet hair remover", "air freshener",
+  // light & electric
+  "led light", "night light", "motion sensor light", "solar light", "desk lamp", "mini fan", "portable fan", "humidifier",
+  "electric screwdriver", "power bank", "charger", "extension socket", "usb gadget",
+  // car & bike
+  "car accessories", "car gadget", "car organizer", "car phone holder", "car vacuum cleaner", "car cleaning", "car tire inflator",
+  "car seat organizer", "bike accessories", "bike light", "motorcycle accessories",
+  // phone & desk
+  "phone accessories", "phone holder", "phone stand", "earphone case", "desk gadget", "desk organizer", "laptop stand", "keyboard cleaner",
+  "stationery", "pen holder", "notebook gadget",
+  // personal care
+  "beauty tool", "makeup tool", "makeup brush", "hair tool", "hair clip", "hair brush", "nail tool", "skin care tool", "massage tool",
+  "electric toothbrush", "shaver", "eyebrow tool", "foot care", "back scratcher",
+  // outdoors & travel
+  "travel accessories", "travel organizer", "luggage tag", "camping gadget", "camping light", "hiking gear", "water bottle",
+  "garden tool", "plant watering", "beach gadget", "picnic",
+  // pets, kids, fitness
+  "pet grooming", "pet toy", "pet feeder", "cat toy", "dog leash", "baby gadget", "baby safety", "kids toy", "educational toy",
+  "fitness gadget", "yoga accessories", "jump rope", "posture corrector",
+  // misc
+  "keychain gadget", "umbrella", "wallet", "sunglasses", "watch band", "gift idea", "party supplies", "tool set", "measuring tape",
+  "magnetic tool", "glue gun", "tape dispenser",
+];
 export const queriesFor = (day) => QUERIES.map((_, i) => QUERIES[(day + i) % QUERIES.length]);
 
 // ---------------- the product ----------------
@@ -43,7 +74,7 @@ export function weakness(p) {
 
 // The best seller with a video among the searches, skipping products already used. search(q) -> products.
 // accept(p): true, or why the product can't carry a reel after all (its video is too small or too short): the next one is tried.
-export async function pickProduct(queries, { used = [], search, accept = async () => true, maxQueries = 8, log = () => {} }) {
+export async function pickProduct(queries, { used = [], search, accept = async () => true, maxQueries = Infinity, log = () => {} }) {
   const skip = new Set(used.map(String));
   for (const q of queries.slice(0, maxQueries)) {
     const ok = (await search(q).catch((e) => (log(`${q}: ${e.message}`), [])))
