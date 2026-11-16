@@ -187,7 +187,18 @@ def box_for(spec, half, area):
     return ax // 2 * 2, y0, aw // 2 * 2, y1 - y0
 
 
-def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, sec=None):
+def fill_box(box, focus=0.5):
+    """the 9:16 part of `box` that fills the whole screen (owner 2026-11-16: "full screen like a pro Reel", no blurred
+    bands); a wider picture is cut at the sides around `focus` (0 = left edge, 1 = right edge), a taller one top and bottom"""
+    x, y, w, h = box
+    if w / h > 9 / 16:
+        nw = int(h * 9 / 16) // 2 * 2
+        return x + int((w - nw) * min(1.0, max(0.0, focus))) // 2 * 2, y, nw, h
+    nh = int(w * 16 / 9) // 2 * 2
+    return x, y + (h - nh) // 2 // 2 * 2, w, nh
+
+
+def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, sec=None, focus=0.5):
     """source a..b slowed (never sped up, at most to 0.5x) to fill `frames`; under 0.8x motion-interpolated. A short shot
     grows only inside its own section `sec` of the seller video (never into the next shot); the last frame is held if
     it is still short (scripts/daily-reel.js asks for a longer shot before it comes to that)"""
@@ -196,15 +207,18 @@ def clip(spec, work, name, a, b, frames, box, punch=False, push=0.0, sec=None):
     if b - a < need * 0.5: b = min(hi, a + need * 0.5)
     if b - a < need * 0.5: a = max(lo, b - need * 0.5)
     speed = max(0.5, min(1.0, round((b - a) / need, 3)))
-    x, y, w, h = box
+    fill = spec.get("fill", True)
+    x, y, w, h = fill_box(box, focus) if fill else box
     slow = "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1," if speed < 0.8 else ""
     z = f"(1+{push}*t/{frames / FPS:.3f})"
     zoom = f"format=gbrp,scale=w='1080*{z}':h='1920*{z}':eval=frame:flags=bicubic,crop=1080:1920," if push else ""
-    fc = (f"[0:v]crop={w}:{h}:{x}:{y},setpts=(PTS-STARTPTS)/{speed},{slow}fps=30,split[f][g];"
-          "[g]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=45,eq=brightness=-0.16:saturation=0.8[bg];"
-          "[f]scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos,unsharp=5:5:0.45,"
-          "colorlevels=romax=0.93:gomax=0.93:bomax=0.93[fg];"
-          f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,{zoom}{k.punch() + ',' if punch else ''}tpad=stop_mode=clone:stop_duration={need:.3f},{k.TO_YUV}")
+    look = "unsharp=5:5:0.45,colorlevels=romax=0.93:gomax=0.93:bomax=0.93"  # a touch under white so the white pills stand out
+    fc = (f"[0:v]crop={w}:{h}:{x}:{y},setpts=(PTS-STARTPTS)/{speed},{slow}fps=30,"
+          + (f"scale=1080:1920:flags=lanczos,{look},setsar=1,{zoom}" if fill else
+             "split[f][g];[g]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=45,eq=brightness=-0.16:saturation=0.8[bg];"
+             f"[f]scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos,{look}[fg];"
+             f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,{zoom}")
+          + f"{k.punch() + ',' if punch else ''}tpad=stop_mode=clone:stop_duration={need:.3f},{k.TO_YUV}")
     out = os.path.join(work, f"{name}.mp4")
     k.run(["-ss", f"{a:.3f}", "-to", f"{b:.3f}", "-i", spec["video"], "-filter_complex", fc, *ENC, "-frames:v", str(frames), out])
     return out
@@ -270,10 +284,10 @@ def main(spec_path, out):
     files = []
     for i, s in enumerate(shots):
         box = box_for(spec, s.get("half", "full"), area)
-        files.append(clip(spec, work, f"shot{i}", s["a"], s["b"], N[i], box, punch=(i == 1), push=0.08 if i >= last - 1 else 0.0, sec=s.get("sec")))
+        files.append(clip(spec, work, f"shot{i}", s["a"], s["b"], N[i], box, punch=(i == 1), push=0.08 if i >= last - 1 else 0.0, sec=s.get("sec"), focus=s.get("focus", 0.5)))
     hook = shots[0]
     if hook["a"] - (hook.get("sec") or [0])[0] >= 0.35:  # the end dissolves into the hook's first frame (same shot), so the replay has no seam
-        pre = clip(spec, work, "pre", hook["a"] - 0.32, hook["a"], SEAM, box_for(spec, hook.get("half", "full"), area))
+        pre = clip(spec, work, "pre", hook["a"] - 0.32, hook["a"], SEAM, box_for(spec, hook.get("half", "full"), area), focus=hook.get("focus", 0.5))
         endx = os.path.join(work, "end-seam.mp4")
         k.run(["-i", files[last], "-i", pre, "-filter_complex",
                f"[0][1]xfade=transition=fade:duration={(SEAM - 1) / FPS:.4f}:offset={(N[last] - SEAM) / FPS:.4f},{k.TO_YUV}", *ENC, "-frames:v", str(N[last]), endx])
