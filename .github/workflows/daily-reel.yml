@@ -4,7 +4,7 @@
 # message for commenters. Nothing good today: a short note. Nothing is published without the owner's press.
 # 02:40 UTC = 04:40 Israel winter time (05:40 summer). Off the top of the hour, when GitHub's scheduled runs start late,
 # and ~10 minutes of build: the owner gets it at about 05:00 (owner, 2026-11-15: "as early as possible, from 05:00").
-# Started by cron-job.org through the API at 04:40, 06:40 and 08:40 Israel time (GitHub's own schedule below is only a backup:
+# Started by cron-job.org through the API (body {"ref":"main","inputs":{"auto":"true"}}) at 04:40, 06:40 and 08:40 Israel time (GitHub's own schedule below is only a backup:
 # it came 7.5 hours late on its first day, 2026-11-16). Each run makes one reel and the script stops at two a day
 # (REELS_PER_DAY), so a third start only makes up for a failed one.
 name: Daily reel
@@ -18,6 +18,10 @@ on:
         description: "Make the reel for this product id (empty: the best seller with a seller video found today)"
         type: string
         default: ""
+      auto:
+        description: "A morning start (cron-job.org sends this): at most 2 a day. Leave it off for a reel right now"
+        type: boolean
+        default: false
       dry:
         description: "Build only: send nothing, keep the reel state (the video is in the run's artifacts)"
         type: boolean
@@ -63,6 +67,7 @@ jobs:
         env:
           REEL_PRODUCT: ${{ inputs.product }}
           REEL_DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry }}
+          REEL_AUTO: ${{ github.event_name == 'schedule' || inputs.auto }}
           REELS_BOT_TOKEN: ${{ secrets.REELS_BOT_TOKEN }}
           DEALS_OWNER_ID: ${{ secrets.DEALS_OWNER_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # script, frames and voice (free tier)

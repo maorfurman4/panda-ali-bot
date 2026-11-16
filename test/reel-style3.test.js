@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  weakness, pickProduct, soldWords, proofSay, checkScript, sentences, sentenceEnds, timingProblems, cleanTail, nextTrack, markUsed,
+  weakness, pickProduct, priceWords, priceSay, checkScript, sentences, sentenceEnds, timingProblems, cleanTail, nextTrack, markUsed,
   queriesFor, QUERIES, END_SAY, POST_CTA,
 } from "../reel-style3.js";
 
@@ -13,14 +13,14 @@ const good = () => ({
     { text: "כמה זה כף?", frontload: 3, specific: 2, address: 1, stakes: 1 },
     { text: "המתכון יוצא לא טוב?", frontload: 4, specific: 2, address: 3, stakes: 4 },
   ],
-  hook_shot: { a: 21, b: 23.4 },
+  hook_shot: { a: 21, b: 23.4, pos: "middle" },
+  slowmo: 1,
   scenes: [
     { say: "הכף הזאת היא גם משקל.", pill: "כף שהיא גם משקל", step: false, a: 5, b: 8.8, half: "full" },
     { say: "גורפים, והמשקל מופיע מיד.", pill: "1. גורפים, והמשקל מופיע מיד", step: true, a: 10.4, b: 13, half: "full" },
     { say: "היא שוקלת גם אבקה וגם נוזלים.", pill: "גם אבקה, גם נוזלים", step: true, a: 17.5, b: 20.2, half: "bottom" },
     { say: "הראש שלה מתפרק לשטיפה.", pill: "הראש מתפרק לשטיפה", step: true, a: 32.75, b: 35.4, half: "full" },
   ],
-  it: "אותה",
   proof_shot: { a: 25.6, b: 29 }, end_shot: { a: 0, b: 3 },
   hashtags: ["מטבח", "אפייה", "#גאדג'טים למטבח"], dm_name: "כף",
 });
@@ -29,7 +29,8 @@ test("style 3: only a proven hit with the seller's own video qualifies", () => {
   assert.equal(weakness(P), null);
   assert.equal(weakness({ ...P, product_video_url: "" }), "no seller video");
   assert.equal(weakness({ ...P, product_video_url: "https://evil.example/x.mp4" }), "no seller video");
-  assert.match(weakness({ ...P, lastest_volume: "9000" }), /sold/);
+  assert.match(weakness({ ...P, lastest_volume: "900" }), /sold/);
+  assert.equal(weakness({ ...P, lastest_volume: "1000" }), null, "1,000 sold is enough: the reel says the price, not the buyers (owner, 2026-11-16)");
   assert.match(weakness({ ...P, evaluate_rate: "93.1%" }), /rating/);
 });
 
@@ -42,12 +43,14 @@ test("style 3: the pick is the best seller that qualifies and wasn't used, searc
   assert.notEqual(queriesFor(3)[0], queriesFor(4)[0]);
 });
 
-test("style 3: the buyers line is code's, rounded the honest way", () => {
-  assert.equal(soldWords(12934), "כמעט 13 אלף");
-  assert.equal(soldWords(16967), "כמעט 17 אלף");
-  assert.equal(soldWords(12100), "יותר מ-12 אלף");
-  assert.equal(soldWords(21232), "יותר מ-21 אלף");
-  assert.equal(proofSay(12934, "אותה"), "כמעט 13 אלף אנשים כבר קנו אותה.");
+test("style 3: the price line is code's, rounded up the honest way (owner, 2026-11-16: the price instead of the buyers)", () => {
+  assert.equal(priceWords("14.09"), "פחות מ-15 שקל");
+  assert.equal(priceWords("5.99"), "פחות מ-6 שקלים");
+  assert.equal(priceWords("52.32"), "פחות מ-55 שקל");
+  assert.equal(priceWords("116.98"), "פחות מ-120 שקל");
+  assert.equal(priceWords("30.00"), "רק 30 שקל");
+  assert.equal(priceSay("14.09"), "תנחשו כמה זה עולה? פחות מ-15 שקל.");
+  assert.equal(priceSay("14.09", "כמה זה עולה לדעתכם?"), "כמה זה עולה לדעתכם? פחות מ-15 שקל.");
 });
 
 test("style 3: a good script becomes the voice text, the post is only the call to action, the best-scored hook wins (owner, 2026-11-15)", () => {
@@ -56,8 +59,9 @@ test("style 3: a good script becomes the voice text, the post is only the call t
   assert.equal(r.script.hook.say, "עוד מנחשים כמה גרם יש בכף?");
   assert.equal(r.script.hook.pill, "עוד מנחשים כמה גרם יש בכף?", "the hook on screen is the spoken words");
   assert.deepEqual(r.script.scenes.map((s) => s.step), [null, 1, 2, 3]);
+  assert.equal(r.script.slowmo, 1);
   assert.equal(r.script.scenes[1].pill, "גורפים, והמשקל מופיע מיד", "the step number is the circle's, not the text's");
-  assert.deepEqual(sentences(r.script).slice(-2), ["כמעט 13 אלף אנשים כבר קנו אותה.", END_SAY]);
+  assert.deepEqual(sentences(r.script).slice(-2), ["תנחשו כמה זה עולה? פחות מ-15 שקל.", END_SAY], "the price comes as the answer to a guess (owner, 2026-11-16)");
   assert.equal(r.post.split("\n")[0], POST_CTA);
   assert.doesNotMatch(r.post, /\d{2},\d{3}|קנו/, "no buyer count in the post (owner, 2026-11-15)");
   assert.equal(r.dmName, "כף");
@@ -72,7 +76,6 @@ test("style 3: what the owner rejected never passes: a different sentence on scr
   assert.match(bad((o) => { o.hooks.pop(); }), /hooks/);
   assert.match(bad((o) => { o.scenes[2].b = 60; }), /shot/);
   assert.match(bad((o) => { o.keep_bottom = 0.4; }), /keep/);
-  assert.match(bad((o) => { o.it = "אותך"; }), /it/);
 });
 
 test("style 3: each sentence's end is found in Whisper's words, though Whisper spells words its own way", () => {
@@ -136,6 +139,9 @@ test("style 3: two reels a day (Israel date), however many times the morning run
   assert.equal(sentToday(s, Date.parse("2026-11-16T06:45:00Z")), 2, "the 08:40 start finds both and does nothing");
   assert.equal(sentToday(s, Date.parse("2026-11-16T22:30:00Z")), 0, "00:30 Israel is the next day");
   assert.equal(sentToday({}, at), 0);
+  const manual = markUsed(markUsed(s, 3, "c", Date.parse("2026-11-16T13:00:00Z"), false), 4, "d", Date.parse("2026-11-16T14:00:00Z"), false);
+  assert.equal(sentToday(manual, Date.parse("2026-11-16T15:00:00Z")), 2, "the owner's own runs don't count against the two");
+  assert.deepEqual(manual.used.map((u) => u.id), ["1", "2", "3", "4"], "but their products are used, never sent again");
 });
 
 test("style 3: an overloaded Gemini model hands over to the next one", async () => {
@@ -145,4 +151,13 @@ test("style 3: an overloaded Gemini model hands over to the next one", async () 
   const j = await geminiAny(["a", "b", "c"], {}, { fetch, env: { GEMINI_API_KEY: "k" }, sleep: async () => {} });
   assert.equal(j.answer, "b");
   assert.deepEqual(asked, ["a", "a", "b"]);
+});
+
+test("style 3: a product whose seller video is too small or too short is passed over for the next best seller (garden sprayer, 360x480, came out soft, 2026-11-16)", async () => {
+  const lists = { a: [{ ...P, product_id: 1, lastest_volume: "90000" }, { ...P, product_id: 2, lastest_volume: "50000" }], b: [{ ...P, product_id: 3, lastest_volume: "40000" }] };
+  const tried = [];
+  const accept = async (p) => (tried.push(p.product_id), p.product_id === 3 ? true : p.product_id === 1 ? "seller video too small (360x480)" : "seller video only 9.0 s");
+  const p = await pickProduct(["a", "b"], { search: async (q) => lists[q], accept });
+  assert.equal(p.product_id, 3);
+  assert.deepEqual(tried, [1, 2, 3]);
 });

@@ -5,9 +5,12 @@
 import { readFileSync } from "node:fs";
 import { lookalikeBrand } from "./format.js";
 
-export const MIN_SOLD = 10000;   // a proven hit only (owner, 2026-11-15)
+export const MIN_SOLD = 1000;    // a quality gate only: the reel says the price, not the buyers (owner, 2026-11-16)
 export const MIN_POSITIVE = 95;  // % positive reviews
 export const MIN_VIDEO_S = 12;   // shorter seller videos don't hold 6-8 different moments
+// The seller's picture must be at least this tall: a full-screen reel blows it up to 1920, and a 480-high video (the garden
+// sprayer, 2026-11-16) came out visibly soft. 700+ keeps the blow-up under ~3.4x after cutting off burned-in text.
+export const MIN_PICTURE_H = 700;
 export const VIDEO_HOST = "https://video.aliexpress-media.com/";
 export const CHANNEL = "t.me/panda_dilim";
 export const END_SAY = "רוצים את הקישור? כתבו פנדה בתגובות.";
@@ -23,10 +26,41 @@ Speaker: a native Israeli man with a natural Israeli accent. Style: an energetic
 
 ### TRANSCRIPT (read only this, once)`;
 
-// Searches that find gadgets with a seller video (2.5% of hits have one); a different start each day.
-export const QUERIES = ["kitchen gadget", "cleaning tool", "car accessories", "bathroom gadget", "storage organizer", "baking tools", "pet grooming",
-  "phone accessories", "home gadget", "travel accessories", "garden tool", "bike accessories", "camping gadget", "desk gadget", "beauty tool",
-  "oil sprayer", "vegetable chopper", "mini sealing machine", "cable organizer", "kitchen scale", "electric screwdriver", "car vacuum cleaner"];
+// Searches that find gadgets with a seller video (~2.5% of hits have one, and only some sell 5,000+): many topics, a
+// different start each day, 2 pages each; a run stops at the first product that qualifies (owner, 2026-11-16: 2 a day).
+export const QUERIES = [
+  // kitchen
+  "kitchen gadget", "kitchen tools", "vegetable chopper", "garlic press", "oil sprayer", "kitchen scale", "baking tools", "egg tools",
+  "fruit cutter", "peeler", "can opener", "bottle opener", "spice organizer", "food storage container", "lunch box", "silicone lid",
+  "mini sealing machine", "vacuum sealer", "milk frother", "coffee tools", "tea infuser", "ice cube tray", "measuring spoon", "dish rack",
+  "sink organizer", "sponge holder", "cutting board", "knife sharpener", "grater", "pizza cutter", "bbq tools", "air fryer accessories",
+  // cleaning & home
+  "cleaning tool", "cleaning brush", "lint remover", "dust cleaner", "window cleaner", "mop", "scraper cleaning", "drain cleaner",
+  "toilet brush", "shower gadget", "bathroom gadget", "bathroom organizer", "towel holder", "storage organizer", "drawer organizer",
+  "closet organizer", "fridge organizer", "shoe rack", "cable organizer", "hooks wall", "door stopper", "home gadget", "smart home",
+  "laundry gadget", "clothes hanger", "ironing", "sewing tools", "shoe care", "pet hair remover", "air freshener",
+  // light & electric
+  "led light", "night light", "motion sensor light", "solar light", "desk lamp", "mini fan", "portable fan", "humidifier",
+  "electric screwdriver", "power bank", "charger", "extension socket", "usb gadget",
+  // car & bike
+  "car accessories", "car gadget", "car organizer", "car phone holder", "car vacuum cleaner", "car cleaning", "car tire inflator",
+  "car seat organizer", "bike accessories", "bike light", "motorcycle accessories",
+  // phone & desk
+  "phone accessories", "phone holder", "phone stand", "earphone case", "desk gadget", "desk organizer", "laptop stand", "keyboard cleaner",
+  "stationery", "pen holder", "notebook gadget",
+  // personal care
+  "beauty tool", "makeup tool", "makeup brush", "hair tool", "hair clip", "hair brush", "nail tool", "skin care tool", "massage tool",
+  "electric toothbrush", "shaver", "eyebrow tool", "foot care", "back scratcher",
+  // outdoors & travel
+  "travel accessories", "travel organizer", "luggage tag", "camping gadget", "camping light", "hiking gear", "water bottle",
+  "garden tool", "plant watering", "beach gadget", "picnic",
+  // pets, kids, fitness
+  "pet grooming", "pet toy", "pet feeder", "cat toy", "dog leash", "baby gadget", "baby safety", "kids toy", "educational toy",
+  "fitness gadget", "yoga accessories", "jump rope", "posture corrector",
+  // misc
+  "keychain gadget", "umbrella", "wallet", "sunglasses", "watch band", "gift idea", "party supplies", "tool set", "measuring tape",
+  "magnetic tool", "glue gun", "tape dispenser",
+];
 export const queriesFor = (day) => QUERIES.map((_, i) => QUERIES[(day + i) % QUERIES.length]);
 
 // ---------------- the product ----------------
@@ -39,14 +73,20 @@ export function weakness(p) {
 }
 
 // The best seller with a video among the searches, skipping products already used. search(q) -> products.
-export async function pickProduct(queries, { used = [], search, maxQueries = 8, log = () => {} }) {
+// accept(p): true, or why the product can't carry a reel after all (its video is too small or too short): the next one is tried.
+export async function pickProduct(queries, { used = [], search, accept = async () => true, maxQueries = Infinity, log = () => {} }) {
   const skip = new Set(used.map(String));
   for (const q of queries.slice(0, maxQueries)) {
     const ok = (await search(q).catch((e) => (log(`${q}: ${e.message}`), [])))
       .filter((p) => !skip.has(String(p.product_id)) && !weakness(p))
       .sort((a, b) => Number(b.lastest_volume) - Number(a.lastest_volume));
     log(`${q}: ${ok.length} qualify`);
-    if (ok.length) return ok[0];
+    for (const p of ok) {
+      skip.add(String(p.product_id));
+      const why = await accept(p).catch((e) => e.message);
+      if (why === true) return p;
+      log(`  ${p.product_id}: ${why}`);
+    }
   }
   return null;
 }
@@ -60,27 +100,32 @@ export function nextTrack(state, pool, now = Date.now()) {
   const rested = pool.filter((f) => !(now - (last[f] ?? -Infinity) < TRACK_GAP_DAYS * DAY));
   return (rested.length ? rested : pool).reduce((a, b) => ((last[b] ?? 0) < (last[a] ?? 0) ? b : a));
 }
-// Two reels a day (owner, 2026-11-16), each run makes one: cron-job.org starts the run at 04:40, 06:40 and 08:40, GitHub's
-// own schedule is a backup (it once came 7.5 hours late, 2026-11-16). A run after the day's two reels reached the owner
-// does nothing, so a failed start is made up by the next one.
+// Two automatic reels a day (owner, 2026-11-16), each run makes one: cron-job.org starts the run at 04:40, 06:40 and 08:40
+// with auto=true, GitHub's own schedule is a backup (it once came 7.5 hours late, 2026-11-16). An automatic run after the
+// day's two automatic reels does nothing, so a failed start is made up by the next one. The owner's own "Run workflow"
+// is never limited and doesn't count (owner, 2026-11-16: "as many as I want").
 export const REELS_PER_DAY = 2;
 const israelDay = (t) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
-export const sentToday = (state, now = Date.now()) => (state.used ?? []).filter((u) => israelDay(u.at) === israelDay(now)).length;
+export const sentToday = (state, now = Date.now()) => (state.used ?? []).filter((u) => u.auto !== false && israelDay(u.at) === israelDay(now)).length;
 
-export const markUsed = (state, id, track, now = Date.now()) => ({
+export const markUsed = (state, id, track, now = Date.now(), auto = true) => ({
   ...state,
-  used: [...(state.used ?? []), { id: String(id), at: now }].slice(-500),
+  used: [...(state.used ?? []), { id: String(id), at: now, auto }].slice(-500),
   tracks: [...(state.tracks ?? []), { file: track, at: now }].slice(-60),
 });
 
-// ---------------- the proof line (code, not the AI: the number must be exact) ----------------
-// 12,934 -> "כמעט 13 אלף"; 12,100 -> "יותר מ-12 אלף"
-export function soldWords(sold) {
-  const k = sold / 1000, up = Math.ceil(k), down = Math.floor(k);
-  return up - k <= 0.35 && up !== down ? `כמעט ${up} אלף` : `יותר מ-${down} אלף`;
+// ---------------- the price line (code, not the AI: the number must be exact) ----------------
+// The owner swapped "N thousand bought it" for the price (2026-11-16: the buyers line doesn't hold the eye, a low price
+// makes people comment). 14.09 -> "פחות מ-15 שקל"; 5.99 -> "פחות מ-6 שקלים"; 52.3 -> "פחות מ-55 שקל"; 30 -> "רק 30 שקל".
+export function priceWords(price) {
+  const p = Number(price), step = p < 20 ? 1 : p < 100 ? 5 : 10, up = Math.ceil(p / step - 1e-9) * step;
+  const shekel = (n) => `${n} ${n <= 10 ? "שקלים" : "שקל"}`;
+  return Math.abs(up - p) < 0.005 ? `רק ${shekel(up)}` : `פחות מ-${shekel(up)}`;
 }
-export const proofSay = (sold, it) => `${soldWords(sold)} אנשים כבר קנו ${it}.`;
-export const IT = ["אותה", "אותו", "אותם", "אותן"];
+// The question before the number builds the wait the old mid-video tease didn't (owner, 2026-11-16: "חכו למחיר" excited
+// nobody): the old price shows and is struck while it is asked, the counter runs down and lands as the number is said.
+export const PRICE_ASKS = ["תנחשו כמה זה עולה?", "כמה זה עולה לדעתכם?"];
+export const priceSay = (price, ask = PRICE_ASKS[0]) => `${ask} ${priceWords(price)}.`;
 
 // ---------------- the script (one Gemini call: frames + data -> JSON) ----------------
 const S = (type, extra = {}) => ({ type, ...extra });
@@ -88,11 +133,11 @@ const O = (properties) => ({ type: "object", properties, required: Object.keys(p
 export const SCHEMA = O({
   keep_top: S("number"), keep_bottom: S("number"),
   hooks: S("array", { items: O({ text: S("string"), frontload: S("integer"), specific: S("integer"), address: S("integer"), stakes: S("integer") }) }),
-  hook_shot: O({ a: S("number"), b: S("number") }),
-  scenes: S("array", { items: O({ say: S("string"), pill: S("string"), step: S("boolean"), a: S("number"), b: S("number"), half: S("string") }) }),
-  it: S("string"),
-  proof_shot: O({ a: S("number"), b: S("number") }),
-  end_shot: O({ a: S("number"), b: S("number") }),
+  hook_shot: O({ a: S("number"), b: S("number"), pos: S("string") }),
+  scenes: S("array", { items: O({ say: S("string"), pill: S("string"), step: S("boolean"), a: S("number"), b: S("number"), half: S("string"), pos: S("string") }) }),
+  slowmo: S("integer"),
+  proof_shot: O({ a: S("number"), b: S("number"), pos: S("string") }),
+  end_shot: O({ a: S("number"), b: S("number"), pos: S("string") }),
   hashtags: S("array", { items: S("string") }),
   dm_name: S("string"),
 });
@@ -124,9 +169,12 @@ What you return (JSON):
   caption: the same words as say or a short exact part of them, up to 30 characters), step (true when the sentence is a usage
   step, numbered 1, 2, 3 on screen), a and b (the source moment that shows exactly what the sentence says, b - a >= 1.5),
   half ("top", "bottom" or "full": a split-screen frame shows two pictures; pick the half that shows the sentence).
-  Do not mention the price or how many people bought it, and do not ask for comments: code adds those.
-- it: the object pronoun for the product noun you used ("אותה", "אותו", "אותם" or "אותן"); code says "<N> אלף אנשים כבר קנו <it>".
-- proof_shot: a calm good-looking moment of the product (b - a >= 2.5). end_shot: another one, different (b - a >= 2.5).
+- pos (in hook_shot, every scene, proof_shot, end_shot): where the words go on screen so they never cover the product:
+  "upper", "middle" or "lower", the part of the frame the product is NOT in during that shot ("middle" when unsure).
+- slowmo: the index (0-based, in scenes) of the scene whose shot shows the most satisfying moment, played in slow motion
+  (its shot at least 1.5 s); -1 when none is worth it.
+  Do not mention the price (code says it) or how many people bought it, and do not ask for comments: code adds those.
+- proof_shot: the best-looking moment of the product (the price is said over it) (b - a >= 2.5). end_shot: another one, different (b - a >= 2.5).
 - Every shot moment different; never a frame with a close-up face only, packaging only, or a title card.
 - hashtags: 4-5 Hebrew words for the post, no "#", "_" between words. dm_name: the item's short Hebrew noun as it follows
   "הנה הקישור ל" (e.g. "משאבה", "כף").
@@ -142,10 +190,11 @@ const EMOJI = /\p{Extended_Pictographic}/u;
 const BANNED = /אל תפספסו|חובה|חייבים|מטורף|פנומנלי|משנה חיים|לא תאמינו|הסוד|בלי להתפשר|המושלם|הכי טוב בעולם|תודו לי|[—–!]/;
 export const words = (s) => String(s).replace(/[֑-ׇ]/g, "").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
 const hebrew = (s) => (s.match(/[א-ת]/g) ?? []).length >= 3;
+const POS = ["upper", "middle", "lower"];
 const hookScore = (h) => ["frontload", "specific", "address", "stakes"].reduce((n, k) => n + Math.max(0, Math.min(5, Number(h[k]) || 0)), 0);
 
 // The script the voice and the builder use, or { errors }. Everything the owner hears or reads is checked here.
-export function checkScript(o, p, duration, sections = [[0, duration]]) {
+export function checkScript(o, p, duration, sections = [[0, duration]], opts = {}) {
   const errors = [];
   const known = new Set(nums(`${p.product_title} ${p.target_sale_price}`));
   const shots = [];
@@ -177,7 +226,7 @@ export function checkScript(o, p, duration, sections = [[0, duration]]) {
     if (EMOJI.test(s.pill) || BANNED.test(s.pill)) errors.push(`scene ${i}: pill "${s.pill}" has an emoji, a dash or "!"`);
     if (!["top", "bottom", "full"].includes(s.half)) errors.push(`scene ${i}: half must be top, bottom or full`);
   });
-  if (!IT.includes(String(o?.it).trim())) errors.push(`it: "${o?.it}" must be one of ${IT.join(", ")}`);
+  if (!(o?.slowmo === -1 || (o?.slowmo >= 0 && o.slowmo < scenes.length))) errors.push(`slowmo: -1 or a scene index (0-${scenes.length - 1})`);
   shot("proof_shot", o?.proof_shot, 2.5);
   shot("end_shot", o?.end_shot, 2.5);
   shots.sort((x, y) => x.a - y.a).forEach((x, i, a) => {
@@ -190,13 +239,16 @@ export function checkScript(o, p, duration, sections = [[0, duration]]) {
   const name = String(o.dm_name ?? "").trim();
   const end = (s) => (/[.?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
   let n = 0;
+  const pos = (x) => (POS.includes(x?.pos) ? x.pos : "middle");
+  const made = scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/^\d+\s*[.)\-:]\s*/, "").replace(/[.]$/, ""), step: s.step ? ++n : null, ...within(s), half: s.half, pos: pos(s) }));
   return {
     script: {
       keep: [o.keep_top, o.keep_bottom],
-      hook: { say: end(hook.text), pill: hook.text.trim(), ...within(o.hook_shot), score: hookScore(hook), others: hooks.filter((h) => h !== hook).map((h) => `${h.text} (${hookScore(h)})`) },
-      scenes: scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/^\d+\s*[.)\-:]\s*/, "").replace(/[.]$/, ""), step: s.step ? ++n : null, ...within(s), half: s.half })),
-      proof: { say: proofSay(Number(p.lastest_volume), o.it.trim()), ...within(o.proof_shot) },
-      end: { say: END_SAY, ...within(o.end_shot) },
+      hook: { say: end(hook.text), pill: hook.text.trim(), ...within(o.hook_shot), pos: pos(o.hook_shot), score: hookScore(hook), others: hooks.filter((h) => h !== hook).map((h) => `${h.text} (${hookScore(h)})`) },
+      scenes: made,
+      slowmo: o.slowmo >= 0 ? o.slowmo : -1, // index in scenes
+      proof: { say: priceSay(p.target_sale_price, opts.priceAsk), ...within(o.proof_shot), pos: pos(o.proof_shot) },
+      end: { say: END_SAY, ...within(o.end_shot), pos: pos(o.end_shot) },
     },
     post: [POST_CTA, "", (tags.length ? tags : ["עלי_אקספרס", "פנדה_דילים"]).map((t) => `#${t}`).join(" ")].join("\n"),
     dmName: name && name.split(/\s+/).length <= 3 && name.length <= 24 && /^[א-ת\s"״׳-]+$/.test(name) ? name : "מוצר",
@@ -249,7 +301,7 @@ export async function writeScript(p, duration, frames, deps = {}) {
       .then((j) => JSON.parse(j.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") || "null"))
       .catch((e) => ({ failed: e.message }));
     deps.onAnswer?.(tries, out);
-    const checked = out?.failed ? { errors: [`AI call failed: ${out.failed}`] } : checkScript(out, p, duration, sections);
+    const checked = out?.failed ? { errors: [`AI call failed: ${out.failed}`] } : checkScript(out, p, duration, sections, { priceAsk: deps.priceAsk });
     if (!checked.errors) return { ...checked, tries };
     errors = checked.errors;
     deps.log?.(`script try ${tries} rejected: ${errors.join("; ")}`);
@@ -318,22 +370,55 @@ const near = (a, b) => {
   const x = SOUND_ALIKE(a), y = SOUND_ALIKE(b);
   return x === y || (Math.min(x.length, y.length) >= 3 && lev(x, y) <= 1);
 };
-export function sentenceEnds(says, heard) {
+// For each script word, the index of the Whisper word it was heard as (or null).
+function matchWords(says, heard) {
   const script = says.flatMap((s, si) => words(s).map((w) => ({ w, si })));
   const h = heard.map((x) => words(x.word).join(""));
   const L = Array.from({ length: script.length + 1 }, () => new Int16Array(h.length + 1));
   for (let i = script.length - 1; i >= 0; i--)
     for (let j = h.length - 1; j >= 0; j--) L[i][j] = near(script[i].w, h[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
-  const match = new Array(script.length).fill(-1);
+  const match = new Array(script.length).fill(null);
   for (let i = 0, j = 0; i < script.length && j < h.length;) {
     if (near(script[i].w, h[j]) && L[i][j] === L[i + 1][j + 1] + 1) match[i++] = j++;
     else if (L[i + 1][j] >= L[i][j + 1]) i++;
     else j++;
   }
+  return { script, match };
+}
+
+export function sentenceEnds(says, heard) {
+  const { script, match } = matchWords(says, heard);
   return says.map((_, si) => {
-    const mine = script.map((x, i) => (x.si === si ? match[i] : -1)).filter((j) => j >= 0);
+    const mine = script.map((x, i) => (x.si === si && match[i] !== null ? match[i] : -1)).filter((j) => j >= 0);
     return mine.length ? Math.max(...mine) : null;
   });
+}
+
+// The spoken words of every sentence with their times in the take (s), for the word-by-word captions: the script's own
+// spelling (not Whisper's), each word timed by the Whisper word it was heard as; an unheard word shares its neighbours' gap.
+export function wordTimeline(says, heard) {
+  const { script, match } = matchWords(says, heard);
+  const shown = says.flatMap((s) => s.trim().split(/\s+/)); // with punctuation, as written
+  const t0 = match.map((j) => (j === null ? null : heard[j].start)), t1 = match.map((j) => (j === null ? null : heard[j].end));
+  for (let i = 0; i < script.length; i++) {
+    if (t0[i] !== null) continue;
+    let a = i - 1; while (a >= 0 && t1[a] === null) a--;
+    let b = i + 1; while (b < script.length && t0[b] === null) b++;
+    const from = a >= 0 ? t1[a] : heard[0]?.start ?? 0, to = b < script.length ? t0[b] : heard.at(-1)?.end ?? from + 0.3;
+    const n = b - a - 1, k = i - a - 1;
+    t0[i] = from + ((to - from) * k) / n; t1[i] = from + ((to - from) * (k + 1)) / n;
+  }
+  // each written token ("מ-12", "בשיערות?") takes the times of the script words inside it
+  let k = 0;
+  return says.map((sentence) => ({
+    words: sentence.trim().split(/\s+/).map((tok) => {
+      const n = words(tok).length;
+      if (!n) return null;
+      const w = { w: tok, t0: t0[k], t1: t1[k + n - 1] };
+      k += n;
+      return w;
+    }).filter(Boolean),
+  }));
 }
 
 // The guide's timing rules (owner-approved 2026-11-15): the hook is spoken within 3 s and no scene runs over 4 s
@@ -356,12 +441,26 @@ export function timingProblems(ends, heard, says, shots = null) {
   return problems;
 }
 
+// ---------------- the bold look ----------------
+// What changes from reel to reel so they don't all look the same (owner, 2026-11-16): the highlight colour and the price
+// question. The font, the layout and the price animation stay: they are the Panda's signature.
+export const ACCENTS = ["#FFD60A", "#4CC9F0", "#80ED99", "#FF5DA2"];
+export function lookFor(state, sc, timeline, p) {
+  const n = (state.used ?? []).length;
+  return {
+    look: "bold",
+    accent: ACCENTS[n % ACCENTS.length],
+    captions: timeline,
+    slowmo: sc.slowmo >= 0 ? sc.slowmo + 1 : -1, // shot index (shot 0 is the hook)
+  };
+}
+
 // ---------------- what the owner gets ----------------
 export function captionList(sc, p) {
   const lines = [
     `1. פתיחה: ${sc.hook.say} (ציון ${sc.hook.score}/20; האחרות: ${sc.hook.others.join(" · ")})`,
-    ...sc.scenes.map((s, i) => `${i + 2}. ${s.say}${s.pill !== s.say.replace(/[.]$/, "") ? `  ←  על המסך: ${s.pill}` : ""}${s.step ? ` [שלב ${s.step}]` : ""}`),
-    `${sc.scenes.length + 2}. ${sc.proof.say}  ←  על המסך: ${Number(p.lastest_volume).toLocaleString("en-US")} קנו לאחרונה · ${Math.round(parseFloat(p.evaluate_rate))}% ביקורות חיוביות · ₪${p.target_sale_price}`,
+    ...sc.scenes.map((s, i) => `${i + 2}. ${s.say}${i === sc.slowmo ? " [הילוך איטי]" : ""}`),
+    `${sc.scenes.length + 2}. ${sc.proof.say}  ←  על המסך: ₪${p.target_sale_price}`,
     `${sc.scenes.length + 3}. ${sc.end.say}`,
   ];
   return `📝 מה נאמר בסרטון, לפי הסדר:\n\n${lines.join("\n")}`;
