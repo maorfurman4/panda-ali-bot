@@ -22,7 +22,7 @@ const good = () => ({
     { say: "הראש שלה מתפרק לשטיפה.", pill: "הראש מתפרק לשטיפה", step: true, a: 32.75, b: 35.4, half: "full" },
   ],
   proof_shot: { a: 25.6, b: 29 }, end_shot: { a: 0, b: 3 },
-  hashtags: ["מטבח", "אפייה", "#גאדג'טים למטבח"], dm_name: "כף",
+  dm_name: "כף",
 });
 
 test("style 3: only a proven hit with the seller's own video qualifies", () => {
@@ -62,7 +62,7 @@ test("style 3: a good script becomes the voice text, the post is only the call t
   assert.equal(r.script.slowmo, 1);
   assert.equal(r.script.scenes[1].pill, "גורפים, והמשקל מופיע מיד", "the step number is the circle's, not the text's");
   assert.deepEqual(sentences(r.script).slice(-2), ["תנחשו כמה זה עולה? פחות מ-15 שקל.", END_SAY], "the price comes as the answer to a guess (owner, 2026-11-16)");
-  assert.ok(r.post.startsWith(POST_CTA), "the post is the bio line, the channel link for Facebook, then the hashtags");
+  assert.equal(r.post, POST_CTA, "the whole post is the one bio line (owner, 2026-11-16)");
   assert.match(r.post, /בביו/);
   assert.doesNotMatch(r.post, /פנדה"? ואשלח|בתגובות/, "no \"comment פנדה\" for now (owner, 2026-11-16)");
   assert.doesNotMatch(r.post, /\d{2},\d{3}|קנו/, "no buyer count in the post (owner, 2026-11-15)");
