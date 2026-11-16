@@ -4,13 +4,9 @@
 // Design: docs/superpowers/specs/2026-11-14-reel-publisher-design.md (owner approved; Render move, owner 2026-11-14).
 // No memory between updates: a press carries the preview message (with its video), so a Render restart loses nothing.
 
-// Fixed post text (owner, 2026-11-13): no link anywhere in the post; a comment "פנדה" gets the link by private message.
-export const POST_TEXT = [
-  "🐼 מחפשים משהו בעלי אקספרס? הפנדה מוצא לכם 4 מוצרים מומלצים בכמה שניות.",
-  'כתבו "פנדה" בתגובות ואשלח לכם את הקישור 👇',
-  "",
-  "#עלי_אקספרס #דילים #קניות_ברשת #עליאקספרס_ישראל #פנדה_דילים",
-].join("\n");
+// The post text of a video the owner sends the bot himself (style 1): the same one line as the daily reels (owner,
+// 2026-11-16: "only the sentence I said, always").
+export const POST_TEXT = "🔗 הקישור לערוץ הדילים בביו 👆";
 
 const MAX_BYTES = 20 * 1024 * 1024; // the Bot API's getFile limit
 const PLATFORMS = { instagram: "אינסטגרם", facebook: "פייסבוק" };
