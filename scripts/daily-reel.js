@@ -23,6 +23,7 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const env = process.env;
 const dry = env.REEL_DRY === "true";
+const auto = env.REEL_AUTO === "true"; // a morning start (cron-job.org or GitHub's schedule): at most REELS_PER_DAY a day
 const owner = env.DEALS_OWNER_ID || env.ADMIN_USER_ID;
 const api = env.REELS_BOT_TOKEN ? new Api(env.REELS_BOT_TOKEN) : null;
 const out = env.REEL_OUT || join(ROOT, "reel-out");
@@ -57,7 +58,7 @@ function frames(video, dir, dur) {
 }
 
 async function main() {
-  if (!env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) return console.log(`today's ${REELS_PER_DAY} reels already reached the owner: nothing to do`);
+  if (auto && !env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) return console.log(`today's ${REELS_PER_DAY} automatic reels already reached the owner: nothing to do`);
   const p = await product();
   if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר, 10,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
   const id = String(p.product_id);
@@ -124,7 +125,7 @@ async function main() {
   await api.sendDocument(owner, new InputFile(reel, `reel-${id}.mp4`), previewExtra(written.post));
   await api.sendMessage(owner, captions);
   await api.sendMessage(owner, dm, { link_preview_options: { is_disabled: true } });
-  writeFileSync(stateFile, JSON.stringify(markUsed(state, id, track))); // only after the owner has it
+  writeFileSync(stateFile, JSON.stringify(markUsed(state, id, track, Date.now(), auto))); // only after the owner has it
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "sent=true\n");
   console.log(`sent to the owner; reel state saved (${(state.used ?? []).length + 1} products used)`);
 }

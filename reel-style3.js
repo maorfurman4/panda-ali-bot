@@ -60,16 +60,17 @@ export function nextTrack(state, pool, now = Date.now()) {
   const rested = pool.filter((f) => !(now - (last[f] ?? -Infinity) < TRACK_GAP_DAYS * DAY));
   return (rested.length ? rested : pool).reduce((a, b) => ((last[b] ?? 0) < (last[a] ?? 0) ? b : a));
 }
-// Two reels a day (owner, 2026-11-16), each run makes one: cron-job.org starts the run at 04:40, 06:40 and 08:40, GitHub's
-// own schedule is a backup (it once came 7.5 hours late, 2026-11-16). A run after the day's two reels reached the owner
-// does nothing, so a failed start is made up by the next one.
+// Two automatic reels a day (owner, 2026-11-16), each run makes one: cron-job.org starts the run at 04:40, 06:40 and 08:40
+// with auto=true, GitHub's own schedule is a backup (it once came 7.5 hours late, 2026-11-16). An automatic run after the
+// day's two automatic reels does nothing, so a failed start is made up by the next one. The owner's own "Run workflow"
+// is never limited and doesn't count (owner, 2026-11-16: "as many as I want").
 export const REELS_PER_DAY = 2;
 const israelDay = (t) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
-export const sentToday = (state, now = Date.now()) => (state.used ?? []).filter((u) => israelDay(u.at) === israelDay(now)).length;
+export const sentToday = (state, now = Date.now()) => (state.used ?? []).filter((u) => u.auto !== false && israelDay(u.at) === israelDay(now)).length;
 
-export const markUsed = (state, id, track, now = Date.now()) => ({
+export const markUsed = (state, id, track, now = Date.now(), auto = true) => ({
   ...state,
-  used: [...(state.used ?? []), { id: String(id), at: now }].slice(-500),
+  used: [...(state.used ?? []), { id: String(id), at: now, auto }].slice(-500),
   tracks: [...(state.tracks ?? []), { file: track, at: now }].slice(-60),
 });
 

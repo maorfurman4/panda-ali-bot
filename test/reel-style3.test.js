@@ -136,6 +136,9 @@ test("style 3: two reels a day (Israel date), however many times the morning run
   assert.equal(sentToday(s, Date.parse("2026-11-16T06:45:00Z")), 2, "the 08:40 start finds both and does nothing");
   assert.equal(sentToday(s, Date.parse("2026-11-16T22:30:00Z")), 0, "00:30 Israel is the next day");
   assert.equal(sentToday({}, at), 0);
+  const manual = markUsed(markUsed(s, 3, "c", Date.parse("2026-11-16T13:00:00Z"), false), 4, "d", Date.parse("2026-11-16T14:00:00Z"), false);
+  assert.equal(sentToday(manual, Date.parse("2026-11-16T15:00:00Z")), 2, "the owner's own runs don't count against the two");
+  assert.deepEqual(manual.used.map((u) => u.id), ["1", "2", "3", "4"], "but their products are used, never sent again");
 });
 
 test("style 3: an overloaded Gemini model hands over to the next one", async () => {
