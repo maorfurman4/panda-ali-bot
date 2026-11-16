@@ -16,7 +16,7 @@ const good = () => ({
   hook_shot: { a: 21, b: 23.4 },
   scenes: [
     { say: "הכף הזאת היא גם משקל.", pill: "כף שהיא גם משקל", step: false, a: 5, b: 8.8, half: "full" },
-    { say: "גורפים, והמשקל מופיע מיד.", pill: "גורפים, והמשקל מופיע מיד", step: true, a: 10.4, b: 13, half: "full" },
+    { say: "גורפים, והמשקל מופיע מיד.", pill: "1. גורפים, והמשקל מופיע מיד", step: true, a: 10.4, b: 13, half: "full" },
     { say: "היא שוקלת גם אבקה וגם נוזלים.", pill: "גם אבקה, גם נוזלים", step: true, a: 17.5, b: 20.2, half: "bottom" },
     { say: "הראש שלה מתפרק לשטיפה.", pill: "הראש מתפרק לשטיפה", step: true, a: 32.75, b: 35.4, half: "full" },
   ],
@@ -56,6 +56,7 @@ test("style 3: a good script becomes the voice text, the post is only the call t
   assert.equal(r.script.hook.say, "עוד מנחשים כמה גרם יש בכף?");
   assert.equal(r.script.hook.pill, "עוד מנחשים כמה גרם יש בכף?", "the hook on screen is the spoken words");
   assert.deepEqual(r.script.scenes.map((s) => s.step), [null, 1, 2, 3]);
+  assert.equal(r.script.scenes[1].pill, "גורפים, והמשקל מופיע מיד", "the step number is the circle's, not the text's");
   assert.deepEqual(sentences(r.script).slice(-2), ["כמעט 13 אלף אנשים כבר קנו אותה.", END_SAY]);
   assert.equal(r.post.split("\n")[0], POST_CTA);
   assert.doesNotMatch(r.post, /\d{2},\d{3}|קנו/, "no buyer count in the post (owner, 2026-11-15)");

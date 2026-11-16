@@ -192,7 +192,7 @@ export function checkScript(o, p, duration, sections = [[0, duration]]) {
     script: {
       keep: [o.keep_top, o.keep_bottom],
       hook: { say: end(hook.text), pill: hook.text.trim(), ...within(o.hook_shot), score: hookScore(hook), others: hooks.filter((h) => h !== hook).map((h) => `${h.text} (${hookScore(h)})`) },
-      scenes: scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/[.]$/, ""), step: s.step ? ++n : null, ...within(s), half: s.half })),
+      scenes: scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/^\d+\s*[.)\-:]\s*/, "").replace(/[.]$/, ""), step: s.step ? ++n : null, ...within(s), half: s.half })),
       proof: { say: proofSay(Number(p.lastest_volume), o.it.trim()), ...within(o.proof_shot) },
       end: { say: END_SAY, ...within(o.end_shot) },
     },
