@@ -17,7 +17,7 @@ import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js
 import { previewExtra } from "../reels.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
-  captionList, dmText, sectionsOf, sentToday, VIDEO_HOST, MIN_VIDEO_S,
+  captionList, dmText, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -57,7 +57,7 @@ function frames(video, dir, dur) {
 }
 
 async function main() {
-  if (!env.REEL_PRODUCT && !dry && sentToday(state)) return console.log("today's reel already reached the owner: nothing to do");
+  if (!env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) return console.log(`today's ${REELS_PER_DAY} reels already reached the owner: nothing to do`);
   const p = await product();
   if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר, 10,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
   const id = String(p.product_id);

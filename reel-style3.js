@@ -60,10 +60,12 @@ export function nextTrack(state, pool, now = Date.now()) {
   const rested = pool.filter((f) => !(now - (last[f] ?? -Infinity) < TRACK_GAP_DAYS * DAY));
   return (rested.length ? rested : pool).reduce((a, b) => ((last[b] ?? 0) < (last[a] ?? 0) ? b : a));
 }
-// One reel a day: the morning run is started twice (cron-job.org at 04:40 and 06:40, GitHub's own schedule as a backup that
-// once came 7.5 hours late, 2026-11-16); a run after the day's reel reached the owner does nothing.
+// Two reels a day (owner, 2026-11-16), each run makes one: cron-job.org starts the run at 04:40, 06:40 and 08:40, GitHub's
+// own schedule is a backup (it once came 7.5 hours late, 2026-11-16). A run after the day's two reels reached the owner
+// does nothing, so a failed start is made up by the next one.
+export const REELS_PER_DAY = 2;
 const israelDay = (t) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
-export const sentToday = (state, now = Date.now()) => (state.used ?? []).some((u) => israelDay(u.at) === israelDay(now));
+export const sentToday = (state, now = Date.now()) => (state.used ?? []).filter((u) => israelDay(u.at) === israelDay(now)).length;
 
 export const markUsed = (state, id, track, now = Date.now()) => ({
   ...state,
