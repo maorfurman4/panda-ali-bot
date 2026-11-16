@@ -126,13 +126,16 @@ test("style 3: a shot never crosses the seller video's own cut, never repeats an
   assert.deepEqual(timingProblems([1, 2, 3], heard, says, [shots[0], { a: 0, b: 2.0 }, shots[2]]), []);
 });
 
-test("style 3: one reel a day (Israel date), however many times the morning run is started", async () => {
-  const { sentToday, markUsed } = await import("../reel-style3.js");
+test("style 3: two reels a day (Israel date), however many times the morning run is started (owner, 2026-11-16)", async () => {
+  const { sentToday, markUsed, REELS_PER_DAY } = await import("../reel-style3.js");
+  assert.equal(REELS_PER_DAY, 2);
   const at = Date.parse("2026-11-16T02:45:00Z"); // 04:45 Israel
-  const s = markUsed({}, 1, "a", at);
-  assert.equal(sentToday(s, Date.parse("2026-11-16T04:45:00Z")), true);
-  assert.equal(sentToday(s, Date.parse("2026-11-16T22:30:00Z")), false, "00:30 Israel is the next day");
-  assert.equal(sentToday({}, at), false);
+  let s = markUsed({}, 1, "a", at);
+  assert.equal(sentToday(s, Date.parse("2026-11-16T04:45:00Z")), 1);
+  s = markUsed(s, 2, "b", Date.parse("2026-11-16T04:48:00Z"));
+  assert.equal(sentToday(s, Date.parse("2026-11-16T06:45:00Z")), 2, "the 08:40 start finds both and does nothing");
+  assert.equal(sentToday(s, Date.parse("2026-11-16T22:30:00Z")), 0, "00:30 Israel is the next day");
+  assert.equal(sentToday({}, at), 0);
 });
 
 test("style 3: an overloaded Gemini model hands over to the next one", async () => {
