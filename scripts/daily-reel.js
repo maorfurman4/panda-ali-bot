@@ -81,7 +81,7 @@ function frames(video, dir, dur) {
 async function main() {
   if (auto && !env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) return console.log(`today's ${REELS_PER_DAY} automatic reels already reached the owner: nothing to do`);
   const p = await product();
-  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, 5,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
+  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, 1,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
   const id = String(p.product_id);
   console.log(`product ${id}: ${p.product_title}\n  ₪${p.target_sale_price}, sold ${p.lastest_volume}, ${p.evaluate_rate} positive`);
   const work = join(out, id);
@@ -123,7 +123,7 @@ async function main() {
     video, voice, words: heard, ends, keep: sc.keep,
     shots: [sc.hook, ...sc.scenes, sc.proof, sc.end].map(({ a, b, half, sec }) => ({ a, b, sec, half: half ?? "full" })),
     pills: { hook: sc.hook.pill, scenes: sc.scenes.map((s) => ({ text: s.pill, step: s.step })) },
-    proof: { sold: Number(p.lastest_volume), rate: `${Math.round(parseFloat(p.evaluate_rate))}%`, price: p.target_sale_price },
+    proof: { price: p.target_sale_price },
     track: { file: join(ROOT, "reels", "music", track), bpm: beats[track].bpm, start: beats[track].start },
   };
   writeFileSync(join(work, "spec.json"), JSON.stringify(spec, null, 1));

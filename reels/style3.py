@@ -47,10 +47,11 @@ def plain_body(text):
     return f'<div class="wrap"><div class="pill"><span>{esc(text)}</span></div></div>'
 
 
-def proof_body(sold, rate, price):
-    return (f'<div class="wrap"><div class="pill" style="flex-direction:column;gap:8px;padding:34px 56px">'
-            f'<span><b style="color:{BLUE}">{sold:,}</b> קנו לאחרונה</span><span>{esc(rate)} ביקורות חיוביות</span>'
-            f'<span style="font-size:66px">₪{esc(price)}</span></div></div>')
+def price_body(price):
+    """the price card, said by the voice at the same moment ("והמחיר? פחות מ-15 שקל")"""
+    return (f'<div class="wrap"><div class="pill" style="flex-direction:column;gap:4px;padding:30px 70px">'
+            f'<span style="font-size:46px;font-weight:600;color:#3b3f47">המחיר</span>'
+            f'<span style="direction:ltr;font-size:104px;color:{BLUE};line-height:1.05">₪{esc(price)}</span></div></div>')
 
 
 END = ('<div class="wrap mid"><div class="pill end"><span>רוצים את הקישור?</span>'
@@ -308,7 +309,7 @@ def main(spec_path, out):
     t = [f / FPS for f in F]
     pr = spec["proof"]
     pills = [(pill(work, step_body(p["text"], p["step"]) if p.get("step") else plain_body(p["text"])), t[i + 1], t[i + 2]) for i, p in enumerate(P["scenes"])]
-    pills += [(pill(work, proof_body(pr["sold"], pr["rate"], pr["price"])), t[last - 1], t[last]), (pill(work, END), t[last], D + 1)]
+    pills += [(pill(work, price_body(pr["price"])), t[last - 1], t[last]), (pill(work, END), t[last], D + 1)]
     for png, _, _ in pills + [(hook_png, 0, 0)]:
         x0, y0, x1, y1 = body_box(png)
         assert 269 <= y0 and y1 <= 1248 and x0 >= 65 and x1 <= 1015, ("pill outside Meta's safe zone", png, x0, y0, x1, y1)

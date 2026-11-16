@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { lookalikeBrand } from "./format.js";
 
-export const MIN_SOLD = 5000;    // a proven hit (owner, 2026-11-16: 10,000 left too few products with a seller video)
+export const MIN_SOLD = 1000;    // a quality gate only: the reel says the price, not the buyers (owner, 2026-11-16)
 export const MIN_POSITIVE = 95;  // % positive reviews
 export const MIN_VIDEO_S = 12;   // shorter seller videos don't hold 6-8 different moments
 // The seller's picture must be at least this tall: a full-screen reel blows it up to 1920, and a 480-high video (the garden
@@ -114,14 +114,15 @@ export const markUsed = (state, id, track, now = Date.now(), auto = true) => ({
   tracks: [...(state.tracks ?? []), { file: track, at: now }].slice(-60),
 });
 
-// ---------------- the proof line (code, not the AI: the number must be exact) ----------------
-// 12,934 -> "כמעט 13 אלף"; 12,100 -> "יותר מ-12 אלף"
-export function soldWords(sold) {
-  const k = sold / 1000, up = Math.ceil(k), down = Math.floor(k);
-  return up - k <= 0.35 && up !== down ? `כמעט ${up} אלף` : `יותר מ-${down} אלף`;
+// ---------------- the price line (code, not the AI: the number must be exact) ----------------
+// The owner swapped "N thousand bought it" for the price (2026-11-16: the buyers line doesn't hold the eye, a low price
+// makes people comment). 14.09 -> "פחות מ-15 שקל"; 5.99 -> "פחות מ-6 שקלים"; 52.3 -> "פחות מ-55 שקל"; 30 -> "רק 30 שקל".
+export function priceWords(price) {
+  const p = Number(price), step = p < 20 ? 1 : p < 100 ? 5 : 10, up = Math.ceil(p / step - 1e-9) * step;
+  const shekel = (n) => `${n} ${n <= 10 ? "שקלים" : "שקל"}`;
+  return Math.abs(up - p) < 0.005 ? `רק ${shekel(up)}` : `פחות מ-${shekel(up)}`;
 }
-export const proofSay = (sold, it) => `${soldWords(sold)} אנשים כבר קנו ${it}.`;
-export const IT = ["אותה", "אותו", "אותם", "אותן"];
+export const priceSay = (price) => `והמחיר? ${priceWords(price)}.`;
 
 // ---------------- the script (one Gemini call: frames + data -> JSON) ----------------
 const S = (type, extra = {}) => ({ type, ...extra });
@@ -131,7 +132,6 @@ export const SCHEMA = O({
   hooks: S("array", { items: O({ text: S("string"), frontload: S("integer"), specific: S("integer"), address: S("integer"), stakes: S("integer") }) }),
   hook_shot: O({ a: S("number"), b: S("number") }),
   scenes: S("array", { items: O({ say: S("string"), pill: S("string"), step: S("boolean"), a: S("number"), b: S("number"), half: S("string") }) }),
-  it: S("string"),
   proof_shot: O({ a: S("number"), b: S("number") }),
   end_shot: O({ a: S("number"), b: S("number") }),
   hashtags: S("array", { items: S("string") }),
@@ -165,9 +165,8 @@ What you return (JSON):
   caption: the same words as say or a short exact part of them, up to 30 characters), step (true when the sentence is a usage
   step, numbered 1, 2, 3 on screen), a and b (the source moment that shows exactly what the sentence says, b - a >= 1.5),
   half ("top", "bottom" or "full": a split-screen frame shows two pictures; pick the half that shows the sentence).
-  Do not mention the price or how many people bought it, and do not ask for comments: code adds those.
-- it: the object pronoun for the product noun you used ("אותה", "אותו", "אותם" or "אותן"); code says "<N> אלף אנשים כבר קנו <it>".
-- proof_shot: a calm good-looking moment of the product (b - a >= 2.5). end_shot: another one, different (b - a >= 2.5).
+  Do not mention the price (code says it) or how many people bought it, and do not ask for comments: code adds those.
+- proof_shot: the best-looking moment of the product (the price is said over it) (b - a >= 2.5). end_shot: another one, different (b - a >= 2.5).
 - Every shot moment different; never a frame with a close-up face only, packaging only, or a title card.
 - hashtags: 4-5 Hebrew words for the post, no "#", "_" between words. dm_name: the item's short Hebrew noun as it follows
   "הנה הקישור ל" (e.g. "משאבה", "כף").
@@ -218,7 +217,6 @@ export function checkScript(o, p, duration, sections = [[0, duration]]) {
     if (EMOJI.test(s.pill) || BANNED.test(s.pill)) errors.push(`scene ${i}: pill "${s.pill}" has an emoji, a dash or "!"`);
     if (!["top", "bottom", "full"].includes(s.half)) errors.push(`scene ${i}: half must be top, bottom or full`);
   });
-  if (!IT.includes(String(o?.it).trim())) errors.push(`it: "${o?.it}" must be one of ${IT.join(", ")}`);
   shot("proof_shot", o?.proof_shot, 2.5);
   shot("end_shot", o?.end_shot, 2.5);
   shots.sort((x, y) => x.a - y.a).forEach((x, i, a) => {
@@ -236,7 +234,7 @@ export function checkScript(o, p, duration, sections = [[0, duration]]) {
       keep: [o.keep_top, o.keep_bottom],
       hook: { say: end(hook.text), pill: hook.text.trim(), ...within(o.hook_shot), score: hookScore(hook), others: hooks.filter((h) => h !== hook).map((h) => `${h.text} (${hookScore(h)})`) },
       scenes: scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/^\d+\s*[.)\-:]\s*/, "").replace(/[.]$/, ""), step: s.step ? ++n : null, ...within(s), half: s.half })),
-      proof: { say: proofSay(Number(p.lastest_volume), o.it.trim()), ...within(o.proof_shot) },
+      proof: { say: priceSay(p.target_sale_price), ...within(o.proof_shot) },
       end: { say: END_SAY, ...within(o.end_shot) },
     },
     post: [POST_CTA, "", (tags.length ? tags : ["עלי_אקספרס", "פנדה_דילים"]).map((t) => `#${t}`).join(" ")].join("\n"),
@@ -402,7 +400,7 @@ export function captionList(sc, p) {
   const lines = [
     `1. פתיחה: ${sc.hook.say} (ציון ${sc.hook.score}/20; האחרות: ${sc.hook.others.join(" · ")})`,
     ...sc.scenes.map((s, i) => `${i + 2}. ${s.say}${s.pill !== s.say.replace(/[.]$/, "") ? `  ←  על המסך: ${s.pill}` : ""}${s.step ? ` [שלב ${s.step}]` : ""}`),
-    `${sc.scenes.length + 2}. ${sc.proof.say}  ←  על המסך: ${Number(p.lastest_volume).toLocaleString("en-US")} קנו לאחרונה · ${Math.round(parseFloat(p.evaluate_rate))}% ביקורות חיוביות · ₪${p.target_sale_price}`,
+    `${sc.scenes.length + 2}. ${sc.proof.say}  ←  על המסך: ₪${p.target_sale_price}`,
     `${sc.scenes.length + 3}. ${sc.end.say}`,
   ];
   return `📝 מה נאמר בסרטון, לפי הסדר:\n\n${lines.join("\n")}`;
