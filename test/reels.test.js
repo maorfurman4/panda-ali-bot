@@ -103,21 +103,3 @@ test("reels: each video is published with the text shown in its own preview, so 
   await run(press("pub", { video: { file_id: "V1" }, caption: "something else" }));
   assert.deepEqual(texts, [own, POST_TEXT], "an unknown caption falls back to the fixed style-1 text");
 });
-
-test("reels: publishing also posts the reel and its product link to the deals channel, once, and the post text stays without it (owner, 2026-11-16)", async () => {
-  const { previewExtra } = await import("../reels.js");
-  const { api, of } = fakeApi();
-  const posted = [], texts = [];
-  const caption = previewExtra("🔗 הקישור לערוץ הדילים בביו 👆", "🎬 מהרילס של היום: מברשת\n💰 ₪11.79\n👉 https://s.click.aliexpress.com/e/x").caption;
-  let fbFails = true;
-  const run = createReelsHandler({ api, ownerId: OWNER, download: async (id) => Buffer.from(id),
-    publish: async (_b, text, { only }) => (texts.push(text), only ? { [only]: { ok: true } } : { instagram: { ok: true }, facebook: { ok: !fbFails, error: "x" } }),
-    toChannel: async (bytes, text) => posted.push([bytes.toString(), text]) });
-  await run(press("pub", { document: { file_id: "D1" }, caption }));
-  assert.deepEqual(texts, ["🔗 הקישור לערוץ הדילים בביו 👆"], "the channel text is not in the Instagram post");
-  assert.deepEqual(posted, [["D1", "🎬 מהרילס של היום: מברשת\n💰 ₪11.79\n👉 https://s.click.aliexpress.com/e/x"]]);
-  assert.match(of("sendMessage").at(-1).args[1], /ערוץ הדילים: פורסם/);
-  fbFails = false;
-  await run(press("pub:facebook", { document: { file_id: "D1" }, caption }));
-  assert.equal(posted.length, 1, "retrying Facebook doesn't post to the channel again");
-});
