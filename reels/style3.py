@@ -346,11 +346,10 @@ def main(spec_path, out):
     if look == "bold":
         pack = None
         rt = lambda x: v["new_t"](x - v["lead"])
-        hero, hero_land = bold.hero_layers(spec, work, bold.Y[spec["shots"][0].get("pos", "middle")])
         price, land = bold.price_frames(spec, t, last, D, work, rt)
-        layers = hero  # no emoji: they looked generic (owner, 2026-11-16)
-        seqs = [bold.sequence(work, "captions", bold.caption_frames(spec, rt, t, last, D, work), D), bold.sequence(work, "price", price, D)]
-        events = [(hero_land, "boom"), (t[1] - 0.02, "boom"), (land, "kaching")]  # sounds only at the strong moments
+        layers = []  # no giant opening word and no emoji: the owner found both unnecessary (2026-11-16)
+        seqs = [bold.sequence(work, "captions", bold.caption_frames(spec, rt, t, last, D, work, start=0.0), D), bold.sequence(work, "price", price, D)]
+        events = [(t[1] - 0.02, "boom"), (land, "kaching")]  # sounds only at the strong moments: the drop and the price
     if pack:
         assert pack in fx.PACKS, pack
         kind = "rise" if pack == "punchy" else "side"

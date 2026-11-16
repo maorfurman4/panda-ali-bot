@@ -133,7 +133,6 @@ const O = (properties) => ({ type: "object", properties, required: Object.keys(p
 export const SCHEMA = O({
   keep_top: S("number"), keep_bottom: S("number"),
   hooks: S("array", { items: O({ text: S("string"), frontload: S("integer"), specific: S("integer"), address: S("integer"), stakes: S("integer") }) }),
-  hero: S("string"),
   hook_shot: O({ a: S("number"), b: S("number"), pos: S("string") }),
   scenes: S("array", { items: O({ say: S("string"), pill: S("string"), step: S("boolean"), a: S("number"), b: S("number"), half: S("string"), pos: S("string") }) }),
   slowmo: S("integer"),
@@ -164,8 +163,6 @@ What you return (JSON):
 - keep_top, keep_bottom: the band of the frame height to keep (0 = top, 1 = bottom) so burned-in subtitles, Chinese text and
   watermarks are cut off, e.g. 0 and 0.8 when subtitles sit at the bottom. Keep at least 0.55 of the height. 0 and 1 when clean.
 - hooks: 3 different spoken openings (each up to 7 words, a question), each scored 0-5 on frontload, specific, address, stakes.
-- hero: ONE striking Hebrew word (two short words at most, up to 12 letters, may end with "?!") slammed huge on screen in the
-  first half-second, before the hook is heard; it names the problem or the wow ("שיער?!", "בלי כבל?!", "15 גרם?!").
 - hook_shot: the most striking moment of the product working (a, b in seconds, b - a >= 1.5).
 - scenes: 4 to 6 short sentences after the hook, in the order a viewer needs them: what it is, then how it is used step by
   step, then what else it does. Each: say (the spoken sentence, up to 8 words, ending with "." or "?"), pill (the on-screen
@@ -229,8 +226,6 @@ export function checkScript(o, p, duration, sections = [[0, duration]], opts = {
     if (EMOJI.test(s.pill) || BANNED.test(s.pill)) errors.push(`scene ${i}: pill "${s.pill}" has an emoji, a dash or "!"`);
     if (!["top", "bottom", "full"].includes(s.half)) errors.push(`scene ${i}: half must be top, bottom or full`);
   });
-  const hero = String(o?.hero ?? "").trim();
-  if (!/[א-ת]/.test(hero) || [...hero].length > 14 || hero.split(/\s+/).length > 2 || BANNED.test(hero.replace(/\?!$/, "")) || EMOJI.test(hero)) errors.push(`hero: "${hero}" must be one or two Hebrew words, up to 12 letters`);
   if (!(o?.slowmo === -1 || (o?.slowmo >= 0 && o.slowmo < scenes.length))) errors.push(`slowmo: -1 or a scene index (0-${scenes.length - 1})`);
   shot("proof_shot", o?.proof_shot, 2.5);
   shot("end_shot", o?.end_shot, 2.5);
@@ -249,7 +244,6 @@ export function checkScript(o, p, duration, sections = [[0, duration]], opts = {
   return {
     script: {
       keep: [o.keep_top, o.keep_bottom],
-      hero,
       hook: { say: end(hook.text), pill: hook.text.trim(), ...within(o.hook_shot), pos: pos(o.hook_shot), score: hookScore(hook), others: hooks.filter((h) => h !== hook).map((h) => `${h.text} (${hookScore(h)})`) },
       scenes: made,
       slowmo: o.slowmo >= 0 ? o.slowmo : -1, // index in scenes
@@ -448,17 +442,14 @@ export function timingProblems(ends, heard, says, shots = null) {
 }
 
 // ---------------- the bold look ----------------
-// What changes from reel to reel so they don't all look the same (owner, 2026-11-16): the highlight colour and how the
-// opening word lands. The font, the layout and the price animation stay: they are the Panda's signature.
+// What changes from reel to reel so they don't all look the same (owner, 2026-11-16): the highlight colour and the price
+// question. The font, the layout and the price animation stay: they are the Panda's signature.
 export const ACCENTS = ["#FFD60A", "#4CC9F0", "#80ED99", "#FF5DA2"];
-export const ENTRANCES = ["drop", "slam", "side"];
 export function lookFor(state, sc, timeline, p) {
   const n = (state.used ?? []).length;
   return {
     look: "bold",
     accent: ACCENTS[n % ACCENTS.length],
-    entrance: ENTRANCES[n % ENTRANCES.length],
-    hero: sc.hero,
     captions: timeline,
     slowmo: sc.slowmo >= 0 ? sc.slowmo + 1 : -1, // shot index (shot 0 is the hook)
   };
@@ -467,7 +458,6 @@ export function lookFor(state, sc, timeline, p) {
 // ---------------- what the owner gets ----------------
 export function captionList(sc, p) {
   const lines = [
-    `0. מילה ענקית בפתיחה: ${sc.hero}`,
     `1. פתיחה: ${sc.hook.say} (ציון ${sc.hook.score}/20; האחרות: ${sc.hook.others.join(" · ")})`,
     ...sc.scenes.map((s, i) => `${i + 2}. ${s.say}${i === sc.slowmo ? " [הילוך איטי]" : ""}`),
     `${sc.scenes.length + 2}. ${sc.proof.say}  ←  על המסך: ₪${p.target_sale_price}`,

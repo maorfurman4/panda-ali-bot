@@ -13,7 +13,6 @@ const good = () => ({
     { text: "כמה זה כף?", frontload: 3, specific: 2, address: 1, stakes: 1 },
     { text: "המתכון יוצא לא טוב?", frontload: 4, specific: 2, address: 3, stakes: 4 },
   ],
-  hero: "15 גרם?!",
   hook_shot: { a: 21, b: 23.4, pos: "middle" },
   slowmo: 1,
   scenes: [
@@ -61,7 +60,6 @@ test("style 3: a good script becomes the voice text, the post is only the call t
   assert.equal(r.script.hook.pill, "עוד מנחשים כמה גרם יש בכף?", "the hook on screen is the spoken words");
   assert.deepEqual(r.script.scenes.map((s) => s.step), [null, 1, 2, 3]);
   assert.equal(r.script.slowmo, 1);
-  assert.equal(r.script.hero, "15 גרם?!");
   assert.equal(r.script.scenes[1].pill, "גורפים, והמשקל מופיע מיד", "the step number is the circle's, not the text's");
   assert.deepEqual(sentences(r.script).slice(-2), ["תנחשו כמה זה עולה? פחות מ-15 שקל.", END_SAY], "the price comes as the answer to a guess (owner, 2026-11-16)");
   assert.equal(r.post.split("\n")[0], POST_CTA);
@@ -78,7 +76,6 @@ test("style 3: what the owner rejected never passes: a different sentence on scr
   assert.match(bad((o) => { o.hooks.pop(); }), /hooks/);
   assert.match(bad((o) => { o.scenes[2].b = 60; }), /shot/);
   assert.match(bad((o) => { o.keep_bottom = 0.4; }), /keep/);
-  assert.match(bad((o) => { o.hero = "מברשת מדהימה לכל הבית"; }), /hero/);
 });
 
 test("style 3: each sentence's end is found in Whisper's words, though Whisper spells words its own way", () => {

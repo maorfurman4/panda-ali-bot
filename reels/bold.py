@@ -1,5 +1,4 @@
 """The bold look of the style-3 Reel (owner's 14 answers, 2026-11-16): no caption bubbles. Instead:
-- a giant word lands in the first half-second (it drops, slams or slides in, rotating per reel), with a boom;
 - the spoken words appear 2-3 at a time, in big white letters with a soft shadow, the word being said in the accent colour
   (rotating per reel), placed where the product isn't (Gemini's "pos" for each shot), inside Meta's safe zone;
 - the price: the old one shows, a red line strikes it, then the number counts down to the real price, with a ka-ching, and
@@ -90,22 +89,6 @@ def caption_frames(spec, rt, t, last, D, work, start=0.62):
         if n + 1 < len(items) and items[n + 1][0] is not ch: e = min(e, rt(ch[-1]["t1"]) + 0.6)  # a pause: the words go soon after
         frames.append((png(work, caption_body(ch, hot, Y[pos_at(s)], accent)), s, e))
     return frames
-
-
-# ---------------- the opening word ----------------
-def hero_layers(spec, work, y=860):
-    """[(png, start, end, (x, y) motion)] and the landing time; the entrance rotates per reel"""
-    word, accent, how = spec["hero"], spec["accent"], spec.get("entrance", "drop")
-    def body(size):
-        return (f"<div style='position:absolute;left:40px;right:40px;top:{y}px;transform:translateY(-50%);text-align:center;"
-                f"direction:rtl;font-weight:900;font-size:{size}px;line-height:1;color:{accent};{SHADOW}'>{esc(word)}</div>")
-    end = 0.62
-    if how == "slam":  # it hits the screen big and settles in three steps
-        sizes = [(330, 0.0, 0.05), (260, 0.05, 0.1), (210, 0.1, end)]
-        return [(png(work, body(s)), a, b, None) for s, a, b in sizes], 0.05
-    p = png(work, body(210))
-    if how == "side": return [(p, 0.0, end, fx.from_side(0.0, 0.22))], 0.2
-    return [(p, 0.0, end, ("0", f"-1000*(1-{fx.back_out(0.0, 0.28)})"))], 0.25  # drop: falls from above, a small bounce
 
 
 # ---------------- the price ----------------
