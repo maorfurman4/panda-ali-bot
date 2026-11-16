@@ -42,7 +42,11 @@ if (reelsApi) {
     return Buffer.from(await res.arrayBuffer());
   };
   const publish = (bytes, caption, { only }) => publishReel(bytes, caption, { token: process.env.META_PAGE_TOKEN, igId: process.env.META_IG_ID, pageId: process.env.META_PAGE_ID, only });
-  reels = createReelsHandler({ api: reelsApi, ownerId: process.env.ADMIN_USER_ID, publish, download });
+  const { InputFile } = await import("grammy");
+  const { DEALS_CHANNEL } = await import("./reels.js");
+  // the reel and its product link to the deals channel; the Reels bot must be an admin there with "post messages"
+  const toChannel = (bytes, caption) => reelsApi.sendVideo(DEALS_CHANNEL, new InputFile(bytes, "reel.mp4"), { caption, supports_streaming: true });
+  reels = createReelsHandler({ api: reelsApi, ownerId: process.env.ADMIN_USER_ID, publish, download, toChannel });
 }
 const app = createApp({ bot, mode, webhookSecret: mode === "webhook" ? WEBHOOK_SECRET : undefined, reels });
 

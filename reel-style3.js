@@ -13,8 +13,10 @@ export const MIN_VIDEO_S = 12;   // shorter seller videos don't hold 6-8 differe
 export const MIN_PICTURE_H = 700;
 export const VIDEO_HOST = "https://video.aliexpress-media.com/";
 export const CHANNEL = "t.me/panda_dilim";
-export const END_SAY = "רוצים את הקישור? כתבו פנדה בתגובות.";
-export const POST_CTA = 'כתבו "פנדה" ואשלח לכם קישור לפרטי 👇'; // the whole post, with the hashtags (owner, 2026-11-15)
+// Until the reels pick up speed, no "comment פנדה": the link is in the Instagram bio, to the deals channel, where the reel's
+// own product is posted as it is published (owner, 2026-11-16). Instagram captions don't make links clickable; Facebook does.
+export const END_SAY = "הקישור לכל הדילים נמצא בביו.";
+export const POST_CTA = "🔗 הקישור לערוץ הדילים בביו 👆\nt.me/panda_dilim"; // the whole post, with the hashtags
 export const VOICE = "Sadachbia";
 // Fallback chains: the first model that answers wins. gemini-3.8-flash timed out and said "high demand" three times on
 // 2026-11-16 at 12:15 Israel time; 3.5-flash wrote a good script in 29 s the same hour.
@@ -467,4 +469,5 @@ export function captionList(sc, p) {
 }
 
 // The private message for whoever comments "פנדה" (owner, 2026-11-14): the product link first, then the deals channel.
-export const dmText = (name, link) => [`הנה הקישור ל${name} 👇`, link, "", "ואם אתם אוהבים דילים כאלה, יש לי ערוץ עם דילים חדשים כל יום:", CHANNEL].join("\n");
+// The deals-channel post that goes out with the reel itself when the owner presses publish (reels.js).
+export const channelText = (name, price, link) => [`🎬 מהרילס של היום: ${name}`, `💰 ₪${price}`, `👉 ${link}`].join("\n");
