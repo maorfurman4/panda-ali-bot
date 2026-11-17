@@ -36,6 +36,9 @@ concurrency: daily-deals # two runs at once could post the same item
 jobs:
   post:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write # the morning-reel backup start below
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -84,3 +87,13 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           DEALS_BOT_TOKEN: ${{ secrets.DEALS_BOT_TOKEN }}
           DEALS_OWNER_ID: ${{ secrets.DEALS_OWNER_ID }}
+      # A backup start for the morning reels: cron-job.org (04:40/06:40/08:40) started nothing on 2026-11-17 and GitHub's own
+      # schedule skipped too. This hourly run is started reliably, so at 07:xx and 08:xx Israel time it asks for an automatic
+      # reel; scripts/daily-reel.js stops by itself once 2 automatic reels went out that day (a run that does nothing: ~1 min).
+      - name: Back up the morning reels
+        if: always() && inputs.preview != true
+        run: |
+          h=$(TZ=Asia/Jerusalem date +%H)
+          if [ "$h" = "07" ] || [ "$h" = "08" ]; then gh workflow run daily-reel.yml --ref main -f auto=true; else echo "hour $h: no reel backup"; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
