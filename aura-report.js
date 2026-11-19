@@ -16,8 +16,18 @@
 // Station ids must match office/public/js/aura.config.js.
 const STATUSES = ['idle', 'working', 'done', 'error'];
 
+// One line in the run's log, at the first report: is telemetry on, and if not, why.
+let announced = false;
+function announce(url, key) {
+  if (announced) return;
+  announced = true;
+  const why = process.env.AURA_REPORT === 'off' ? 'AURA_REPORT=off' : !url ? 'missing SUPABASE_URL' : !key ? 'missing SUPABASE_SERVICE_KEY' : '';
+  console.log(why ? `[AURA] Telemetry disabled: ${why}` : '[AURA] Telemetry enabled');
+}
+
 export async function station(bot, stationId, status, headline, metrics, { handoffTo = null, workerType = null } = {}) {
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
+  announce(url, key); // at the first report, not at import: a script may switch reporting off after importing this file
   if (!url || !key || !STATUSES.includes(status) || process.env.AURA_REPORT === 'off') return false;
   const row = {
     bot, kind: 'station', station_id: stationId, status, text: headline ? String(headline).slice(0, 300) : null,
