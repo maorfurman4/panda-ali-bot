@@ -1662,7 +1662,7 @@ test("an explicit search the AI never understood is searched by its English word
   await ctx.bot.handleUpdate(textUpdate("חפש לי plaude"));
   assert.equal(spy.queries[0], "plaude");
   assert.notEqual(ctx.sent().at(-1).body, NOT_PRODUCT);
-  assert.match(reports[0][1], /plaude/);
+  assert.equal(reports.length, 0, "no message to the owner each time");
   const heb = await run("חפש לי פלאוד", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
   assert.equal(heb.sent()[0].body, NOT_PRODUCT);
   assert.equal(heb.queries.length, 0, "no AliExpress search for Hebrew alone");
