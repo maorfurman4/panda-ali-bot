@@ -1077,7 +1077,7 @@ export function createBot({
         // The AI doesn't know every brand ("plaude", owner's test 2026-11-19); AliExpress does. The English words are
         // searched as written and the judges keep only what fits. Hebrew alone stays "לא הבנתי".
         const english = query.match(/[a-z][a-z\d-]{2,}/gi);
-        stats.report("notUnderstood", `🤔 לא הבנתי: "${query}"${english ? ` (חיפשתי בעלי אקספרס: ${english.join(" ")})` : ""}`); // the owner sees every one
+        stats.remember("notUnderstood", `"${query}"${english ? ` (חיפשתי בעלי אקספרס: ${english.join(" ")})` : ""}`); // in the nightly digest only, no message each time (owner, 2026-11-19)
         if (!english) return reply(ctx, NOT_PRODUCT);
         intent = { status: "ok", corrected_he: query, keywords_en: english.join(" "), max_price_ils: null };
       }
