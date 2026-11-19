@@ -926,6 +926,7 @@ async function liveHealthChecks() {
 
 // AURA HQ status (aura-report.js): never awaited, so a slow or missing office can't hold up an answer.
 const aura = (id, status, headline, metrics) => void station("panda", id, status, headline, metrics);
+const STOPPED = { search: "החיפוש בעלי אקספרס נכשל", judges: "החיפוש נכשל בזמן שהשופטים בדקו", variants: "החיפוש נכשל בזמן בדיקת הצבעים והמידות" };
 
 export function createBot({
   token,
@@ -1148,13 +1149,16 @@ export function createBot({
     stats.count("search");
     let found;
     let trace = ["מהזיכרון (אותו חיפוש ב-24 השעות האחרונות)"];
+    // AURA HQ: the stations still at work, so a search that throws midway leaves none of them on "working".
+    const open = new Set();
+    const mark = (id, status, ...rest) => (status === "working" ? open.add(id) : open.delete(id), aura(id, status, ...rest));
     try {
       const key = JSON.stringify([keywords, fallback, category, maxPriceIls, minPriceIls, brandOnly, cheapest, limit]);
       const hit = resultsCache.get(key);
       if (hit && now() - hit.at < RESULTS_TTL_MS) {
         found = hit.found;
         stats.count("cached");
-        aura("search", "done", `${found.length} מוצרים מהזיכרון (אותו חיפוש היום)`, { found: found.length });
+        mark("search", "done", `${found.length} מוצרים מהזיכרון (אותו חיפוש היום)`, { found: found.length });
       } else {
         // The self-check's second reading tells the AI what the first one searched (cached like any reading).
         const reread = (words) => understand(rawHeader, { wrong: words }).then((i) => (i?.status === "ok" ? { keywords: i.keywords_en, alt: i.alt_en ?? null, terms: i.terms_en ?? [], fallback: i.fallback_en, looks: i.looks_like ?? null } : null));
@@ -1168,29 +1172,29 @@ export function createBot({
             return list;
           },
           relevant: async (request, pool, ...rest) => {
-            if (!seen.judged) aura("judges", "working", `השופטים בודקים ${pool.length} מוצרים`);
+            if (!seen.judged) mark("judges", "working", `השופטים בודקים ${pool.length} מוצרים`);
             seen.judged += pool.length;
             return relevant(request, pool, ...rest);
           },
           skus: skus && (async (ids) => {
-            aura("variants", "working", `בודק צבעים ומידות ב-${ids.length} מוצרים`);
+            mark("variants", "working", `בודק צבעים ומידות ב-${ids.length} מוצרים`);
             const variants = await skus(ids).catch((e) => {
-              aura("variants", "error", "בדיקת הצבעים והמידות נכשלה");
+              mark("variants", "error", "בדיקת הצבעים והמידות נכשלה");
               throw e;
             });
-            aura("variants", "done", `${variants?.size ?? 0} מתוך ${ids.length} מוצרים החזירו צבעים ומידות`, { checked: ids.length, answered: variants?.size ?? 0 });
+            mark("variants", "done", `${variants?.size ?? 0} מתוך ${ids.length} מוצרים החזירו צבעים ומידות`, { checked: ids.length, answered: variants?.size ?? 0 });
             return variants;
           }),
         };
-        aura("search", "working", "מחפש בעלי אקספרס");
+        mark("search", "working", "מחפש בעלי אקספרס");
         const pick = (min) => pickProducts({ ...counted, look, live: live ?? !isMockMode(), hash, pickPhoto }, { keywords, fallback, alt, terms, spare, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
         // At most searchSlots searches at once (the rest wait their turn): each sends 10-15 AliExpress calls, and 3 at once
         // already hit AppCallLimit (owner, 2026-11-07: 2 at a time).
         const [got, [linked, names, rated]] = await searchSlot(async () => {
           let f = await pick(minPriceIls);
           if (!f.length && floorOnly) f = await pick(null); // the AI's price floor found nothing: better cheaper than empty
-          aura("search", "done", `${seen.found} מוצרים ב-${seen.lists} רשימות של עלי אקספרס`, { found: seen.found, lists: seen.lists });
-          if (seen.judged) aura("judges", "done", `${f.length} מוצרים עברו את השופטים`, { judged: seen.judged, kept: f.length });
+          mark("search", "done", `${seen.found} מוצרים ב-${seen.lists} רשימות של עלי אקספרס`, { found: seen.found, lists: seen.lists });
+          if (seen.judged) mark("judges", "done", `${f.length} מוצרים עברו את השופטים`, { judged: seen.judged, kept: f.length });
           // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
           return [f, await Promise.all([shorten(f).catch(() => f), title(context, f).catch(() => null), stars(f).catch(() => null)])];
         });
@@ -1207,7 +1211,7 @@ export function createBot({
       }
     } catch (e) {
       stats.failure("aliexpress", e.message);
-      aura("search", "error", "החיפוש בעלי אקספרס נכשל");
+      for (const id of open) aura(id, "error", STOPPED[id]); // whatever was still at work when it threw
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
       return ctx.reply(SEARCH_ERROR, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
