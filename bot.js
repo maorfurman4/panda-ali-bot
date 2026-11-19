@@ -7,6 +7,7 @@ import { understandQuery, filterRelevant, nextAdvice, explainFit, shortTitles, p
 import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
+import { station } from "./aura-report.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
 import { createUnderstander, claudeCheck, namesLook, aiSpend, USD_ILS, hasName, hasNameWord } from "./query.js";
 import {
@@ -923,6 +924,10 @@ async function liveHealthChecks() {
   return lines;
 }
 
+// AURA HQ status (aura-report.js): never awaited, so a slow or missing office can't hold up an answer.
+const aura = (id, status, headline, metrics) => void station("panda", id, status, headline, metrics);
+const STOPPED = { search: "החיפוש בעלי אקספרס נכשל", judges: "החיפוש נכשל בזמן שהשופטים בדקו", variants: "החיפוש נכשל בזמן בדיקת הצבעים והמידות" };
+
 export function createBot({
   token,
   botInfo,
@@ -1058,10 +1063,13 @@ export function createBot({
 
   async function searchOne(ctx, query) {
     return withTyping(ctx, async () => {
+      aura("understand", "working", "קורא את הבקשה");
       let intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
       // An explicit search of 2+ words gets a second look before "לא הבנתי": "מוט פינוק לאינטרפול 4 דרך" is Israeli slang for
       // a rain shower system (owner, 2026-11-03). One more AI call (≈0.15¢), only on these rare searches.
       if (intent?.status === "not_product" && /\S\s+\S/.test(query)) intent = (await understand(query, { retry: true }).catch(() => null)) ?? intent;
+      if (intent) aura("understand", "done", { ok: "הבקשה הובנה, יוצאים לחיפוש", clarify: "הבקשה רחבה, שואלים שאלה", not_product: "זו לא בקשה למוצר" }[intent.status] ?? "הבקשה נקראה");
+      else aura("understand", "error", "קריאת הבקשה נכשלה, מחפשים לפי המילים עצמן");
       if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
       if (isBlocked(intent, query)) return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);
@@ -1109,6 +1117,7 @@ export function createBot({
     if (warn && intent?.status === "not_product" && hintAllowed(ctx, "offTopic")) return hint(ctx, "offTopic", OFF_TOPIC);
     if (intent?.status !== "ok" && intent?.status !== "clarify") return;
     await allow(ctx); // starts the cooldown only for requests the bot actually answers
+    aura("understand", "done", intent.status === "clarify" ? "זוהתה בקשה רחבה בקבוצה, שואלים שאלה" : "זוהתה בקשה למוצר בקבוצה");
     if (intent.status === "clarify") return askClarify(ctx, text, intent);
     return withTyping(ctx, () =>
       showResults(ctx, { keywords: intent.keywords_en, fallback: intent.fallback_en, alt: intent.alt_en ?? null, looks: intent.looks_like ?? null, terms: intent.terms_en ?? [], spare: intent.spare_en ?? [], style: intent.style ?? false, brands: intent.brands_en ?? [], cheapest: CHEAPEST.test(text), header: headerOf(intent.corrected_he, text), maxPriceIls: intent.max_price_ils ?? null, minPriceIls: intent.min_price_ils ?? intent.floor_price_ils ?? null, floorOnly: Boolean(!intent.min_price_ils && intent.floor_price_ils), brandOnly: intent.brand || false, category: intent.category_id ?? null, replyToId: ctx.msg.message_id }),
@@ -1140,21 +1149,52 @@ export function createBot({
     stats.count("search");
     let found;
     let trace = ["מהזיכרון (אותו חיפוש ב-24 השעות האחרונות)"];
+    // AURA HQ: the stations still at work, so a search that throws midway leaves none of them on "working".
+    const open = new Set();
+    const mark = (id, status, ...rest) => (status === "working" ? open.add(id) : open.delete(id), aura(id, status, ...rest));
     try {
       const key = JSON.stringify([keywords, fallback, category, maxPriceIls, minPriceIls, brandOnly, cheapest, limit]);
       const hit = resultsCache.get(key);
       if (hit && now() - hit.at < RESULTS_TTL_MS) {
         found = hit.found;
         stats.count("cached");
+        mark("search", "done", `${found.length} מוצרים מהזיכרון (אותו חיפוש היום)`, { found: found.length });
       } else {
         // The self-check's second reading tells the AI what the first one searched (cached like any reading).
         const reread = (words) => understand(rawHeader, { wrong: words }).then((i) => (i?.status === "ok" ? { keywords: i.keywords_en, alt: i.alt_en ?? null, terms: i.terms_en ?? [], fallback: i.fallback_en, looks: i.looks_like ?? null } : null));
-        const pick = (min) => pickProducts({ search, relevant, look, live: live ?? !isMockMode(), hash, pickPhoto, skus }, { keywords, fallback, alt, terms, spare, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
+        // The same search, judges and variant check, counted for the AURA HQ status; what they return is untouched.
+        const seen = { lists: 0, found: 0, judged: 0 };
+        const counted = {
+          search: async (...args) => {
+            const list = await search(...args);
+            seen.lists++;
+            seen.found += list?.length ?? 0;
+            return list;
+          },
+          relevant: async (request, pool, ...rest) => {
+            if (!seen.judged) mark("judges", "working", `השופטים בודקים ${pool.length} מוצרים`);
+            seen.judged += pool.length;
+            return relevant(request, pool, ...rest);
+          },
+          skus: skus && (async (ids) => {
+            mark("variants", "working", `בודק צבעים ומידות ב-${ids.length} מוצרים`);
+            const variants = await skus(ids).catch((e) => {
+              mark("variants", "error", "בדיקת הצבעים והמידות נכשלה");
+              throw e;
+            });
+            mark("variants", "done", `${variants?.size ?? 0} מתוך ${ids.length} מוצרים החזירו צבעים ומידות`, { checked: ids.length, answered: variants?.size ?? 0 });
+            return variants;
+          }),
+        };
+        mark("search", "working", "מחפש בעלי אקספרס");
+        const pick = (min) => pickProducts({ ...counted, look, live: live ?? !isMockMode(), hash, pickPhoto }, { keywords, fallback, alt, terms, spare, category, looks, context, maxPriceIls, minPriceIls: min, brandOnly, cheapest, style, brands, limit, extra: limit * MORE_PAGES, reread });
         // At most searchSlots searches at once (the rest wait their turn): each sends 10-15 AliExpress calls, and 3 at once
         // already hit AppCallLimit (owner, 2026-11-07: 2 at a time).
         const [got, [linked, names, rated]] = await searchSlot(async () => {
           let f = await pick(minPriceIls);
           if (!f.length && floorOnly) f = await pick(null); // the AI's price floor found nothing: better cheaper than empty
+          mark("search", "done", `${seen.found} מוצרים ב-${seen.lists} רשימות של עלי אקספרס`, { found: seen.found, lists: seen.lists });
+          if (open.has("judges")) mark("judges", "done", `${f.length} מוצרים עברו את השופטים`, { judged: seen.judged, kept: f.length });
           // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
           return [f, await Promise.all([shorten(f).catch(() => f), title(context, f).catch(() => null), stars(f).catch(() => null)])];
         });
@@ -1171,12 +1211,14 @@ export function createBot({
       }
     } catch (e) {
       stats.failure("aliexpress", e.message);
+      for (const id of open) aura(id, "error", STOPPED[id]); // whatever was still at work when it threw
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
       return ctx.reply(SEARCH_ERROR, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
     if (!found.length) {
       stats.count("noResults");
       stats.report("noResults", `😕 בלי תוצאות: "${header}" (חיפשתי: ${keywords})`);
+      aura("card", "done", "לא נמצאו תוצאות, נשלחה הודעה על כך", { sent: 0 });
       const food = FOOD_WORDS.test(`${header} ${keywords}`) && !/מטחנ|כוס|ספל|קופס|grinder|mug|cup|box/i.test(`${header} ${keywords}`);
       const toy = SEX_TOY_WORDS.test(`${header} ${keywords}`);
       return ctx.reply(toy ? NO_ADULT : food ? NO_FOOD : typeof brandOnly === "string" ? nameNotFound(header) : NO_RESULTS, { parse_mode: "HTML", ...replyParams(replyToId) });
@@ -1225,17 +1267,22 @@ export function createBot({
       [{ text: MORE_LABEL, callback_data: `m:${id}` }], // nothing left -> the press answers "אין עוד תוצאות"
     ];
     const extra = { parse_mode: "HTML", ...replyParams(replyToId), reply_markup: { inline_keyboard: keyboard } };
+    aura("card", "working", `בונה כרטיס של ${shown.length} תוצאות`);
+    const cardSent = (message) => (aura("card", "done", `נשלחו ${shown.length} תוצאות`, { sent: shown.length }), message);
     const collageImage = await collage(shown.map((p) => p.product_main_image_url)).catch(() => null);
     const image = collageImage ? new InputFile(collageImage, "panda-results.jpg") : shown[0].product_main_image_url;
     if (collageImage || /^https:\/\//i.test(image ?? "")) {
       try {
-        return await ctx.replyWithPhoto(image, { caption, ...extra });
+        return cardSent(await ctx.replyWithPhoto(image, { caption, ...extra }));
       } catch (e) {
         stats.failure("telegram", e.message);
         console.error(`update ${ctx.update.update_id}: sendPhoto failed, sending text instead: ${e.message}`);
       }
     }
-    return ctx.reply(caption, { ...extra, link_preview_options: { is_disabled: true } });
+    return ctx.reply(caption, { ...extra, link_preview_options: { is_disabled: true } }).then(cardSent, (e) => {
+      aura("card", "error", "שליחת הכרטיס נכשלה");
+      throw e;
+    });
   }
 
   // ---- Shopping advisor: up to 3 questions with buttons, then a search with "why it fits" lines.

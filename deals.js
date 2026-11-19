@@ -5,6 +5,7 @@ import { InputFile } from "grammy";
 import { searchProducts, shortenLinks, promoNames } from "./aliexpress.js";
 import { makeCollage } from "./collage.js";
 import { pickDeal as defaultPick } from "./query.js";
+import { station, working, safeError } from "./aura-report.js";
 import { RLM, esc, shortTitle, soldText, priceLine, formatPrice, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK, couponLine } from "./format.js";
 
 // One topic per post, in turn. Every topic was measured on 2026-10-30: the median sales of its top 3 items that pass our
@@ -319,9 +320,12 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning, r
 // the main photo, else text. Every step falls back to the next.
 async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = null }) {
   const extra = { caption, parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: BUY_LABEL, url: p.promotion_link }]] } };
+  await station("panda", "media", "working", "בוחר מדיה: סרטון של המוכר, קולאז' או תמונה");
   if (/^https:\/\//.test(p.product_video_url ?? "")) {
     try {
-      return await api.sendVideo(chatId, p.product_video_url, extra);
+      const sent = await api.sendVideo(chatId, p.product_video_url, extra);
+      await station("panda", "media", "done", "נשלח עם הסרטון של המוכר");
+      return sent;
     } catch (e) {
       log(`video failed (${e.description ?? e.message}), sending photos`);
     }
@@ -331,9 +335,12 @@ async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = nu
   const withBuyer = /^https:\/\//.test(buyerPhoto ?? "") && photos.length >= 3 ? [...photos.slice(0, 3), buyerPhoto] : null;
   const image = (withBuyer && (await collage(withBuyer, { badges: false }).catch(() => null))) || (photos.length === 4 ? await collage(photos, { badges: false }).catch(() => null) : null);
   try {
-    return await api.sendPhoto(chatId, image ? new InputFile(image, "panda-deal.jpg") : p.product_main_image_url, extra);
+    const sent = await api.sendPhoto(chatId, image ? new InputFile(image, "panda-deal.jpg") : p.product_main_image_url, extra);
+    await station("panda", "media", "done", image ? "נשלח עם קולאז' של 4 תמונות" : "נשלח עם התמונה הראשית של המוצר");
+    return sent;
   } catch (e) {
     log(`photo failed (${e.description ?? e.message}), sending text`);
+    await station("panda", "media", "error", "התמונה נכשלה, הפוסט נשלח כטקסט בלבד");
     const { caption: text, ...rest } = extra;
     return api.sendMessage(chatId, text, { ...rest, link_preview_options: { is_disabled: true } });
   }
@@ -411,19 +418,31 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     if (topic === undefined) break;
     const [words, category, cat] = topics[topic];
     // With and without the category: the strongest USB-C cable (54,790 sold) is listed outside "Phones" (2026-10-30).
-    const [inCategory, anywhere] = await Promise.all([category ? search(words, { category, shorten: false, ...cap }) : Promise.resolve([]), search(words, { shorten: false, ...cap })]);
+    const [inCategory, anywhere] = await working("panda", "scout", `מחפש רבי-מכר: ${words}`, async (w) => {
+      const lists = await Promise.all([category ? search(words, { category, shorten: false, ...cap }) : Promise.resolve([]), search(words, { shorten: false, ...cap })]);
+      await w.done(`נמצאו ${lists[0].length + lists[1].length} מוצרים: ${words}`, { found: lists[0].length + lists[1].length });
+      return lists;
+    });
+    const found = inCategory.length + anywhere.length;
     let list = candidates([...inCategory, ...anywhere], posted, minSold);
     if (!list.length) {
+      await station("panda", "filter", "done", "אף מוצר לא עבר את הסינון, עוברים לנושא הבא", { kept: 0, dropped: found });
       log(`no good item for "${words}", trying the next topic`);
       continue;
     }
     const seen = state.seen ?? {};
     seenNow = rememberSeen(seenNow ?? seen, list, usedAt);
     list = (worth ? worthRank(list, seen, usedAt) : list).slice(0, TO_AI);
+    await station("panda", "filter", "done", `נשארו ${list.length} החזקים, ${found - list.length} ירדו (כבר פורסמו, כפולים או חלשים)`, { kept: list.length, dropped: found - list.length });
     // A failed AI call (null) is tried once more: it timed out once at 30 s, and the post then went out without its text.
     // reviews: the chosen product's buyer reviews (scripts/daily-deal.js passes fetchReviews); a failure is no reviews.
+    let at = "fit"; // AURA HQ: the station at work while the picker runs ("copy" once it asks for reviews)
     const reviewsFor = reviews
       ? async (p) => {
+          // The picker asks for reviews once the fit judge has chosen: here "fit" ends and "copy" starts (AURA HQ status).
+          await station("panda", "fit", "done", `נבחר: ${shortTitle(p.product_title)}`);
+          await station("panda", "copy", "working", "מביא ביקורות וכותב את הפוסט");
+          at = "copy";
           const r = pickReviews(await Promise.resolve().then(() => reviews(p.product_id)).catch(() => []));
           log(`reviews: ${r.length}`);
           return r;
@@ -434,13 +453,25 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     const template = rotate ? (reviewCount, product) => nextTemplate(state.template, reviewCount, worth ? 0 : product?.lastest_volume) : "classic";
     // recent: the last posts' headlines and closing lines, so the AI opens differently (2026-11-08: 5 of 15 began "רוצים/מחפשים").
     const recent = { headlines: (state.headlines ?? []).slice(-6), closings: (state.closings ?? []).slice(-6) };
-    let choice = await pick(list, words, { reviews: reviewsFor, template, recent });
-    if (choice === null) choice = await pick(list, words, { reviews: reviewsFor, template, recent });
+    await station("panda", "fit", "working", `בודק מי מ-${list.length} רבי-המכר הוא באמת המוצר: ${words}`, { candidates: list.length });
+    let choice;
+    try {
+      choice = await pick(list, words, { reviews: reviewsFor, template, recent });
+      if (choice === null) choice = await pick(list, words, { reviews: reviewsFor, template, recent });
+    } catch (e) {
+      await station("panda", at, "error", safeError(e)); // a picker that throws leaves neither station on "working"
+      throw e;
+    }
     if (choice?.none) {
+      // The first try wrote no text after its reviews, and the second found no fitting product: "copy" is closed too.
+      if (at === "copy") await station("panda", "copy", "error", "הפוסט לא נכתב, ובבדיקה חוזרת אף מוצר לא התאים");
+      await station("panda", "fit", "done", "אף אחד מהם אינו המוצר, עוברים לנושא הבא", { candidates: list.length });
       log(`none of the best sellers for "${words}" is that item, trying the next topic`); // AliExpress search noise
       continue;
     }
     const chosen = list[choice?.i ?? 0];
+    if (at === "fit") await station("panda", "fit", "done", `נבחר: ${shortTitle(chosen.product_title)}`); // also when the picker failed before it asked for reviews
+    await station("panda", "copy", choice?.name ? "done" : "error", choice?.name ? `הפוסט נכתב: ${choice.name}` : "ה-AI לא כתב טקסט, הפוסט יוצא עם השם של המוכר");
     const [[short], rated] = await Promise.all([shorten([chosen]), stars ? stars([chosen]).catch(() => null) : null]); // search links are ~1 KB; on failure the long one is kept
     const p = rated?.[0]?.reviewCount ? { ...short, avgStars: rated[0].avgStars, reviewCount: rated[0].reviewCount } : short;
     // The AI's closing line unless it came back lately; else the next of the 60 lines.
@@ -450,7 +481,7 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     const tag = signalTag(p, dealSignals(p, state.seen ?? {}, usedAt), worth);
     if (tag) log(`signal: ${tag}`);
     const caption = formatDeal(p, { ...(choice ?? {}), closing, tag }, banner);
-    if (api) await sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto: choice?.review?.photo });
+    if (api) await working("panda", "broadcast", "שולח את הדיל לערוץ", (w) => sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto: choice?.review?.photo }).then(() => w.done("הדיל נשלח לערוץ")));
     else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
     const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };
@@ -517,6 +548,7 @@ export async function postSet(state, { api, chatId, search = searchProducts, sho
       const { caption: text, ...rest } = extra;
       await api.sendMessage(chatId, text, { ...rest, link_preview_options: { is_disabled: true } });
     }
+    await station("panda", "broadcast", "done", `נשלח לערוץ פוסט של ${shortened.length} מוצרים: ${set.name}`, { items: shortened.length });
   } else log(`[dry run, nothing sent]\n${caption}`);
   log(`posted the set "${set.name}": ${shortened.map((p) => p.product_id).join(", ")}`);
   return { ...state, ...(cheap ? markUsed(state, usedTopics, usedAt) : { setIndex: index }), posted: [...posted, ...shortened.map((p) => String(p.product_id))].slice(-KEEP_POSTED), log: [...(state.log ?? []), { at: Date.now(), name: `סט של ${shortened.length} מוצרים` }].slice(-40) };
@@ -533,8 +565,10 @@ export async function runDeals(state, { now = new Date(), force = false, special
   const slot = `${t.day} ${t.hour}`;
   if (!force && (!SCHEDULE[kind].includes(t.hour) || state.slot === slot)) {
     log(`${kind} day: no post at ${t.hour}:00`);
+    await station("panda", "slot", "done", state.slot === slot ? "השעה הזו כבר פורסמה, מדלגים" : "לא שעת פרסום, מדלגים", { hour: t.hour });
     return state;
   }
+  await station("panda", "slot", "done", "שעת פרסום: מפרסם עכשיו", { hour: t.hour });
   const banner = saleBanner(sale, t);
   const order = topicOrder(DEAL_TOPICS, { used: state.used, recentCats: state.recentCats, hour: t.hour, now: now.getTime() });
   let next = state;

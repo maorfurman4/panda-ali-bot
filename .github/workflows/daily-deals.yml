@@ -71,6 +71,9 @@ jobs:
           ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
           ALI_APP_SECRET: ${{ secrets.ALI_APP_SECRET }}
           ALI_TRACKING_ID: ${{ secrets.ALI_TRACKING_ID }}
+          # AURA HQ status board (aura-report.js); without these two the bot simply does not report.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       # Is the search bot up? (scripts/watch-bot.js) Rides on this hourly run: no extra GitHub minutes. Runs even when the
       # deal step failed; it messages the owner through the deals bot. BOT_TOKEN (optional secret) adds Telegram's check.
       - uses: actions/cache@v4

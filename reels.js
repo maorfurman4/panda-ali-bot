@@ -8,6 +8,11 @@
 // 2026-11-16: "only the sentence I said, always").
 export const POST_TEXT = "🔗 הקישור לערוץ הדילים בביו 👆";
 
+import { station } from "./aura-report.js";
+
+// AURA HQ status (aura-report.js): never awaited, as in bot.js, so the office can't hold up a press on the live server.
+const aura = (id, status, headline, metrics) => void station("reels", id, status, headline, metrics);
+
 const MAX_BYTES = 20 * 1024 * 1024; // the Bot API's getFile limit
 const PLATFORMS = { instagram: "אינסטגרם", facebook: "פייסבוק" };
 const HELP = "שלחו לי סרטון מוכן (mp4, עד 20MB) ואחזיר אותו עם כפתור פרסום לאינסטגרם ולפייסבוק.\n💡 שלחו אותו כקובץ (📎 ← קובץ) כדי שטלגרם לא יקטין את האיכות.";
@@ -24,7 +29,7 @@ const PREVIEW_HEAD = "תצוגה מקדימה. זה הטקסט שיעלה עם �
 export const previewExtra = (text = POST_TEXT) => ({ caption: `${PREVIEW_HEAD}${text}`, ...buttons([[{ text: "✅ לפרסם", callback_data: "pub" }, { text: "⏭ לדלג", callback_data: "skip" }]]) });
 const postTextOf = (preview) => (preview?.caption?.startsWith(PREVIEW_HEAD) && preview.caption.length > PREVIEW_HEAD.length ? preview.caption.slice(PREVIEW_HEAD.length) : POST_TEXT);
 
-export function createReelsHandler({ api, ownerId, publish, download }) {
+export function createReelsHandler({ api, ownerId, publish, download, report = aura }) {
   const owner = String(ownerId);
   const working = new Set(); // previews being published right now: a second press waits for nothing
   const fromOwner = (x) => String(x?.from?.id) === owner;
@@ -45,23 +50,33 @@ export function createReelsHandler({ api, ownerId, publish, download }) {
     if (!preview || working.has(preview.message_id)) return answer(preview ? "כבר מפרסם, רגע..." : "");
     const file = videoOf(preview);
     if (action === "skip") {
+      report("approve", "done", "דילגת על הרילס");
       await answer("דולג");
       return api.editMessageReplyMarkup(owner, preview.message_id, closed("⏭ דולג"));
     }
     if (action !== "pub" || !file) return answer("לא מצאתי את הסרטון, שלחו אותו שוב");
     working.add(preview.message_id);
+    let uploading = false; // AURA HQ: "publish" is at work, so a throw before its result is reported as an error
     try {
       await answer("מפרסם...");
       await api.editMessageReplyMarkup(owner, preview.message_id, closed("⏳ מפרסם..."));
       const names = only ? [only] : Object.keys(PLATFORMS);
+      if (!only) report("approve", "done", "אושר לפרסום"); // a retry of one platform was approved at the first press
+      report("publish", "working", `מעלה ל${names.map((p) => PLATFORMS[p]).join(" ול")}`);
+      uploading = true;
       const results = await download(file.file_id)
         .then((bytes) => publish(bytes, postTextOf(preview), { only }))
         .catch((e) => Object.fromEntries(names.map((p) => [p, { ok: false, error: e.message }])));
       const failed = names.filter((p) => !results[p]?.ok);
+      uploading = false;
+      report("publish", failed.length ? "error" : "done", failed.length ? `הפרסום נכשל ב${failed.map((p) => PLATFORMS[p]).join(" וב")}` : `פורסם ב${names.map((p) => PLATFORMS[p]).join(" וב")}`, Object.fromEntries(names.map((p) => [p, results[p]?.ok ? 1 : 0])));
       await api.sendMessage(owner, names.map((p) => `${results[p]?.ok ? "✅" : "❌"} ${PLATFORMS[p]}: ${results[p]?.ok ? "פורסם" : `נכשל (${results[p]?.error ?? "לא נוסה"})`}`).join("\n"));
       // Retry only what failed: one failed platform is a button of its own; both failed, "pub" again.
       const retry = failed.length === 1 ? `pub:${failed[0]}` : failed.length ? (only ? `pub:${only}` : "pub") : null;
       await api.editMessageReplyMarkup(owner, preview.message_id, retry ? buttons([[{ text: "🔁 לנסות שוב את מה שנכשל", callback_data: retry }]]) : closed("✅ פורסם"));
+    } catch (e) {
+      if (uploading) report("publish", "error", "הפרסום נעצר בשגיאה");
+      throw e;
     } finally {
       working.delete(preview.message_id);
     }
