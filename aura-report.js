@@ -46,6 +46,12 @@ export async function station(bot, stationId, status, headline, metrics, { hando
   } catch { quietUntil = Date.now() + 60_000; return false; }
 }
 
+// An error's summary without what an error text can carry: URLs (a Telegram URL holds the bot token) and long tokens.
+export function safeError(e) {
+  const text = String(e?.message ?? e).replace(/https?:\/\/\S+/g, '[url]').replace(/\S{24,}/g, '[...]');
+  return `${e?.name || 'Error'}: ${text}`.slice(0, 160);
+}
+
 export async function working(bot, stationId, headline, fn, opts) {
   let closed = false;
   const w = {
@@ -58,7 +64,7 @@ export async function working(bot, stationId, headline, fn, opts) {
     if (!closed) await w.done();
     return out;
   } catch (e) {
-    await station(bot, stationId, 'error', `${e?.name || 'Error'}: ${e?.message || e}`, null, opts);
+    await station(bot, stationId, 'error', safeError(e), null, opts);
     throw e;
   }
 }
@@ -73,6 +79,7 @@ if (process.argv[1] && import.meta.url === (await import('node:url')).pathToFile
     assert.equal(await station('panda', 'scout', 'working', 'x'), false, 'an unreachable office must not throw');
     assert.equal(await working('panda', 'scout', 'x', async () => 7), 7);
     await assert.rejects(working('panda', 'scout', 'x', async () => { throw new Error('boom'); }), /boom/);
+    assert.ok(!safeError(new Error('failed https://api.telegram.org/bot123:SECRETSECRET/send key=SECRETSECRETSECRETSECRETSECRET')).includes('SECRET'));
     console.log('ok: aura-report');
   })();
 }
