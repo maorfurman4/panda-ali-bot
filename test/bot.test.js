@@ -1652,6 +1652,22 @@ test("a brand in English letters, glued to Hebrew or alone, reaches the AI apart
   assert.deepEqual(seen.map(([, r]) => r), [false, true], "one English word: a second look too");
 });
 
+// "חפש לי plaude" (owner's test, 2026-11-19): the AI didn't know the brand even on its second look; AliExpress did (50
+// Plaud items). The English words are searched as written, and the judges keep only what fits.
+test("an explicit search the AI never understood is searched by its English words; Hebrew alone stays 'לא הבנתי'", async () => {
+  const spy = searchSpy();
+  const reports = [];
+  const stats = { count: () => {}, remember: () => {}, failure: () => {}, report: (n, t) => reports.push([n, t]) };
+  const ctx = setup({ stats, search: spy.search, understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי plaude"));
+  assert.equal(spy.queries[0], "plaude");
+  assert.notEqual(ctx.sent().at(-1).body, NOT_PRODUCT);
+  assert.match(reports[0][1], /plaude/);
+  const heb = await run("חפש לי פלאוד", { understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  assert.equal(heb.sent()[0].body, NOT_PRODUCT);
+  assert.equal(heb.queries.length, 0, "no AliExpress search for Hebrew alone");
+});
+
 test("a search the bot didn't understand is reported to the owner and listed in the digest", async () => {
   const { createStats } = await import("../stats.js");
   const stats = createStats();

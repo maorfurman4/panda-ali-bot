@@ -1074,8 +1074,12 @@ export function createBot({
       if (intent) aura("understand", "done", { ok: "הבקשה הובנה, יוצאים לחיפוש", clarify: "הבקשה רחבה, שואלים שאלה", not_product: "זו לא בקשה למוצר" }[intent.status] ?? "הבקשה נקראה");
       else aura("understand", "error", "קריאת הבקשה נכשלה, מחפשים לפי המילים עצמן");
       if (intent?.status === "not_product") {
-        stats.report("notUnderstood", `🤔 לא הבנתי: "${query}"`); // the owner sees every one, so the rules can be fixed
-        return reply(ctx, NOT_PRODUCT);
+        // The AI doesn't know every brand ("plaude", owner's test 2026-11-19); AliExpress does. The English words are
+        // searched as written and the judges keep only what fits. Hebrew alone stays "לא הבנתי".
+        const english = query.match(/[a-z][a-z\d-]{2,}/gi);
+        stats.report("notUnderstood", `🤔 לא הבנתי: "${query}"${english ? ` (חיפשתי בעלי אקספרס: ${english.join(" ")})` : ""}`); // the owner sees every one
+        if (!english) return reply(ctx, NOT_PRODUCT);
+        intent = { status: "ok", corrected_he: query, keywords_en: english.join(" "), max_price_ils: null };
       }
       if (isBlocked(intent, query)) return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);
