@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { esc, RLM } from "./format.js";
 import { isAliExpressHost } from "./links.js";
+import { station } from "./aura-report.js";
 
 const NEW_MEMBER_MS = 24 * 60 * 60_000;
 const STRIKE_TTL_MS = 24 * 60 * 60_000;
@@ -84,6 +85,7 @@ export function createModeration({ now = Date.now } = {}) {
     const count = (prev && now() - prev.at < STRIKE_TTL_MS ? prev.count : 0) + 1;
     const name = esc(channel?.title || ctx.from.first_name || "משתמש");
     console.log(`chat ${ctx.chat.id}: moderation deleted a message (strike ${count})`);
+    void station("panda", "guard", "done", `הוסרה הודעת ספאם (${reason})`); // AURA HQ status, not awaited; the reason is one of our fixed texts
     if (count <= 2) {
       strikes.set(key, { count, at: now() });
       // The first warning said "next time you're out", but the next time is the 2nd warning (owner's review, 2026-11-04).
@@ -131,6 +133,7 @@ export function createModeration({ now = Date.now } = {}) {
         report(ctx, "banChatMember", e);
         continue;
       }
+      void station("panda", "guard", "done", "הוסר בוט שצורף לקבוצה");
       await say(ctx, `🤖 זוהה בוט שהצטרף (${esc(member.username ? `@${member.username}` : member.first_name)}). הוא הוסר מהקבוצה.`);
     }
     if (joins.size > 5000) joins.clear();

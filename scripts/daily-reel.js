@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { Api, InputFile } from "grammy";
 import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js";
 import { previewExtra } from "../reels.js";
+import { station, safeError } from "../aura-report.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
   captionList, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
@@ -34,6 +35,13 @@ if (!dry && (!api || !owner)) throw new Error("sending needs REELS_BOT_TOKEN and
 if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is missing");
 const note = async (text) => (console.log(`note: ${text}`), dry ? null : api.sendMessage(owner, `🎬 סרטון הבוקר: ${text}`));
 const log = (l) => console.log(`  ${l}`);
+// AURA HQ status (aura-report.js): `open` is the station at work now, so the catch at the bottom can close it as "error".
+if (dry) process.env.AURA_REPORT = "off"; // a dry run reaches nobody: nothing goes to AURA HQ
+let open = null;
+const start = (id, headline) => (open = id, station("reels", id, "working", headline));
+const done = (id, headline, metrics) => (open = null, station("reels", id, "done", headline, metrics));
+const failed = (id, headline) => (open = null, station("reels", id, "error", headline));
+let candidates = 0; // products whose seller video was downloaded and measured for the pick
 const ff = (args) => execFileSync("ffmpeg", ["-nostdin", "-hide_banner", "-loglevel", "error", "-y", ...args]);
 const duration = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
 
@@ -48,6 +56,7 @@ async function product() {
   const day = Math.floor(Date.now() / 864e5);
   return pickProduct(queriesFor(day), { used: (state.used ?? []).map((u) => u.id), search: async (q) => (await Promise.all([1, 2].map((page) => searchProducts(q, { lang: "EN", shorten: false, page }).catch(() => [])))).flat(), log,
     accept: async (p) => {
+      candidates++;
       const s = await sellerVideo(p);
       return s.dur < MIN_VIDEO_S ? `seller video only ${s.dur.toFixed(1)} s` : s.probe.area[3] < MIN_PICTURE_H ? `seller video too small (${s.probe.area[2]}x${s.probe.area[3]})` : true;
     } });
@@ -79,8 +88,13 @@ function frames(video, dir, dur) {
 }
 
 async function main() {
-  if (auto && !env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) return console.log(`today's ${REELS_PER_DAY} automatic reels already reached the owner: nothing to do`);
+  if (auto && !env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) {
+    await station("reels", "pick", "done", `${REELS_PER_DAY} הרילסים האוטומטיים של היום כבר נשלחו, אין מה לעשות`);
+    return console.log(`today's ${REELS_PER_DAY} automatic reels already reached the owner: nothing to do`);
+  }
+  await start("pick", env.REEL_PRODUCT ? "טוען את המוצר שנבחר ידנית" : "מחפש מוצר עם סרטון של המוכר");
   const p = await product();
+  await done("pick", p ? "נבחר מוצר לרילס" : "לא נמצא היום מוצר שעבר את התנאים, אין רילס", env.REEL_PRODUCT ? undefined : { candidates });
   if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, 1,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
   const id = String(p.product_id);
   console.log(`product ${id}: ${p.product_title}\n  ₪${p.target_sale_price}, sold ${p.lastest_volume}, ${p.evaluate_rate} positive`);
@@ -88,29 +102,43 @@ async function main() {
   mkdirSync(work, { recursive: true });
   writeFileSync(join(work, "product.json"), JSON.stringify(p, null, 1));
 
-  if (!String(p.product_video_url ?? "").startsWith(VIDEO_HOST)) return note(`למוצר ${id} אין סרטון של המוכר.`);
+  if (!String(p.product_video_url ?? "").startsWith(VIDEO_HOST)) {
+    await failed("frames", "למוצר אין סרטון של המוכר");
+    return note(`למוצר ${id} אין סרטון של המוכר.`);
+  }
+  await start("frames", "מוריד את סרטון המוכר ומפרק אותו לפריימים");
   const { video, dur, probe } = await sellerVideo(p);
+  if (dur < MIN_VIDEO_S) await failed("frames", "סרטון המוכר קצר מדי, אין רילס");
   if (dur < MIN_VIDEO_S) return note(`הסרטון של המוכר ל${id} קצר מדי (${dur.toFixed(1)} שניות). אין סרטון היום.`);
 
   // the seller video's own cuts: a shot never runs across one (it showed the next, unrelated shot, owner 2026-11-15)
   const sections = sectionsOf(probe.cuts, dur);
   const fr = frames(video, join(work, "frames"), dur);
   console.log(`seller video ${dur.toFixed(1)} s, picture ${probe.area}, cuts ${probe.cuts.join(", ") || "none"}; ${fr.length} frames to Gemini`);
+  await done("frames", `${fr.length} פריימים ו-${probe.cuts.length} חיתוכים מסרטון המוכר`, { frames: fr.length, cuts: probe.cuts.length });
   let written, heard, ends, voice, feedback = "";
   for (let round = 1; round <= 2; round++) { // a take that breaks the timing rules: the script is written once more
+    await start("script", round === 1 ? "Gemini צופה בפריימים וכותב תסריט" : "Gemini כותב את התסריט מחדש");
     written = await writeScript(p, dur, fr, { log, sections, feedback, priceAsk: PRICE_ASKS[(state.used ?? []).length % PRICE_ASKS.length], onAnswer: (n, raw) => writeFileSync(join(work, `script-r${round}-try${n}.json`), JSON.stringify(raw, null, 1)) });
+    if (written.errors) await failed("script", written.errors.every((e) => e.startsWith("AI call failed")) ? "Gemini לא ענה, אין רילס" : "התסריט לא עבר את הבדיקות, אין רילס");
     if (written.errors) return note(written.errors.every((e) => e.startsWith("AI call failed"))
       ? `Gemini לא ענה הבוקר (עומס אצל גוגל, ניסיתי 3 מודלים), אז אין סרטון. אפשר ללחוץ Run workflow ב-GitHub מאוחר יותר. (${written.errors[0].slice(0, 160)})`
       : `התסריט ש-Gemini כתב ל${p.product_title.slice(0, 50)} לא עבר את הבדיקות, אז לא בניתי סרטון. (${written.errors.slice(0, 3).join("; ")})`);
+    await done("script", "התסריט והפוסט נכתבו", { rounds: round, tries: written.tries });
     const says = sentences(written.script);
     voice = join(work, "voice.wav");
+    await start("voice", "מקליט את הקריינות");
     writeFileSync(voice, await speak(says.join(" "), { log }));
+    await done("voice", "הקריינות הוקלטה");
+    await start("timing", "מתזמן את המילים ובודק את הקצב");
     heard = await wordTimes(readFileSync(voice));
     writeFileSync(join(work, "words.json"), JSON.stringify(heard));
     ends = sentenceEnds(says, heard);
     const sc0 = written.script;
     const problems = timingProblems(ends, heard, says, [sc0.hook, ...sc0.scenes, sc0.proof, sc0.end]);
     console.log(`round ${round}: ${says.join(" ")}\n  heard: ${heard.map((w) => w.word).join(" ")}\n  ends ${JSON.stringify(ends)} ${problems.join("; ") || "timing ok"}`);
+    if (!problems.length) await done("timing", `${heard.length} מילים תוזמנו, הקצב תקין`, { words: heard.length, rounds: round });
+    else await failed("timing", round === 2 ? "הקריינות לא עמדה בכללי הזמנים פעמיים, אין רילס" : "הקריינות לא עמדה בכללי הזמנים, כותבים תסריט חדש");
     if (!problems.length) break;
     feedback = problems.slice(0, 4).join("; ");
     if (round === 2) return note(`הקריינות ל${p.product_title.slice(0, 50)} לא עמדה בכללי הזמנים פעמיים (${problems.slice(0, 2).join("; ")}). אין סרטון היום.`);
@@ -118,7 +146,9 @@ async function main() {
 
   const sc = written.script;
   const beats = JSON.parse(readFileSync(join(ROOT, "reels", "music", "beats.json"), "utf8"));
+  await start("music", "בוחר את השיר הבא");
   const track = nextTrack(state, Object.keys(beats));
+  await done("music", "נבחר שיר הבית הבא", { tracks: Object.keys(beats).length });
   const spec = {
     video, voice, words: heard, ends, keep: sc.keep,
     shots: [sc.hook, ...sc.scenes, sc.proof, sc.end].map(({ a, b, half, sec, pos }) => ({ a, b, sec, half: half ?? "full", pos })),
@@ -130,7 +160,9 @@ async function main() {
   };
   writeFileSync(join(work, "spec.json"), JSON.stringify(spec, null, 1));
   const reel = join(out, `reel-${id}.mp4`);
+  await start("render", "עורך את הרילס");
   execFileSync("python3", [join(ROOT, "reels", "style3.py"), join(work, "spec.json"), reel], { stdio: "inherit" });
+  await done("render", "הרילס מוכן", { shots: spec.shots.length });
 
   const link = await generateAffiliateLink(`https://www.aliexpress.com/item/${id}.html`);
   const captions = `${captionList(sc, p)}\n\n🔗 קישור שותפים למוצר (אם מישהו שואל): ${link}`;
@@ -139,8 +171,11 @@ async function main() {
   console.log(`track ${track}\n\n${captions}\n\n--- post ---\n${written.post}`);
   if (dry) return console.log("dry run: nothing sent, state unchanged");
 
+  await start("preview", "שולח את הרילס לאישור בטלגרם");
   await api.sendDocument(owner, new InputFile(reel, `reel-${id}.mp4`), previewExtra(written.post));
   await api.sendMessage(owner, captions);
+  await done("preview", "הרילס נשלח עם כפתורי פרסום ודילוג");
+  await station("reels", "approve", "working", "מחכה לאישור שלך בטלגרם"); // stays "working" until the press reaches reels.js
   writeFileSync(stateFile, JSON.stringify(markUsed(state, id, track, Date.now(), auto))); // only after the owner has it
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "sent=true\n");
   console.log(`sent to the owner; reel state saved (${(state.used ?? []).length + 1} products used)`);
@@ -150,6 +185,7 @@ try {
   await main();
 } catch (e) {
   console.error(e);
+  if (open) await station("reels", open, "error", safeError(e)); // URLs and long tokens are scrubbed before they leave
   await note(`נכשל: ${String(e.message).slice(0, 300)}`).catch(() => {});
   process.exit(1);
 }

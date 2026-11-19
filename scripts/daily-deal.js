@@ -23,6 +23,7 @@ if (token && !chatId) {
   console.log(`channel found: ${chat.title} (${chatId}); save this id as the DEALS_CHAT_ID secret`);
 }
 const preview = process.env.DEALS_PREVIEW === "true";
+if (preview || !token) process.env.AURA_REPORT = "off"; // a preview or a dry run is not the channel: nothing goes to AURA HQ (aura-report.js)
 if (preview && token && !process.env.DEALS_OWNER_ID) throw new Error("a preview needs DEALS_OWNER_ID");
 // DEALS_PREVIEW_HOUR: a preview as if it were that hour in Israel (to see the morning or evening topics at any time).
 const hour = preview ? Number(process.env.DEALS_PREVIEW_HOUR) : NaN;

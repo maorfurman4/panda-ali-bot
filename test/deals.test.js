@@ -562,3 +562,32 @@ test("specialFor: 'worth it' is the 6th and 12th post; runDeals posts it with th
   assert.notEqual(asked[0], "numbers", "a worth post skips the numbers style: its numbers are in the tag");
   assert.ok(state.seen.cheap && state.seen.dear);
 });
+
+// The reporter (aura-report.js) has no injection point in postDeal, so its POSTs are caught at fetch; no network.
+test("postDeal: AURA HQ never keeps 'fit' or 'copy' on working: a picker that throws, fails early, or finds nothing on its second try", async () => {
+  const before = { fetch: globalThis.fetch, off: process.env.AURA_REPORT, url: process.env.AURA_SUPABASE_URL, key: process.env.AURA_SUPABASE_KEY };
+  const rows = [];
+  globalThis.fetch = async (_url, { body }) => (rows.push(JSON.parse(body)), { ok: true });
+  Object.assign(process.env, { AURA_SUPABASE_URL: "http://office.test", AURA_SUPABASE_KEY: "test-key" });
+  delete process.env.AURA_REPORT;
+  const last = (id) => rows.findLast((r) => r.station_id === id)?.status;
+  const deps = { api: { sendPhoto: async () => {} }, chatId: 1, steps: 1, search: async () => [item("a"), item("b")], shorten: async (ps) => ps, reviews: async () => [], log: () => {} };
+  try {
+    await assert.rejects(postDeal({}, { ...deps, pick: async () => { throw new Error("boom"); } }), /boom/);
+    assert.equal(last("fit"), "error", "thrown while judging the fit");
+    rows.length = 0;
+    await assert.rejects(postDeal({}, { ...deps, pick: async (list, _w, o) => { await o.reviews(list[0]); throw new Error("boom"); } }), /boom/);
+    assert.deepEqual([last("fit"), last("copy")], ["done", "error"], "thrown while writing the post");
+    rows.length = 0;
+    await postDeal({}, { ...deps, pick: async () => null });
+    assert.deepEqual([last("fit"), last("copy")], ["done", "error"], "the AI failed before it asked for reviews: the post still goes out");
+    rows.length = 0;
+    let tries = 0;
+    await postDeal({}, { ...deps, pick: async (list, _w, o) => (tries++ ? { none: true } : (await o.reviews(list[0]), null)) });
+    assert.deepEqual([last("fit"), last("copy")], ["done", "error"]);
+    assert.ok(!rows.some((r, i) => r.status === "working" && !rows.slice(i + 1).some((x) => x.station_id === r.station_id && x.status !== "working")), "no station is left on working");
+  } finally {
+    globalThis.fetch = before.fetch;
+    for (const [name, value] of [["AURA_REPORT", before.off], ["AURA_SUPABASE_URL", before.url], ["AURA_SUPABASE_KEY", before.key]]) value === undefined ? delete process.env[name] : (process.env[name] = value);
+  }
+});
