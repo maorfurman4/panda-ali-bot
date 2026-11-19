@@ -102,3 +102,29 @@ test("reels: each video is published with the text shown in its own preview, so 
   await run(press("pub", { video: { file_id: "V1" }, caption: "something else" }));
   assert.deepEqual(texts, [own, POST_TEXT], "an unknown caption falls back to the fixed style-1 text");
 });
+
+test("reels: a press tells AURA HQ: approved, uploading, published (1/1); a failed upload is an error and the owner still hears it; a skip says so", async () => {
+  const seen = [];
+  const report = (...a) => seen.push(a);
+  const run = (api, publish, download = async (id) => Buffer.from(id)) => createReelsHandler({ api, ownerId: OWNER, publish, download, report });
+  await run(fakeApi().api, async () => ({ instagram: { ok: true }, facebook: { ok: true } }))(press("pub"));
+  assert.deepEqual(seen.map((r) => r.slice(0, 2)), [["approve", "done"], ["publish", "working"], ["publish", "done"]]);
+  assert.equal(seen[0][2], "אושר לפרסום");
+  assert.deepEqual(seen[2][3], { instagram: 1, facebook: 1 });
+
+  seen.length = 0;
+  const { api, of } = fakeApi();
+  await run(api, async () => ({ instagram: { ok: true }, facebook: { ok: true } }), async () => { throw new Error("download failed"); })(press("pub"));
+  assert.deepEqual(seen.at(-1).slice(0, 2), ["publish", "error"]);
+  assert.deepEqual(seen.at(-1)[3], { instagram: 0, facebook: 0 });
+  assert.match(of("sendMessage").at(-1).args[1], /נכשל \(download failed\)/, "the failure reaches the owner as before");
+
+  seen.length = 0;
+  await run(fakeApi().api, async () => ({ facebook: { ok: true } }))(press("pub:facebook"));
+  assert.deepEqual(seen.map((r) => r.slice(0, 2)), [["publish", "working"], ["publish", "done"]]);
+  assert.deepEqual(seen[1][3], { facebook: 1 });
+
+  seen.length = 0;
+  await run(fakeApi().api, async () => assert.fail("a skip publishes nothing"))(press("skip"));
+  assert.deepEqual(seen, [["approve", "done", "דילגת על הרילס"]]);
+});

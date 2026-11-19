@@ -1,7 +1,8 @@
 // AURA HQ reporter for the Node bots (Node 18+). No dependencies. Copy this one file next to the bot's code.
 //
 // It writes one row per station event to Supabase (public.bot_events), which the office reads.
-// Needs SUPABASE_URL and SUPABASE_SERVICE_KEY in the environment; without them it does nothing.
+// Needs SUPABASE_URL and SUPABASE_SERVICE_KEY in the environment (or AURA_SUPABASE_URL and AURA_SUPABASE_KEY, which
+// win when both exist); without them it does nothing.
 // It never throws and never waits more than 2.5 seconds: the office must not be able to break a bot.
 //
 //   import { working } from './aura-report.js';      (the Panda repo is an ES module project)
@@ -18,6 +19,7 @@ const STATUSES = ['idle', 'working', 'done', 'error'];
 
 // One line in the run's log, at the first report: is telemetry on, and if not, why.
 let announced = false;
+let quietUntil = 0; // after a failed report the office is left alone for a minute, so a bot never pays the timeout twice in a row
 function announce(url, key) {
   if (announced) return;
   announced = true;
@@ -26,9 +28,10 @@ function announce(url, key) {
 }
 
 export async function station(bot, stationId, status, headline, metrics, { handoffTo = null, workerType = null } = {}) {
-  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
+  // AURA_SUPABASE_URL / AURA_SUPABASE_KEY win, for a bot whose own SUPABASE_* variables point at another project
+  const url = process.env.AURA_SUPABASE_URL || process.env.SUPABASE_URL, key = process.env.AURA_SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY;
   announce(url, key); // at the first report, not at import: a script may switch reporting off after importing this file
-  if (!url || !key || !STATUSES.includes(status) || process.env.AURA_REPORT === 'off') return false;
+  if (!url || !key || !STATUSES.includes(status) || process.env.AURA_REPORT === 'off' || Date.now() < quietUntil) return false;
   const row = {
     bot, kind: 'station', station_id: stationId, status, text: headline ? String(headline).slice(0, 300) : null,
     metrics: metrics || null, handoff_to: handoffTo, worker_type: workerType, run_id: process.env.GITHUB_RUN_ID || null,
@@ -38,8 +41,9 @@ export async function station(bot, stationId, status, headline, metrics, { hando
       method: 'POST', body: JSON.stringify(row), signal: AbortSignal.timeout(2500),
       headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     });
+    if (!r.ok) quietUntil = Date.now() + 60_000;
     return r.ok;
-  } catch { return false; }
+  } catch { quietUntil = Date.now() + 60_000; return false; }
 }
 
 export async function working(bot, stationId, headline, fn, opts) {
