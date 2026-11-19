@@ -1637,6 +1637,31 @@ test("an explicit search the AI calls 'not a product' gets a second look before 
   assert.equal(one.sent()[0].body, NOT_PRODUCT, "one word: no second look");
 });
 
+// "תמצא לי ploaudפלאוד" (a member, 2026-11-19): a brand glued to its Hebrew spelling was one unknown word, got no
+// second look and "לא הבנתי". The scripts are split, and a word in English letters (a brand or model) gets the second look.
+test("a brand in English letters, glued to Hebrew or alone, reaches the AI apart and gets a second look", async () => {
+  const seen = [];
+  const understand = async (q, o = {}) => (seen.push([q, o.retry ?? false]), o.retry ? intent({ corrected_he: "מקליט Plaud", keywords_en: "Plaud AI voice recorder" }) : intent({ status: "not_product", keywords_en: "" }));
+  const spy = searchSpy();
+  const ctx = setup({ understand, search: spy.search });
+  await ctx.bot.handleUpdate(textUpdate("תמצא לי ploaudפלאוד"));
+  assert.deepEqual(seen, [["ploaud פלאוד", false], ["ploaud פלאוד", true]]);
+  assert.equal(spy.queries[0], "Plaud AI voice recorder");
+  seen.length = 0;
+  await run("חפש לי ploaud", { understand });
+  assert.deepEqual(seen.map(([, r]) => r), [false, true], "one English word: a second look too");
+});
+
+test("a search the bot didn't understand is reported to the owner and listed in the digest", async () => {
+  const { createStats } = await import("../stats.js");
+  const stats = createStats();
+  const ctx = setup({ stats, understand: async () => intent({ status: "not_product", keywords_en: "" }) });
+  await ctx.bot.handleUpdate(textUpdate("חפש לי עבודה"));
+  assert.equal(ctx.sent()[0].body, NOT_PRODUCT);
+  stats.count("search");
+  assert.match(stats.digest(), /לא הבנתי[\s\S]*עבודה/);
+});
+
 test("a link AliExpress didn't shorten hides behind a word instead of filling the card", async () => {
   const { formatCard } = await import("../format.js");
   const long = `https://s.click.aliexpress.com/s/${"x".repeat(600)}`;
