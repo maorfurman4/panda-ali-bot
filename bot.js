@@ -1056,13 +1056,19 @@ export function createBot({
     return searchOne(ctx, query);
   }
 
-  async function searchOne(ctx, query) {
+  async function searchOne(ctx, rawQuery) {
+    // English letters glued to Hebrew are two words ("ploaudפלאוד" = the brand in both scripts, a member, 2026-11-19).
+    const query = rawQuery.replace(/([a-z\d])(?=[\u05D0-\u05EA])|([\u05D0-\u05EA])(?=[a-z])/gi, "$1$2 ");
     return withTyping(ctx, async () => {
       let intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
       // An explicit search of 2+ words gets a second look before "לא הבנתי": "מוט פינוק לאינטרפול 4 דרך" is Israeli slang for
-      // a rain shower system (owner, 2026-11-03). One more AI call (≈0.15¢), only on these rare searches.
-      if (intent?.status === "not_product" && /\S\s+\S/.test(query)) intent = (await understand(query, { retry: true }).catch(() => null)) ?? intent;
-      if (intent?.status === "not_product") return reply(ctx, NOT_PRODUCT);
+      // a rain shower system (owner, 2026-11-03). So does a word in English letters, a brand or model ("ploaud"). One more
+      // AI call (≈0.15¢), only on these rare searches.
+      if (intent?.status === "not_product" && /\S\s+\S|[a-z]{3}/i.test(query)) intent = (await understand(query, { retry: true }).catch(() => null)) ?? intent;
+      if (intent?.status === "not_product") {
+        stats.report("notUnderstood", `🤔 לא הבנתי: "${query}"`); // the owner sees every one, so the rules can be fixed
+        return reply(ctx, NOT_PRODUCT);
+      }
       if (isBlocked(intent, query)) return reply(ctx, NOT_ALLOWED); // natural requests and bare names stay silent (status isn't "ok")
       if (intent?.status === "clarify") return askClarify(ctx, query, intent);
       const big = bigItem(intent?.corrected_he || query);

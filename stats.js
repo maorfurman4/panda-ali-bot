@@ -56,6 +56,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
       const bad = (lists.thumbsDown ?? []).filter((x) => x.at >= since).map((x) => x.text);
       const none = (lists.noResults ?? []).filter((x) => x.at >= since).map((x) => x.text);
       const weak = (lists.weak ?? []).filter((x) => x.at >= since).map((x) => x.text);
+      const lost = (lists.notUnderstood ?? []).filter((x) => x.at >= since).map((x) => x.text);
       lastDigest = { at: t, counters: { ...counters } };
       if (!d("search")) return null;
       return [
@@ -66,6 +67,7 @@ export function createStats({ now = Date.now, notify = null } = {}) {
         ...(bad.length ? ["", "חיפושים שקיבלו 🐼 (כדאי לבדוק):", ...bad.map((b) => `• ${b}`)] : []),
         ...(none.length ? ["", "חיפושים בלי תוצאות:", ...none.map((b) => `• ${b}`)] : []),
         ...(weak.length ? ["", "חיפושים עם כרטיס חלש (מעט מכירות):", ...weak.map((b) => `• ${b}`)] : []),
+        ...(lost.length ? ["", "חיפושים שקיבלו \"לא הבנתי\":", ...lost.map((b) => `• ${b}`)] : []),
       ].join("\n");
     },
     snapshot: () => ({ startedAt, counters: { ...counters }, lastError: { ...lastError }, lists: structuredClone(lists) }),
