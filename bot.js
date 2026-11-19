@@ -1194,7 +1194,7 @@ export function createBot({
           let f = await pick(minPriceIls);
           if (!f.length && floorOnly) f = await pick(null); // the AI's price floor found nothing: better cheaper than empty
           mark("search", "done", `${seen.found} מוצרים ב-${seen.lists} רשימות של עלי אקספרס`, { found: seen.found, lists: seen.lists });
-          if (seen.judged) mark("judges", "done", `${f.length} מוצרים עברו את השופטים`, { judged: seen.judged, kept: f.length });
+          if (open.has("judges")) mark("judges", "done", `${f.length} מוצרים עברו את השופטים`, { judged: seen.judged, kept: f.length });
           // Short links and short Hebrew names together (parallel, no extra wait); names cover the "עוד" pages too.
           return [f, await Promise.all([shorten(f).catch(() => f), title(context, f).catch(() => null), stars(f).catch(() => null)])];
         });

@@ -17,6 +17,12 @@
 // Station ids must match office/public/js/aura.config.js.
 const STATUSES = ['idle', 'working', 'done', 'error'];
 
+// Serverless bots (a webhook that must answer fast): call setBuffered(true) once, and `await flush()` once before the
+// HTTP response goes out. Every report of the request then travels in ONE request instead of one each.
+let buffered = false;
+const pending = [];
+export const setBuffered = (on) => { buffered = !!on; };
+
 // One line in the run's log, at the first report: is telemetry on, and if not, why.
 let announced = false;
 let quietUntil = 0; // after a failed report the office is left alone for a minute, so a bot never pays the timeout twice in a row
@@ -27,23 +33,45 @@ function announce(url, key) {
   console.log(why ? `[AURA] Telemetry disabled: ${why}` : '[AURA] Telemetry enabled');
 }
 
-export async function station(bot, stationId, status, headline, metrics, { handoffTo = null, workerType = null } = {}) {
+const config = () => ({
   // AURA_SUPABASE_URL / AURA_SUPABASE_KEY win, for a bot whose own SUPABASE_* variables point at another project
-  const url = process.env.AURA_SUPABASE_URL || process.env.SUPABASE_URL, key = process.env.AURA_SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  url: process.env.AURA_SUPABASE_URL || process.env.SUPABASE_URL, key: process.env.AURA_SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY,
+});
+
+// One POST to the office: a row, or an array of rows (a bulk insert). Never throws.
+async function send(payload, url, key) {
+  try {
+    const r = await fetch(`${url.replace(/\/$/, '')}/rest/v1/bot_events`, {
+      method: 'POST', body: JSON.stringify(payload), signal: AbortSignal.timeout(2500),
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    });
+    if (!r.ok) quietUntil = Date.now() + 60_000;
+    return r.ok;
+  } catch { quietUntil = Date.now() + 60_000; return false; }
+}
+
+export async function station(bot, stationId, status, headline, metrics, { handoffTo = null, workerType = null, buffer: toBuffer = buffered } = {}) {
+  const { url, key } = config();
   announce(url, key); // at the first report, not at import: a script may switch reporting off after importing this file
   if (!url || !key || !STATUSES.includes(status) || process.env.AURA_REPORT === 'off' || Date.now() < quietUntil) return false;
   const row = {
     bot, kind: 'station', station_id: stationId, status, text: headline ? String(headline).slice(0, 300) : null,
     metrics: metrics || null, handoff_to: handoffTo, worker_type: workerType, run_id: process.env.GITHUB_RUN_ID || null,
   };
-  try {
-    const r = await fetch(`${url.replace(/\/$/, '')}/rest/v1/bot_events`, {
-      method: 'POST', body: JSON.stringify(row), signal: AbortSignal.timeout(2500),
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    });
-    if (!r.ok) quietUntil = Date.now() + 60_000;
-    return r.ok;
-  } catch { quietUntil = Date.now() + 60_000; return false; }
+  if (toBuffer) { pending.push({ ...row, ts: new Date().toISOString() }); return true; } // the real moment, not the moment of the flush
+  return send(row, url, key);
+}
+
+// Like station(), but always waits for flush().
+export const buffer = (bot, stationId, status, headline, metrics, opts = {}) => station(bot, stationId, status, headline, metrics, { ...opts, buffer: true });
+
+// Send everything buffered, in one request. Await it once, right before the webhook answers. Never throws.
+export async function flush() {
+  if (!pending.length) return true;
+  const rows = pending.splice(0);
+  const { url, key } = config();
+  if (!url || !key || process.env.AURA_REPORT === 'off' || Date.now() < quietUntil) return false;
+  return send(rows, url, key);
 }
 
 // An error's summary without what an error text can carry: URLs (a Telegram URL holds the bot token) and long tokens.
@@ -80,6 +108,11 @@ if (process.argv[1] && import.meta.url === (await import('node:url')).pathToFile
     assert.equal(await working('panda', 'scout', 'x', async () => 7), 7);
     await assert.rejects(working('panda', 'scout', 'x', async () => { throw new Error('boom'); }), /boom/);
     assert.ok(!safeError(new Error('failed https://api.telegram.org/bot123:SECRETSECRET/send key=SECRETSECRETSECRETSECRETSECRET')).includes('SECRET'));
+    quietUntil = 0;
+    assert.equal(await buffer('yahli', 'parse', 'working', 'x'), true);
+    assert.equal(await buffer('yahli', 'parse', 'done', 'y'), true);
+    assert.equal(await flush(), false, 'a flush to an unreachable office fails quietly');
+    assert.equal(await flush(), true, 'nothing left to send');
     console.log('ok: aura-report');
   })();
 }

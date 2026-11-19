@@ -56,21 +56,27 @@ export function createReelsHandler({ api, ownerId, publish, download, report = a
     }
     if (action !== "pub" || !file) return answer("לא מצאתי את הסרטון, שלחו אותו שוב");
     working.add(preview.message_id);
+    let uploading = false; // AURA HQ: "publish" is at work, so a throw before its result is reported as an error
     try {
       await answer("מפרסם...");
       await api.editMessageReplyMarkup(owner, preview.message_id, closed("⏳ מפרסם..."));
       const names = only ? [only] : Object.keys(PLATFORMS);
       if (!only) report("approve", "done", "אושר לפרסום"); // a retry of one platform was approved at the first press
       report("publish", "working", `מעלה ל${names.map((p) => PLATFORMS[p]).join(" ול")}`);
+      uploading = true;
       const results = await download(file.file_id)
         .then((bytes) => publish(bytes, postTextOf(preview), { only }))
         .catch((e) => Object.fromEntries(names.map((p) => [p, { ok: false, error: e.message }])));
       const failed = names.filter((p) => !results[p]?.ok);
+      uploading = false;
       report("publish", failed.length ? "error" : "done", failed.length ? `הפרסום נכשל ב${failed.map((p) => PLATFORMS[p]).join(" וב")}` : `פורסם ב${names.map((p) => PLATFORMS[p]).join(" וב")}`, Object.fromEntries(names.map((p) => [p, results[p]?.ok ? 1 : 0])));
       await api.sendMessage(owner, names.map((p) => `${results[p]?.ok ? "✅" : "❌"} ${PLATFORMS[p]}: ${results[p]?.ok ? "פורסם" : `נכשל (${results[p]?.error ?? "לא נוסה"})`}`).join("\n"));
       // Retry only what failed: one failed platform is a button of its own; both failed, "pub" again.
       const retry = failed.length === 1 ? `pub:${failed[0]}` : failed.length ? (only ? `pub:${only}` : "pub") : null;
       await api.editMessageReplyMarkup(owner, preview.message_id, retry ? buttons([[{ text: "🔁 לנסות שוב את מה שנכשל", callback_data: retry }]]) : closed("✅ פורסם"));
+    } catch (e) {
+      if (uploading) report("publish", "error", "הפרסום נעצר בשגיאה");
+      throw e;
     } finally {
       working.delete(preview.message_id);
     }

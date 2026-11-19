@@ -120,6 +120,10 @@ test("reels: a press tells AURA HQ: approved, uploading, published (1/1); a fail
   assert.match(of("sendMessage").at(-1).args[1], /נכשל \(download failed\)/, "the failure reaches the owner as before");
 
   seen.length = 0;
+  await run(fakeApi().api, async () => undefined)(press("pub")); // a publisher that answers nothing: the press throws inside
+  assert.deepEqual(seen.at(-1).slice(0, 2), ["publish", "error"], "a throw between 'working' and the result never leaves it on working");
+
+  seen.length = 0;
   await run(fakeApi().api, async () => ({ facebook: { ok: true } }))(press("pub:facebook"));
   assert.deepEqual(seen.map((r) => r.slice(0, 2)), [["publish", "working"], ["publish", "done"]]);
   assert.deepEqual(seen[1][3], { facebook: 1 });

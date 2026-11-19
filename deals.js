@@ -5,7 +5,7 @@ import { InputFile } from "grammy";
 import { searchProducts, shortenLinks, promoNames } from "./aliexpress.js";
 import { makeCollage } from "./collage.js";
 import { pickDeal as defaultPick } from "./query.js";
-import { station, working } from "./aura-report.js";
+import { station, working, safeError } from "./aura-report.js";
 import { RLM, esc, shortTitle, soldText, priceLine, formatPrice, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK, couponLine } from "./format.js";
 
 // One topic per post, in turn. Every topic was measured on 2026-10-30: the median sales of its top 3 items that pass our
@@ -436,11 +436,13 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     await station("panda", "filter", "done", `נשארו ${list.length} החזקים, ${found - list.length} ירדו (כבר פורסמו, כפולים או חלשים)`, { kept: list.length, dropped: found - list.length });
     // A failed AI call (null) is tried once more: it timed out once at 30 s, and the post then went out without its text.
     // reviews: the chosen product's buyer reviews (scripts/daily-deal.js passes fetchReviews); a failure is no reviews.
+    let at = "fit"; // AURA HQ: the station at work while the picker runs ("copy" once it asks for reviews)
     const reviewsFor = reviews
       ? async (p) => {
           // The picker asks for reviews once the fit judge has chosen: here "fit" ends and "copy" starts (AURA HQ status).
           await station("panda", "fit", "done", `נבחר: ${shortTitle(p.product_title)}`);
           await station("panda", "copy", "working", "מביא ביקורות וכותב את הפוסט");
+          at = "copy";
           const r = pickReviews(await Promise.resolve().then(() => reviews(p.product_id)).catch(() => []));
           log(`reviews: ${r.length}`);
           return r;
@@ -452,15 +454,23 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     // recent: the last posts' headlines and closing lines, so the AI opens differently (2026-11-08: 5 of 15 began "רוצים/מחפשים").
     const recent = { headlines: (state.headlines ?? []).slice(-6), closings: (state.closings ?? []).slice(-6) };
     await station("panda", "fit", "working", `בודק מי מ-${list.length} רבי-המכר הוא באמת המוצר: ${words}`, { candidates: list.length });
-    let choice = await pick(list, words, { reviews: reviewsFor, template, recent });
-    if (choice === null) choice = await pick(list, words, { reviews: reviewsFor, template, recent });
+    let choice;
+    try {
+      choice = await pick(list, words, { reviews: reviewsFor, template, recent });
+      if (choice === null) choice = await pick(list, words, { reviews: reviewsFor, template, recent });
+    } catch (e) {
+      await station("panda", at, "error", safeError(e)); // a picker that throws leaves neither station on "working"
+      throw e;
+    }
     if (choice?.none) {
+      // The first try wrote no text after its reviews, and the second found no fitting product: "copy" is closed too.
+      if (at === "copy") await station("panda", "copy", "error", "הפוסט לא נכתב, ובבדיקה חוזרת אף מוצר לא התאים");
       await station("panda", "fit", "done", "אף אחד מהם אינו המוצר, עוברים לנושא הבא", { candidates: list.length });
       log(`none of the best sellers for "${words}" is that item, trying the next topic`); // AliExpress search noise
       continue;
     }
     const chosen = list[choice?.i ?? 0];
-    if (!reviewsFor) await station("panda", "fit", "done", `נבחר: ${shortTitle(chosen.product_title)}`);
+    if (at === "fit") await station("panda", "fit", "done", `נבחר: ${shortTitle(chosen.product_title)}`); // also when the picker failed before it asked for reviews
     await station("panda", "copy", choice?.name ? "done" : "error", choice?.name ? `הפוסט נכתב: ${choice.name}` : "ה-AI לא כתב טקסט, הפוסט יוצא עם השם של המוכר");
     const [[short], rated] = await Promise.all([shorten([chosen]), stars ? stars([chosen]).catch(() => null) : null]); // search links are ~1 KB; on failure the long one is kept
     const p = rated?.[0]?.reviewCount ? { ...short, avgStars: rated[0].avgStars, reviewCount: rated[0].reviewCount } : short;
