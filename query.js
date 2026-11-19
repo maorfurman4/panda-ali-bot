@@ -10,6 +10,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
 import { stats } from "./stats.js";
+import { ai } from "./aura-report.js";
 import { isPartFor, forWhom, namesModel, fitsDevice, needsEnTitle, manySizes, whiteByGrammar, whiteOrKids } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
@@ -29,6 +30,8 @@ const spend = (usd, step, input = 0, cached = 0) => {
   (p.usd += usd), (p.input += input), (p.cached += cached);
 };
 const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
+// AURA HQ: the office station each call's tokens are counted for (aura-report.js ai()); a name not here is not counted.
+const STATION_OF = { search_intent: "understand", advisor_step: "understand", relevant_products: "judges", color_photos: "variants", short_titles: "card", fit_reasons: "card", deal_fit: "fit", deal_post: "copy" };
 const CLAUDE_FOR = { "gpt-5.4": "claude-sonnet-5-5", "gpt-5.5": "claude-sonnet-5-5" }; // anything else: Haiku
 const claudeFor = (model) => CLAUDE_FOR[model] ?? "claude-haiku-5-5";
 const CLAUDE_CACHE_READ = { "claude-haiku-5-5": 0.01, "claude-sonnet-5-5": 0.1 }; // USD per 1M cached input tokens
@@ -351,6 +354,7 @@ async function requestClaude({ fetch, env, model, instructions, content, name, s
   }
   if (!res.ok) throw new Error(`claude HTTP ${res.status}`);
   const data = await res.json();
+  ai(model, data, { bot: "panda", stationId: STATION_OF[name] });
   if (data.usage) {
     onUsage({ input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens });
     const [pin, pout] = PRICES[model] ?? PRICES["claude-sonnet-5-5"];
@@ -390,6 +394,7 @@ async function requestOnce({ fetch, env, model, instructions, content, name, sch
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
+  ai(model, data, { bot: "panda", stationId: STATION_OF[name] });
   if (data.usage) {
     onUsage({ input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens });
     // OpenAI caches a repeated prompt start by itself and bills it at 10% (≈70% of our input, measured 2026-11-02).
