@@ -4,6 +4,7 @@
 // pick); Whisper (~0.2¢) gives the word times the cuts sit on. The rules the script must follow: reels/voice.md.
 import { readFileSync } from "node:fs";
 import { lookalikeBrand } from "./format.js";
+import { ai } from "./aura-report.js";
 
 export const MIN_SOLD = 1000;    // a quality gate only: the reel says the price, not the buyers (owner, 2026-11-16)
 export const MIN_POSITIVE = 95;  // % positive reviews
@@ -273,6 +274,7 @@ export async function gemini(model, body, { fetch = globalThis.fetch, env = proc
       continue;
     }
     if (j.error || !r.ok) throw new Error(`gemini ${model}: ${j.error?.status ?? r.status} ${String(j.error?.message ?? "").slice(0, 200)}`);
+    ai(model, j, { bot: "reels", stationId: TTS_MODELS.includes(model) ? "voice" : "script" }); // AURA HQ token count
     return j;
   }
 }
@@ -349,6 +351,7 @@ export async function wordTimes(wavBytes, { fetch = globalThis.fetch, env = proc
   form.append("model", "whisper-1"); form.append("language", "he"); form.append("response_format", "verbose_json"); form.append("timestamp_granularities[]", "word");
   const j = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { authorization: `Bearer ${env.OPENAI_API_KEY}` }, body: form, signal: AbortSignal.timeout(120000) }).then((r) => r.json());
   if (!Array.isArray(j.words) || !j.words.length) throw new Error(`whisper: ${j.error?.message ?? "no words"}`);
+  ai("whisper-1", null, { bot: "reels", stationId: "timing", audioSeconds: j.duration }); // billed per minute: verbose_json gives the length
   return j.words;
 }
 

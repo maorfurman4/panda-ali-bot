@@ -15,10 +15,48 @@
 //   // an error inside reports status "error" and is thrown again, unchanged
 //
 // Station ids must match office/public/js/aura.config.js.
+//
+// AI usage (round 5): after every model call, one line counts it for the station whose `working` block runs it (async
+// work started inside the block counts too, even when several blocks run at once). The station's next "done" or
+// "error" report carries the totals in metrics.ai; the office prices them. Only numbers are sent, never the prompt.
+//
+//   const resp = await openai.chat.completions.create({ model: 'gpt-5.4-mini', ... });
+//   ai('gpt-5.4-mini', resp);                 // reads resp.usage (OpenAI, Anthropic, Gemini shapes all work)
+import { AsyncLocalStorage } from 'node:async_hooks';
 const STATUSES = ['idle', 'working', 'done', 'error'];
 
 // Serverless bots (a webhook that must answer fast): call setBuffered(true) once, and `await flush()` once before the
 // HTTP response goes out. Every report of the request then travels in ONE request instead of one each.
+const openBlock = new AsyncLocalStorage();               // { bot, stationId } of the working block this code runs in
+const usage = new Map();                                    // "bot/station" -> Map(model -> { calls, in, out, sec })
+const LIMIT = /\b429\b|rate.?limit|quota|too many requests|resource.?exhausted/i;
+function tokensOf(u) {
+  for (const root of [u?.usage, u?.usage_metadata, u?.usageMetadata, u?.response?.usageMetadata, u]) {
+    if (!root || typeof root !== 'object') continue;
+    const i = root.prompt_tokens ?? root.input_tokens ?? root.promptTokenCount ?? root.prompt_token_count;
+    const o = root.completion_tokens ?? root.output_tokens ?? root.candidatesTokenCount ?? root.candidates_token_count;
+    if (i != null || o != null) return [Number(i) || 0, Number(o) || 0];
+  }
+  return [0, 0];
+}
+// Count one AI call for the station whose working block runs this code (or the given bot / station). Never throws.
+export function ai(model, resp, { tokensIn, tokensOut, audioSeconds, bot, stationId } = {}) {
+  try {
+    const at = bot && stationId ? { bot, stationId } : openBlock.getStore();
+    if (!at) return false;
+    const [i, o] = resp != null ? tokensOf(resp) : [tokensIn, tokensOut];
+    const key = `${at.bot}/${at.stationId}`, per = usage.get(key) || new Map(); usage.set(key, per);
+    const m = per.get(String(model).slice(0, 60)) || { calls: 0, in: 0, out: 0, sec: 0 }; per.set(String(model).slice(0, 60), m);
+    m.calls++; m.in += Number(i) || 0; m.out += Number(o) || 0; m.sec += Number(audioSeconds) || 0;
+    return true;
+  } catch { return false; }
+}
+function takeUsage(bot, stationId) {
+  const per = usage.get(`${bot}/${stationId}`); if (!per) return null;
+  usage.delete(`${bot}/${stationId}`);
+  return [...per].map(([model, m]) => ({ model, calls: m.calls, in: m.in, out: m.out, ...(m.sec ? { sec: Math.round(m.sec * 10) / 10 } : {}) }));
+}
+
 let buffered = false;
 const pending = [];
 export const setBuffered = (on) => { buffered = !!on; };
@@ -54,6 +92,7 @@ export async function station(bot, stationId, status, headline, metrics, { hando
   const { url, key } = config();
   announce(url, key); // at the first report, not at import: a script may switch reporting off after importing this file
   if (!url || !key || !STATUSES.includes(status) || process.env.AURA_REPORT === 'off' || Date.now() < quietUntil) return false;
+  if (status === 'done' || status === 'error') { const used = takeUsage(bot, stationId); if (used) metrics = { ...(metrics || {}), ai: used }; }
   const row = {
     bot, kind: 'station', station_id: stationId, status, text: headline ? String(headline).slice(0, 300) : null,
     metrics: metrics || null, handoff_to: handoffTo, worker_type: workerType, run_id: process.env.GITHUB_RUN_ID || null,
@@ -88,11 +127,11 @@ export async function working(bot, stationId, headline, fn, opts) {
   };
   await station(bot, stationId, 'working', headline, null, opts);
   try {
-    const out = await fn(w);
+    const out = await openBlock.run({ bot, stationId }, () => fn(w));
     if (!closed) await w.done();
     return out;
   } catch (e) {
-    await station(bot, stationId, 'error', safeError(e), null, opts);
+    await station(bot, stationId, 'error', safeError(e), LIMIT.test(String(e?.message ?? e)) ? { limit: true } : null, opts);
     throw e;
   }
 }
@@ -113,6 +152,20 @@ if (process.argv[1] && import.meta.url === (await import('node:url')).pathToFile
     assert.equal(await buffer('yahli', 'parse', 'done', 'y'), true);
     assert.equal(await flush(), false, 'a flush to an unreachable office fails quietly');
     assert.equal(await flush(), true, 'nothing left to send');
+    // AI usage: counted per open block (two blocks at once stay apart), carried by the done report
+    quietUntil = 0; pending.length = 0;
+    const b = { buffer: true };
+    await Promise.all([
+      working('panda', 'judges', 'x', async () => { await new Promise((r) => setTimeout(r, 5)); ai('gpt-5.4', { usage: { prompt_tokens: 100, completion_tokens: 20 } }); ai('claude-sonnet-5-5', { usage: { input_tokens: 50, output_tokens: 10 } }); }, b),
+      working('panda', 'understand', 'x', async () => { ai('gpt-5.4-mini', { usage: { input_tokens: 9, output_tokens: 1 } }); }, b),
+    ]);
+    const done = (id) => pending.find((r) => r.station_id === id && r.status === 'done');
+    assert.deepEqual(done('judges').metrics.ai.map((m) => [m.model, m.calls, m.in, m.out]), [['gpt-5.4', 1, 100, 20], ['claude-sonnet-5-5', 1, 50, 10]]);
+    assert.deepEqual(done('understand').metrics.ai.map((m) => [m.model, m.in]), [['gpt-5.4-mini', 9]]);
+    assert.equal(ai('gpt-5.4', { usage: { prompt_tokens: 1 } }), false, 'outside a block nothing is counted');
+    await assert.rejects(working('panda', 'fit', 'x', async () => { throw new Error('429 Too Many Requests'); }, b));
+    assert.deepEqual(pending.at(-1).metrics, { limit: true });
+    pending.length = 0;
     console.log('ok: aura-report');
   })();
 }
