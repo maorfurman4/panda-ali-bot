@@ -71,13 +71,29 @@ test("style 3: a good script becomes the voice text, the post is only the call t
 
 test("style 3: what the owner rejected never passes: a different sentence on screen, banned phrases, invented numbers, long lines", () => {
   const bad = (f) => { const o = good(); f(o); return checkScript(o, P, 47).errors?.join(" | ") ?? ""; };
-  assert.match(bad((o) => { o.scenes[1].pill = "המתכון אומר 15 גרם"; }), /pill/);
   assert.match(bad((o) => { o.scenes[0].say = "אל תפספסו את הכף הזאת."; }), /banned/);
   assert.match(bad((o) => { o.scenes[0].say = "שוקלת עד 3000 גרם."; }), /3000/);
   assert.match(bad((o) => { o.scenes[0].say = "הכף הזאת היא גם משקל קטן וחכם ונוח מאוד."; }), /more than 8 words/);
   assert.match(bad((o) => { o.hooks.pop(); }), /hooks/);
   assert.match(bad((o) => { o.scenes[2].b = 60; }), /shot/);
   assert.match(bad((o) => { o.keep_bottom = 0.4; }), /keep/);
+});
+
+test("style 3: a pill that isn't the spoken words is replaced by them, not a reason to reject the script (run 2026-11-20 04:40 lost its reel to this)", () => {
+  const fix = (i, say, pill) => { const o = good(); Object.assign(o.scenes[i], { say, pill }); return checkScript(o, P, 47); };
+  const cases = [
+    [3, "ומכניסים את המטען לרצועה.", "שמים מטען ברצועה", "ומכניסים את המטען לרצועה"], // other words
+    [2, "מכניסים את האוזניות לרשת העליונה.", "מכניסים את האוזניות לרשת העליונה", "מכניסים את האוזניות לרשת"], // 32 characters
+    [1, "המתכון יוצא מדויק.", "המתכון אומר 15 גרם", "המתכון יוצא מדויק"], // a different sentence never shows
+    [1, "קושרים גם וילונות.", "קושרים וילונות!", "קושרים גם וילונות"], // "!"
+  ];
+  for (const [i, say, pill, shown] of cases) {
+    const r = fix(i, say, pill);
+    assert.equal(r.errors, undefined, `${pill}: ${r.errors}`);
+    assert.equal(r.script.scenes[i].pill, shown);
+    assert.ok([...r.script.scenes[i].pill].length <= 30);
+  }
+  assert.equal(checkScript(good(), P, 47).script.scenes[0].pill, "כף שהיא גם משקל", "a good pill stays as written");
 });
 
 test("style 3: each sentence's end is found in Whisper's words, though Whisper spells words its own way", () => {

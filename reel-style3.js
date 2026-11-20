@@ -195,6 +195,23 @@ const hebrew = (s) => (s.match(/[א-ת]/g) ?? []).length >= 3;
 const POS = ["upper", "middle", "lower"];
 const hookScore = (h) => ["frontload", "specific", "address", "stakes"].reduce((n, k) => n + Math.max(0, Math.min(5, Number(h[k]) || 0)), 0);
 
+// A pill shows only in the white-pill look; the daily reel's bold look shows the spoken words. So a pill that isn't the
+// spoken words is swapped for them rather than costing a script try (2026-11-20 04:40: 3 tries rejected, no reel).
+function pillOk(s) {
+  if (typeof s.pill !== "string" || [...s.pill].length > 30 || EMOJI.test(s.pill) || BANNED.test(s.pill)) return false;
+  const said = words(s.say), shown = words(s.pill); // "כף שהיא" for "הכף ... היא" is fine (owner, 2026-11-15)
+  return shown.length > 0 && shown.filter((w) => said.some((x) => near(w, x))).length >= Math.ceil(shown.length * 0.75);
+}
+// the spoken sentence, whole words only, up to 30 characters
+function fitPill(say) {
+  let out = "";
+  for (const w of String(say).trim().replace(/[.]$/, "").split(/\s+/)) {
+    if ([...(out ? `${out} ${w}` : w)].length > 30) break;
+    out = out ? `${out} ${w}` : w;
+  }
+  return out;
+}
+
 // The script the voice and the builder use, or { errors }. Everything the owner hears or reads is checked here.
 export function checkScript(o, p, duration, sections = [[0, duration]], opts = {}) {
   const errors = [];
@@ -222,10 +239,6 @@ export function checkScript(o, p, duration, sections = [[0, duration]], opts = {
   scenes.forEach((s, i) => {
     line(`scene ${i}`, s.say, 8);
     shot(`scene ${i}`, s, 1.5);
-    const said = words(s.say), shown = words(s.pill); // "כף שהיא" for "הכף ... היא" is fine (owner, 2026-11-15)
-    if (!shown.length || [...String(s.pill)].length > 30 || shown.filter((w) => said.some((x) => near(w, x))).length < Math.ceil(shown.length * 0.75))
-      errors.push(`scene ${i}: pill "${s.pill}" must be the same words as "${s.say}" or a short part of them (up to 30 characters)`);
-    if (EMOJI.test(s.pill) || BANNED.test(s.pill)) errors.push(`scene ${i}: pill "${s.pill}" has an emoji, a dash or "!"`);
     if (!["top", "bottom", "full"].includes(s.half)) errors.push(`scene ${i}: half must be top, bottom or full`);
   });
   if (!(o?.slowmo === -1 || (o?.slowmo >= 0 && o.slowmo < scenes.length))) errors.push(`slowmo: -1 or a scene index (0-${scenes.length - 1})`);
@@ -241,7 +254,7 @@ export function checkScript(o, p, duration, sections = [[0, duration]], opts = {
   const end = (s) => (/[.?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
   let n = 0;
   const pos = (x) => (POS.includes(x?.pos) ? x.pos : "middle");
-  const made = scenes.map((s) => ({ say: end(s.say), pill: s.pill.trim().replace(/^\d+\s*[.)\-:]\s*/, "").replace(/[.]$/, ""), step: s.step ? ++n : null, ...within(s), half: s.half, pos: pos(s) }));
+  const made = scenes.map((s) => ({ say: end(s.say), pill: pillOk(s) ? s.pill.trim().replace(/^\d+\s*[.)\-:]\s*/, "").replace(/[.]$/, "") : fitPill(s.say), step: s.step ? ++n : null, ...within(s), half: s.half, pos: pos(s) }));
   return {
     script: {
       keep: [o.keep_top, o.keep_bottom],
