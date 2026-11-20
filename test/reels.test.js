@@ -116,12 +116,16 @@ test("reels: a press tells AURA HQ: approved, uploading, published (1/1); a fail
   const { api, of } = fakeApi();
   await run(api, async () => ({ instagram: { ok: true }, facebook: { ok: true } }), async () => { throw new Error("download failed"); })(press("pub"));
   assert.deepEqual(seen.at(-1).slice(0, 2), ["publish", "error"]);
-  assert.deepEqual(seen.at(-1)[3], { instagram: 0, facebook: 0 });
+  const { where, ...counts } = seen.at(-1)[3];
+  assert.deepEqual(counts, { instagram: 0, facebook: 0 });
+  assert.equal(where.file, "test/reels.test.js", "the error says where in our own code it was thrown");
+  assert.ok(where.line > 0 && where.trace.length >= 1);
   assert.match(of("sendMessage").at(-1).args[1], /נכשל \(download failed\)/, "the failure reaches the owner as before");
 
   seen.length = 0;
   await run(fakeApi().api, async () => undefined)(press("pub")); // a publisher that answers nothing: the press throws inside
   assert.deepEqual(seen.at(-1).slice(0, 2), ["publish", "error"], "a throw between 'working' and the result never leaves it on working");
+  assert.equal(seen.at(-1)[3].where.file, "reels.js", "and it says where in the bot's own file");
 
   seen.length = 0;
   await run(fakeApi().api, async () => ({ facebook: { ok: true } }))(press("pub:facebook"));

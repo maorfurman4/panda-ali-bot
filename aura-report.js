@@ -119,6 +119,19 @@ export function safeError(e) {
   return `${e?.name || 'Error'}: ${text}`.slice(0, 160);
 }
 
+// The error's place in the bot's own code: the first stack frame outside node's internals, node_modules and this file.
+// Only paths and names, never values.
+export function whereOf(e) {
+  try {
+    const frames = String(e?.stack || '').split('\n').slice(1).map((l) => l.match(/at (?:(.+?) \()?(?:file:\/\/)?([^()]+?):(\d+):\d+\)?$/)).filter(Boolean)
+      .filter(([, , file]) => !file.startsWith('node:') && !file.includes('node_modules') && !file.endsWith('aura-report.js'));
+    if (!frames.length) return null;
+    const rel = (f) => (f.startsWith(process.cwd() + '/') ? f.slice(process.cwd().length + 1) : f.split('/').pop());
+    const [, func, file, line] = frames[0];
+    return { file: rel(file), line: Number(line), func: func || '<anonymous>', trace: frames.slice(0, 3).map(([, fn, f, l]) => `${rel(f)}:${l} ${fn || ''}`.trim()) };
+  } catch { return null; }
+}
+
 export async function working(bot, stationId, headline, fn, opts) {
   let closed = false;
   const w = {
@@ -131,7 +144,8 @@ export async function working(bot, stationId, headline, fn, opts) {
     if (!closed) await w.done();
     return out;
   } catch (e) {
-    await station(bot, stationId, 'error', safeError(e), LIMIT.test(String(e?.message ?? e)) ? { limit: true } : null, opts);
+    const where = whereOf(e), metrics = { ...(LIMIT.test(String(e?.message ?? e)) ? { limit: true } : {}), ...(where ? { where } : {}) };
+    await station(bot, stationId, 'error', safeError(e), Object.keys(metrics).length ? metrics : null, opts);
     throw e;
   }
 }
@@ -164,7 +178,10 @@ if (process.argv[1] && import.meta.url === (await import('node:url')).pathToFile
     assert.deepEqual(done('understand').metrics.ai.map((m) => [m.model, m.in]), [['gpt-5.4-mini', 9]]);
     assert.equal(ai('gpt-5.4', { usage: { prompt_tokens: 1 } }), false, 'outside a block nothing is counted');
     await assert.rejects(working('panda', 'fit', 'x', async () => { throw new Error('429 Too Many Requests'); }, b));
-    assert.deepEqual(pending.at(-1).metrics, { limit: true });
+    assert.equal(pending.at(-1).metrics.limit, true);
+    assert.ok(pending.at(-1).metrics.where === undefined || pending.at(-1).metrics.where.line > 0);
+    const w = whereOf({ stack: 'Error: x\n    at dealFit (file:///srv/bot/query.js:42:7)\n    at async node:internal/x:1:1\n    at run (/srv/bot/node_modules/a/b.js:1:1)' });
+    assert.deepEqual([w.file, w.line, w.func], ['query.js', 42, 'dealFit'], 'an error knows where it happened');
     pending.length = 0;
     console.log('ok: aura-report');
   })();
