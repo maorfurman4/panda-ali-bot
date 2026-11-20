@@ -7,7 +7,7 @@ import { understandQuery, filterRelevant, nextAdvice, explainFit, shortTitles, p
 import { makeCollage, photoHash } from "./collage.js";
 import { createModeration } from "./moderation.js";
 import { stats as defaultStats } from "./stats.js";
-import { station } from "./aura-report.js";
+import { station, whereOf } from "./aura-report.js";
 import { searchProducts as liveSearch } from "./aliexpress.js";
 import { createUnderstander, claudeCheck, namesLook, aiSpend, USD_ILS, hasName, hasNameWord } from "./query.js";
 import {
@@ -1066,13 +1066,14 @@ export function createBot({
     const query = rawQuery.replace(/([a-z\d])(?=[\u05D0-\u05EA])|([\u05D0-\u05EA])(?=[a-z])/gi, "$1$2 ");
     return withTyping(ctx, async () => {
       aura("understand", "working", "קורא את הבקשה");
-      let intent = await understand(query).catch(() => null); // null = AI unavailable: search the raw query
+      let failure = null; // AURA HQ: the throw behind a null intent, for where it happened
+      let intent = await understand(query).catch((e) => ((failure = e), null)); // null = AI unavailable: search the raw query
       // An explicit search of 2+ words gets a second look before "לא הבנתי": "מוט פינוק לאינטרפול 4 דרך" is Israeli slang for
       // a rain shower system (owner, 2026-11-03). So does a word in English letters, a brand or model ("ploaud"). One more
       // AI call (≈0.15¢), only on these rare searches.
       if (intent?.status === "not_product" && /\S\s+\S|[a-z]{3}/i.test(query)) intent = (await understand(query, { retry: true }).catch(() => null)) ?? intent;
       if (intent) aura("understand", "done", { ok: "הבקשה הובנה, יוצאים לחיפוש", clarify: "הבקשה רחבה, שואלים שאלה", not_product: "זו לא בקשה למוצר" }[intent.status] ?? "הבקשה נקראה");
-      else aura("understand", "error", "קריאת הבקשה נכשלה, מחפשים לפי המילים עצמן");
+      else aura("understand", "error", "קריאת הבקשה נכשלה, מחפשים לפי המילים עצמן", failure && { where: whereOf(failure) });
       if (intent?.status === "not_product") {
         // The AI doesn't know every brand ("plaude", owner's test 2026-11-19); AliExpress does. The English words are
         // searched as written and the judges keep only what fits. Hebrew alone stays "לא הבנתי".
@@ -1189,7 +1190,7 @@ export function createBot({
           skus: skus && (async (ids) => {
             mark("variants", "working", `בודק צבעים ומידות ב-${ids.length} מוצרים`);
             const variants = await skus(ids).catch((e) => {
-              mark("variants", "error", "בדיקת הצבעים והמידות נכשלה");
+              mark("variants", "error", "בדיקת הצבעים והמידות נכשלה", { where: whereOf(e) });
               throw e;
             });
             mark("variants", "done", `${variants?.size ?? 0} מתוך ${ids.length} מוצרים החזירו צבעים ומידות`, { checked: ids.length, answered: variants?.size ?? 0 });
@@ -1221,7 +1222,7 @@ export function createBot({
       }
     } catch (e) {
       stats.failure("aliexpress", e.message);
-      for (const id of open) aura(id, "error", STOPPED[id]); // whatever was still at work when it threw
+      for (const id of open) aura(id, "error", STOPPED[id], { where: whereOf(e) }); // whatever was still at work when it threw
       console.error(`update ${ctx.update.update_id}: search failed: ${e.message}`);
       return ctx.reply(SEARCH_ERROR, { parse_mode: "HTML", ...replyParams(replyToId) });
     }
@@ -1290,7 +1291,7 @@ export function createBot({
       }
     }
     return ctx.reply(caption, { ...extra, link_preview_options: { is_disabled: true } }).then(cardSent, (e) => {
-      aura("card", "error", "שליחת הכרטיס נכשלה");
+      aura("card", "error", "שליחת הכרטיס נכשלה", { where: whereOf(e) });
       throw e;
     });
   }

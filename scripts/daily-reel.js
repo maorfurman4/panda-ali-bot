@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { Api, InputFile } from "grammy";
 import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js";
 import { previewExtra } from "../reels.js";
-import { station, safeError } from "../aura-report.js";
+import { station, safeError, whereOf } from "../aura-report.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
   captionList, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
@@ -185,7 +185,7 @@ try {
   await main();
 } catch (e) {
   console.error(e);
-  if (open) await station("reels", open, "error", safeError(e)); // URLs and long tokens are scrubbed before they leave
+  if (open) await station("reels", open, "error", safeError(e), { where: whereOf(e) }); // URLs and long tokens are scrubbed before they leave
   await note(`נכשל: ${String(e.message).slice(0, 300)}`).catch(() => {});
   process.exit(1);
 }

@@ -8,7 +8,7 @@
 // 2026-11-16: "only the sentence I said, always").
 export const POST_TEXT = "🔗 הקישור לערוץ הדילים בביו 👆";
 
-import { station } from "./aura-report.js";
+import { station, whereOf } from "./aura-report.js";
 
 // AURA HQ status (aura-report.js): never awaited, as in bot.js, so the office can't hold up a press on the live server.
 const aura = (id, status, headline, metrics) => void station("reels", id, status, headline, metrics);
@@ -64,18 +64,19 @@ export function createReelsHandler({ api, ownerId, publish, download, report = a
       if (!only) report("approve", "done", "אושר לפרסום"); // a retry of one platform was approved at the first press
       report("publish", "working", `מעלה ל${names.map((p) => PLATFORMS[p]).join(" ול")}`);
       uploading = true;
+      let thrown = null; // AURA HQ: where a download or publish throw happened
       const results = await download(file.file_id)
         .then((bytes) => publish(bytes, postTextOf(preview), { only }))
-        .catch((e) => Object.fromEntries(names.map((p) => [p, { ok: false, error: e.message }])));
+        .catch((e) => ((thrown = e), Object.fromEntries(names.map((p) => [p, { ok: false, error: e.message }]))));
       const failed = names.filter((p) => !results[p]?.ok);
       uploading = false;
-      report("publish", failed.length ? "error" : "done", failed.length ? `הפרסום נכשל ב${failed.map((p) => PLATFORMS[p]).join(" וב")}` : `פורסם ב${names.map((p) => PLATFORMS[p]).join(" וב")}`, Object.fromEntries(names.map((p) => [p, results[p]?.ok ? 1 : 0])));
+      report("publish", failed.length ? "error" : "done", failed.length ? `הפרסום נכשל ב${failed.map((p) => PLATFORMS[p]).join(" וב")}` : `פורסם ב${names.map((p) => PLATFORMS[p]).join(" וב")}`, { ...Object.fromEntries(names.map((p) => [p, results[p]?.ok ? 1 : 0])), ...(thrown && { where: whereOf(thrown) }) });
       await api.sendMessage(owner, names.map((p) => `${results[p]?.ok ? "✅" : "❌"} ${PLATFORMS[p]}: ${results[p]?.ok ? "פורסם" : `נכשל (${results[p]?.error ?? "לא נוסה"})`}`).join("\n"));
       // Retry only what failed: one failed platform is a button of its own; both failed, "pub" again.
       const retry = failed.length === 1 ? `pub:${failed[0]}` : failed.length ? (only ? `pub:${only}` : "pub") : null;
       await api.editMessageReplyMarkup(owner, preview.message_id, retry ? buttons([[{ text: "🔁 לנסות שוב את מה שנכשל", callback_data: retry }]]) : closed("✅ פורסם"));
     } catch (e) {
-      if (uploading) report("publish", "error", "הפרסום נעצר בשגיאה");
+      if (uploading) report("publish", "error", "הפרסום נעצר בשגיאה", { where: whereOf(e) });
       throw e;
     } finally {
       working.delete(preview.message_id);

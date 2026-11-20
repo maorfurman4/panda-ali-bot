@@ -5,7 +5,7 @@ import { InputFile } from "grammy";
 import { searchProducts, shortenLinks, promoNames } from "./aliexpress.js";
 import { makeCollage } from "./collage.js";
 import { pickDeal as defaultPick } from "./query.js";
-import { station, working, safeError } from "./aura-report.js";
+import { station, working, safeError, whereOf } from "./aura-report.js";
 import { RLM, esc, shortTitle, soldText, priceLine, formatPrice, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK, couponLine } from "./format.js";
 
 // One topic per post, in turn. Every topic was measured on 2026-10-30: the median sales of its top 3 items that pass our
@@ -340,7 +340,7 @@ async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = nu
     return sent;
   } catch (e) {
     log(`photo failed (${e.description ?? e.message}), sending text`);
-    await station("panda", "media", "error", "התמונה נכשלה, הפוסט נשלח כטקסט בלבד");
+    await station("panda", "media", "error", "התמונה נכשלה, הפוסט נשלח כטקסט בלבד", { where: whereOf(e) });
     const { caption: text, ...rest } = extra;
     return api.sendMessage(chatId, text, { ...rest, link_preview_options: { is_disabled: true } });
   }
@@ -459,7 +459,7 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
       choice = await pick(list, words, { reviews: reviewsFor, template, recent });
       if (choice === null) choice = await pick(list, words, { reviews: reviewsFor, template, recent });
     } catch (e) {
-      await station("panda", at, "error", safeError(e)); // a picker that throws leaves neither station on "working"
+      await station("panda", at, "error", safeError(e), { where: whereOf(e) }); // a picker that throws leaves neither station on "working"
       throw e;
     }
     if (choice?.none) {
