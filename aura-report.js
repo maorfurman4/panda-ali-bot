@@ -71,7 +71,7 @@ function announce(url, key) {
   console.log(why ? `[AURA] Telemetry disabled: ${why}` : '[AURA] Telemetry enabled');
 }
 
-const config = () => ({
+const config_ = () => ({
   // AURA_SUPABASE_URL / AURA_SUPABASE_KEY win, for a bot whose own SUPABASE_* variables point at another project
   url: process.env.AURA_SUPABASE_URL || process.env.SUPABASE_URL, key: process.env.AURA_SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY,
 });
@@ -89,7 +89,7 @@ async function send(payload, url, key) {
 }
 
 export async function station(bot, stationId, status, headline, metrics, { handoffTo = null, workerType = null, buffer: toBuffer = buffered } = {}) {
-  const { url, key } = config();
+  const { url, key } = config_();
   announce(url, key); // at the first report, not at import: a script may switch reporting off after importing this file
   if (!url || !key || !STATUSES.includes(status) || process.env.AURA_REPORT === 'off' || Date.now() < quietUntil) return false;
   if (status === 'done' || status === 'error') { const used = takeUsage(bot, stationId); if (used) metrics = { ...(metrics || {}), ai: used }; }
@@ -108,7 +108,7 @@ export const buffer = (bot, stationId, status, headline, metrics, opts = {}) => 
 export async function flush() {
   if (!pending.length) return true;
   const rows = pending.splice(0);
-  const { url, key } = config();
+  const { url, key } = config_();
   if (!url || !key || process.env.AURA_REPORT === 'off' || Date.now() < quietUntil) return false;
   return send(rows, url, key);
 }
@@ -150,6 +150,49 @@ export async function working(bot, stationId, headline, fn, opts) {
   }
 }
 
+// ---- AURA control (stage 5): the pause flag and Maor's settings overrides, read once per run ----
+// A setting with no override (or of the wrong type) falls back to the constant in the bot's own code, so a bot with no
+// rows behaves exactly as before. Fail-open (Maor, 2026-11-21): if Supabase can't be read the run goes on, not paused.
+const cfgCache = new Map();   // bot -> { at, value: { paused, settings } }
+export async function config(bot) {
+  const hit = cfgCache.get(bot);
+  if (hit && Date.now() - hit.at < 60_000) return hit.value;
+  let value = { paused: false, settings: {} };
+  const { url, key } = config_();
+  if (url && key && process.env.AURA_REPORT !== 'off') {
+    try {
+      const r = await fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/aura_config`, {
+        method: 'POST', body: JSON.stringify({ p_bot: bot }), signal: AbortSignal.timeout(5000),
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const got = await r.json();
+      value = { paused: got?.paused === true, settings: got?.settings || {} };
+    } catch (e) { console.log(`[AURA] config unreachable, running with the defaults: ${e.name || 'Error'}`); }
+  }
+  cfgCache.set(bot, { at: Date.now(), value });
+  return value;
+}
+const fits = (v, d) => {
+  if (typeof d === 'boolean') return typeof v === 'boolean';
+  if (typeof d === 'number') return typeof v === 'number' && Number.isFinite(v) && (!Number.isInteger(d) || Number.isInteger(v));
+  if (typeof d === 'string') return typeof v === 'string';
+  if (Array.isArray(d)) return Array.isArray(v) && (!d.length || (v.length > 0 && v.every((x) => fits(x, d[0]))));
+  return false;
+};
+// Maor's override for `key`, or `def` (the bot's own constant) when there is none or it has the wrong type.
+// Call `await config(bot)` once first (at the start of the run); this reads the cached value.
+export function cfgGet(bot, key, def) {
+  const v = cfgCache.get(bot)?.value.settings?.[key];
+  return v != null && fits(v, def) ? v : def;
+}
+// True when Maor paused the bot in AURA. A scheduled run checks this first and exits quietly (no 'start' row).
+export async function paused(bot) {
+  if (!(await config(bot)).paused) return false;
+  console.log('[AURA] paused in AURA: this run is skipped');
+  return true;
+}
+
 if (process.argv[1] && import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]).href) {   // node aura-report.js : self-check, no network
   (async () => {
     const assert = (await import('node:assert/strict')).default;
@@ -183,6 +226,18 @@ if (process.argv[1] && import.meta.url === (await import('node:url')).pathToFile
     const w = whereOf({ stack: 'Error: x\n    at dealFit (file:///srv/bot/query.js:42:7)\n    at async node:internal/x:1:1\n    at run (/srv/bot/node_modules/a/b.js:1:1)' });
     assert.deepEqual([w.file, w.line, w.func], ['query.js', 42, 'dealFit'], 'an error knows where it happened');
     pending.length = 0;
+    // control: overrides only when the type fits; unreachable -> defaults, not paused
+    cfgCache.set('t', { at: Date.now(), value: { paused: false, settings: { N: 2000, S: 'abc', L: ['a'], H: [9, 21], F: 2.5 } } });
+    assert.equal(cfgGet('t', 'N', 3000), 2000);
+    assert.equal(cfgGet('t', 'S', 3000), 3000, 'a string never replaces a number');
+    assert.equal(cfgGet('t', 'F', 3000), 3000, 'an int setting never takes a fraction');
+    assert.deepEqual(cfgGet('t', 'L', ['z']), ['a']);
+    assert.deepEqual(cfgGet('t', 'H', [7, 23]), [9, 21]);
+    assert.equal(cfgGet('t', 'missing', 7), 7);
+    cfgCache.set('p', { at: Date.now(), value: { paused: true, settings: {} } });
+    assert.equal(await paused('p'), true);
+    process.env.AURA_SUPABASE_URL = 'http://127.0.0.1:9'; process.env.AURA_SUPABASE_KEY = 'k';
+    assert.deepEqual(await config('down'), { paused: false, settings: {} }, 'unreachable -> fail-open');
     console.log('ok: aura-report');
   })();
 }

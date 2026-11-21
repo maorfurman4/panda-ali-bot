@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createReelsHandler, POST_TEXT } from "../reels.js";
+import { createReelsHandler, POST_TEXT, supabaseApprovals } from "../reels.js";
 
 const OWNER = 42;
 function fakeApi() {
@@ -135,4 +135,136 @@ test("reels: a press tells AURA HQ: approved, uploading, published (1/1); a fail
   seen.length = 0;
   await run(fakeApi().api, async () => assert.fail("a skip publishes nothing"))(press("skip"));
   assert.deepEqual(seen, [["approve", "done", "דילגת על הרילס"]]);
+});
+
+// ---- AURA approvals (aura_approvals in Supabase): the Telegram button and AURA share decide(), so they never disagree ----
+// A fake PostgREST for aura_approvals: POST inserts, PATCH ?id=eq.N&status=eq.waiting claims (only a waiting row).
+function fakeSupabase({ down = false } = {}) {
+  const rows = [];
+  const requests = [];
+  const fetch = async (url, init) => {
+    const body = init.body ? JSON.parse(init.body) : null;
+    requests.push({ url, method: init.method, headers: init.headers, body });
+    if (down) throw new TypeError("fetch failed");
+    const u = new URL(url);
+    assert.equal(u.pathname, "/rest/v1/aura_approvals");
+    assert.equal(init.headers.Prefer, "return=representation");
+    const json = (x) => ({ ok: true, status: 200, json: async () => x });
+    if (init.method === "POST") return rows.push({ id: rows.length + 1, status: "waiting", ...body }), json([rows.at(-1)]);
+    if (init.method === "PATCH") {
+      const id = Number(u.searchParams.get("id").replace("eq.", ""));
+      assert.equal(u.searchParams.get("status"), "eq.waiting");
+      const row = rows.find((r) => r.id === id && r.status === "waiting");
+      return json(row ? [Object.assign(row, body)] : []);
+    }
+    throw new Error(`unexpected ${init.method}`);
+  };
+  return { rows, requests, fetch, approvals: supabaseApprovals({ fetch, env: { SUPABASE_URL: "http://sb.test", SUPABASE_SERVICE_KEY: "test-key" } }) };
+}
+const withApprovals = (api, approvals, publish) => createReelsHandler({ api, ownerId: OWNER, publish, download: async (id) => Buffer.from(id), approvals, report: () => {} });
+const counter = () => {
+  const done = [];
+  return { done, publish: async (bytes, caption, opts) => (done.push({ bytes: bytes.toString(), caption, only: opts.only }), { instagram: { ok: true }, facebook: { ok: true } }) };
+};
+
+test("approvals: a preview from the bot is stored as a waiting row and its buttons carry the row id", async () => {
+  const { api, of } = fakeApi();
+  const sb = fakeSupabase();
+  await withApprovals(api, sb.approvals, counter().publish)(asVideo());
+  assert.equal(sb.rows.length, 1);
+  const [row] = sb.rows;
+  assert.deepEqual({ bot: row.bot, kind: row.kind, status: row.status }, { bot: "reels", kind: "publish", status: "waiting" });
+  assert.deepEqual(row.payload, { chat_id: String(OWNER), message_id: 101, file_id: "V1", caption: POST_TEXT });
+  assert.equal(JSON.stringify(row).includes("test-key"), false, "no secret in the row");
+  const edit = of("editMessageReplyMarkup").at(-1);
+  assert.equal(edit.args[1], 101);
+  assert.deepEqual(edit.args[2].reply_markup.inline_keyboard[0].map((b) => b.callback_data), ["pub#1", "skip#1"]);
+});
+
+test("approvals: the insert failing leaves the Telegram flow exactly as today", async () => {
+  const { api, of } = fakeApi();
+  const sb = fakeSupabase({ down: true });
+  const c = counter();
+  const run = withApprovals(api, sb.approvals, c.publish);
+  await run(asVideo());
+  assert.equal(of("editMessageReplyMarkup").length, 0, "the plain pub / skip buttons stay");
+  assert.deepEqual(of("sendVideo")[0].args[2].reply_markup.inline_keyboard[0].map((b) => b.callback_data), ["pub", "skip"]);
+  await run(press("pub"));
+  assert.equal(c.done.length, 1);
+});
+
+test("approvals: the Telegram press claims the row, publishes once; AURA approving after it publishes nothing", async () => {
+  const { api } = fakeApi();
+  const sb = fakeSupabase();
+  const c = counter();
+  const run = withApprovals(api, sb.approvals, c.publish);
+  await run(asVideo());
+  await run(press("pub#1"));
+  assert.deepEqual(c.done, [{ bytes: "V1", caption: POST_TEXT, only: null }]);
+  const patch = sb.requests.find((r) => r.method === "PATCH");
+  assert.match(patch.url, /\/rest\/v1\/aura_approvals\?id=eq\.1&status=eq\.waiting$/);
+  assert.deepEqual([patch.body.status, patch.body.decided_by], ["approved", "telegram"]);
+  assert.ok(!Number.isNaN(Date.parse(patch.body.decided_at)));
+  assert.deepEqual(await run.decide({ id: 1 }, "approve", "aura"), { already: true });
+  await run(press("pub#1"));
+  assert.equal(c.done.length, 1, "published once");
+});
+
+test("approvals: AURA approves a waiting row: published once from the row's payload, the preview closes like a press", async () => {
+  const { api, of } = fakeApi();
+  const sb = fakeSupabase();
+  const c = counter();
+  const run = withApprovals(api, sb.approvals, c.publish);
+  await run(asFile());
+  assert.deepEqual(await run.decide({ id: 1 }, "approve", "aura"), { ok: true });
+  assert.deepEqual(c.done, [{ bytes: "D1", caption: POST_TEXT, only: null }]);
+  assert.deepEqual([sb.rows[0].status, sb.rows[0].decided_by], ["approved", "aura"]);
+  const edits = of("editMessageReplyMarkup").slice(1).map((e) => [e.args[1], e.args[2].reply_markup.inline_keyboard[0][0].text]);
+  assert.deepEqual(edits, [[101, "⏳ מפרסם..."], [101, "✅ פורסם"]]);
+  assert.match(of("sendMessage").at(-1).args[1], /אינסטגרם: פורסם/);
+  assert.deepEqual(await run.decide({ id: 1 }, "approve", "aura"), { already: true });
+  await run(press("pub#1", { document: { file_id: "D1" } }));
+  assert.equal(c.done.length, 1, "a second decide and a late press publish nothing");
+});
+
+test("approvals: AURA rejecting skips like the button; a press with no row (old preview) keeps today's behaviour", async () => {
+  const { api, of } = fakeApi();
+  const sb = fakeSupabase();
+  const c = counter();
+  const run = withApprovals(api, sb.approvals, c.publish);
+  await run(asVideo());
+  assert.deepEqual(await run.decide({ id: 1 }, "reject", "aura"), { ok: true });
+  assert.equal(sb.rows[0].status, "rejected");
+  assert.equal(of("editMessageReplyMarkup").at(-1).args[2].reply_markup.inline_keyboard[0][0].text, "⏭ דולג");
+  assert.equal(c.done.length, 0);
+  const before = sb.requests.length;
+  await run(press("pub"));
+  assert.equal(c.done.length, 1);
+  assert.equal(sb.requests.length, before, "no row, no claim");
+});
+
+test("approvals: Supabase down at the press: Maor's button still publishes; AURA's decide fails loudly", async () => {
+  const { api } = fakeApi();
+  const c = counter();
+  const run = withApprovals(api, fakeSupabase({ down: true }).approvals, c.publish);
+  await run(press("pub#7"));
+  assert.equal(c.done.length, 1);
+  await assert.rejects(run.decide({ id: 7 }, "approve", "aura"));
+  assert.equal(c.done.length, 1);
+});
+
+test("approvals: the button edit failing after the insert closes the row, so AURA can never publish it too", async () => {
+  const { api: base, of } = fakeApi();
+  let edits = 0; // only the first edit (the row id onto the buttons) fails
+  const api = new Proxy(base, { get: (t, m) => (m === "editMessageReplyMarkup" && !edits++ ? async () => { throw new Error("message is not modified"); } : t[m]) });
+  const sb = fakeSupabase();
+  const c = counter();
+  const run = withApprovals(api, sb.approvals, c.publish);
+  await run(asVideo());
+  assert.deepEqual([sb.rows[0].status, sb.rows[0].decided_by], ["rejected", "none"], "not left waiting");
+  assert.deepEqual(await run.decide({ id: 1 }, "approve", "aura"), { already: true });
+  assert.equal(c.done.length, 0);
+  assert.deepEqual(of("sendVideo")[0].args[2].reply_markup.inline_keyboard[0].map((b) => b.callback_data), ["pub", "skip"]);
+  await run(press("pub"));
+  assert.equal(c.done.length, 1, "only the plain Telegram button publishes");
 });

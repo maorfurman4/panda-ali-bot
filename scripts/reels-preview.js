@@ -5,7 +5,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 import { Api, InputFile } from "grammy";
-import { previewExtra } from "../reels.js";
+import { previewExtra, recordPreview } from "../reels.js";
 
 const [file, textFile] = process.argv.slice(2);
 const text = textFile ? readFileSync(textFile, "utf8").trim() : undefined;
@@ -19,5 +19,7 @@ if (mb > 20) {
   console.error(`${basename(file)} is ${mb.toFixed(1)} MB: over the bot's 20 MB download limit, so "publish" could not fetch it. Encode it smaller first.`);
   process.exit(1);
 }
-const sent = await new Api(token).sendDocument(owner, new InputFile(file, basename(file)), previewExtra(text));
+const api = new Api(token);
+const sent = await api.sendDocument(owner, new InputFile(file, basename(file)), previewExtra(text));
+await recordPreview({ api, owner, sent, text, title: basename(file) }); // AURA can approve it too (needs SUPABASE_* in .env)
 console.log(`sent ${basename(file)} (${mb.toFixed(1)} MB) to the owner, message ${sent.message_id}`);

@@ -14,11 +14,11 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Api, InputFile } from "grammy";
 import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js";
-import { previewExtra } from "../reels.js";
-import { station, safeError, whereOf } from "../aura-report.js";
+import { previewExtra, recordPreview } from "../reels.js";
+import { station, safeError, whereOf, paused, cfgGet } from "../aura-report.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
-  captionList, sectionsOf, sentToday, REELS_PER_DAY, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
+  captionList, sectionsOf, sentToday, reelsPerDay, MIN_SOLD, MIN_POSITIVE, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -31,12 +31,14 @@ const out = env.REEL_OUT || join(ROOT, "reel-out");
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, "utf8")); } catch { return {}; } };
 const stateFile = env.REELS_STATE || "reels-state.json";
 const state = readJson(stateFile);
+if (dry) process.env.AURA_REPORT = "off"; // a dry run reaches nobody: nothing goes to AURA HQ
+// Paused in AURA: quiet exit before any report or message (also loads the 'reels' settings for this run, fail-open).
+if (await paused("reels")) process.exit(0);
 if (!dry && (!api || !owner)) throw new Error("sending needs REELS_BOT_TOKEN and DEALS_OWNER_ID (or REEL_DRY=true)");
 if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is missing");
 const note = async (text) => (console.log(`note: ${text}`), dry ? null : api.sendMessage(owner, `🎬 סרטון הבוקר: ${text}`));
 const log = (l) => console.log(`  ${l}`);
 // AURA HQ status (aura-report.js): `open` is the station at work now, so the catch at the bottom can close it as "error".
-if (dry) process.env.AURA_REPORT = "off"; // a dry run reaches nobody: nothing goes to AURA HQ
 let open = null;
 const start = (id, headline) => (open = id, station("reels", id, "working", headline));
 const done = (id, headline, metrics) => (open = null, station("reels", id, "done", headline, metrics));
@@ -88,14 +90,15 @@ function frames(video, dir, dur) {
 }
 
 async function main() {
-  if (auto && !env.REEL_PRODUCT && !dry && sentToday(state) >= REELS_PER_DAY) {
-    await station("reels", "pick", "done", `${REELS_PER_DAY} הרילסים האוטומטיים של היום כבר נשלחו, אין מה לעשות`);
-    return console.log(`today's ${REELS_PER_DAY} automatic reels already reached the owner: nothing to do`);
+  const perDay = reelsPerDay();
+  if (auto && !env.REEL_PRODUCT && !dry && sentToday(state) >= perDay) {
+    await station("reels", "pick", "done", `${perDay} הרילסים האוטומטיים של היום כבר נשלחו, אין מה לעשות`);
+    return console.log(`today's ${perDay} automatic reels already reached the owner: nothing to do`);
   }
   await start("pick", env.REEL_PRODUCT ? "טוען את המוצר שנבחר ידנית" : "מחפש מוצר עם סרטון של המוכר");
   const p = await product();
   await done("pick", p ? "נבחר מוצר לרילס" : "לא נמצא היום מוצר שעבר את התנאים, אין רילס", env.REEL_PRODUCT ? undefined : { candidates });
-  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, 1,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
+  if (!p) return note(`לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, ${cfgGet("reels", "MIN_SOLD", MIN_SOLD).toLocaleString("en-US")}+ נמכרו, ${cfgGet("reels", "MIN_POSITIVE", MIN_POSITIVE)}%+ ביקורות חיוביות). אין סרטון היום.`);
   const id = String(p.product_id);
   console.log(`product ${id}: ${p.product_title}\n  ₪${p.target_sale_price}, sold ${p.lastest_volume}, ${p.evaluate_rate} positive`);
   const work = join(out, id);
@@ -172,7 +175,8 @@ async function main() {
   if (dry) return console.log("dry run: nothing sent, state unchanged");
 
   await start("preview", "שולח את הרילס לאישור בטלגרם");
-  await api.sendDocument(owner, new InputFile(reel, `reel-${id}.mp4`), previewExtra(written.post));
+  const sent = await api.sendDocument(owner, new InputFile(reel, `reel-${id}.mp4`), previewExtra(written.post));
+  await recordPreview({ api, owner, sent, text: written.post, title: p.product_title.slice(0, 60) }); // AURA can approve it too; never throws
   await api.sendMessage(owner, captions);
   await done("preview", "הרילס נשלח עם כפתורי פרסום ודילוג");
   await station("reels", "approve", "working", "מחכה לאישור שלך בטלגרם"); // stays "working" until the press reaches reels.js

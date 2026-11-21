@@ -10,6 +10,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { Api } from "grammy";
 import { runDeals, sendDailyStatus, israelTime } from "../deals.js";
 import { addStars, fetchReviews } from "../aliexpress.js";
+import { paused } from "../aura-report.js";
 
 const file = process.env.DEALS_STATE || "deals-state.json";
 const state = await readFile(file, "utf8").then(JSON.parse).catch(() => ({}));
@@ -24,6 +25,8 @@ if (token && !chatId) {
 }
 const preview = process.env.DEALS_PREVIEW === "true";
 if (preview || !token) process.env.AURA_REPORT = "off"; // a preview or a dry run is not the channel: nothing goes to AURA HQ (aura-report.js)
+// Paused in AURA: quiet exit before any report or post (also loads the 'panda' settings for this run, fail-open).
+if (await paused("panda")) process.exit(0);
 if (preview && token && !process.env.DEALS_OWNER_ID) throw new Error("a preview needs DEALS_OWNER_ID");
 // DEALS_PREVIEW_HOUR: a preview as if it were that hour in Israel (to see the morning or evening topics at any time).
 const hour = preview ? Number(process.env.DEALS_PREVIEW_HOUR) : NaN;

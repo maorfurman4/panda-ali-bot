@@ -97,3 +97,32 @@ test("/reels is off without the Reels bot", async () => {
     await srv.close();
   }
 });
+
+test("/reels/decide: AURA's approve needs x-aura-key (missing env 503, wrong or missing key 403) and goes through decide", async () => {
+  const { bot } = setup();
+  const calls = [];
+  const reels = Object.assign(async () => {}, { decide: async (row, action, by, { answer } = {}) => (calls.push([row, action, by]), row.id === 2 ? { already: true } : (await answer?.("מפרסם..."), { ok: true })) });
+  const open = async (decideSecret) => listen(createApp({ bot, mode: "webhook", webhookSecret: "s3cr3t_Token-1", reels, decideSecret }));
+  const send = (base, body, headers = {}) => fetch(`${base}/reels/decide`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
+  let srv = await open(undefined);
+  try {
+    assert.equal((await send(srv.base, { id: 1, action: "approve" }, { "x-aura-key": "anything" })).status, 503);
+  } finally {
+    await srv.close();
+  }
+  srv = await open("a-long-random-test-secret");
+  try {
+    assert.equal((await send(srv.base, { id: 1, action: "approve" })).status, 403);
+    assert.equal((await send(srv.base, { id: 1, action: "approve" }, { "x-aura-key": "wrong" })).status, 403);
+    assert.deepEqual(calls, [], "rejected before decide");
+    const key = { "x-aura-key": "a-long-random-test-secret" };
+    assert.equal((await send(srv.base, { id: "x", action: "approve" }, key)).status, 400);
+    assert.equal((await send(srv.base, { id: 1, action: "publish" }, key)).status, 400);
+    const ok = await send(srv.base, { id: 1, action: "approve" }, key);
+    assert.deepEqual([ok.status, await ok.json()], [200, { ok: true }]);
+    assert.deepEqual(await (await send(srv.base, { id: 2, action: "reject" }, key)).json(), { ok: true, already: true });
+    assert.deepEqual(calls, [[{ id: 1 }, "approve", "aura"], [{ id: 2 }, "reject", "aura"]]);
+  } finally {
+    await srv.close();
+  }
+});
