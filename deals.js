@@ -5,7 +5,7 @@ import { InputFile } from "grammy";
 import { searchProducts, shortenLinks, promoNames } from "./aliexpress.js";
 import { makeCollage } from "./collage.js";
 import { pickDeal as defaultPick } from "./query.js";
-import { station, working, safeError, whereOf } from "./aura-report.js";
+import { station, working, safeError, whereOf, cfgGet } from "./aura-report.js";
 import { RLM, esc, shortTitle, soldText, priceLine, formatPrice, discountLine, vatLine, ratingText, parseEvaluateRate, dedupeProducts, isPartFor, GROUP_LINK, couponLine } from "./format.js";
 
 // One topic per post, in turn. Every topic was measured on 2026-10-30: the median sales of its top 3 items that pass our
@@ -111,8 +111,14 @@ const KEEP_POSTED = 500; // product ids remembered so a deal isn't posted twice
 // 07:00 is the first post and 23:00 the last of every day (owner, 2026-10-30/31).
 // Every hour, 07:00-23:00, on every kind of day (owner, 2026-11-04: a deal every hour; every half hour would flood the
 // channel and use up the strong products). Sale and peak days keep their banners and sale lists.
-const HOURLY = Array.from({ length: 17 }, (_, i) => 7 + i);
-export const SCHEDULE = { normal: HOURLY, sale: HOURLY, peak: HOURLY };
+const POST_HOURS = [7, 23]; // first and last posting hour; AURA's POST_HOURS override replaces it
+export function postingHours() {
+  const got = cfgGet("panda", "POST_HOURS", POST_HOURS); // cfgGet checks the type (whole numbers); the shape is checked here
+  const [first, last] = got.length === 2 && got[0] >= 0 && got[0] <= got[1] && got[1] <= 23 ? got : POST_HOURS;
+  return Array.from({ length: last - first + 1 }, (_, i) => first + i);
+}
+// Read at each use, so the hours follow AURA's setting (loaded once at the start of the run).
+export const SCHEDULE = Object.defineProperties({}, Object.fromEntries(["normal", "sale", "peak"].map((k) => [k, { get: postingHours, enumerable: true }])));
 // The big shopping days (MM-DD). shortcut: Black Friday and Cyber Monday move every year (these are 2026); update each autumn.
 export const PEAK_DAYS = { "11-11": "11.11", "11-27": "בלאק פריידיי", "11-30": "סייבר מאנדיי", "12-12": "12.12" };
 
@@ -213,11 +219,11 @@ export function saleBanner(sale, { day, md }) {
 }
 
 // Proven, complete, not-yet-posted items, most sold first (feedback is only a floor: 6,600 sold beats 4,900).
-export function candidates(products, posted = [], minSold = MIN_SOLD) {
+export function candidates(products, posted = [], minSold = cfgGet("panda", "MIN_SOLD", MIN_SOLD)) {
   const seen = new Set(posted.map(String));
   const good = products.filter(
     (p) =>
-      parseEvaluateRate(p.evaluate_rate) >= MIN_FEEDBACK &&
+      parseEvaluateRate(p.evaluate_rate) >= cfgGet("panda", "MIN_FEEDBACK", MIN_FEEDBACK) &&
       Number(p.lastest_volume) >= minSold &&
       /^https:\/\//.test(p.promotion_link ?? "") &&
       p.product_main_image_url &&
@@ -405,7 +411,7 @@ function markUsed(state, done, now = Date.now()) {
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
 // topics/topicKey: a holiday or series post walks its own list with its own place in state; maxIls: a price cap.
 // stars: real stars and review counts for the chosen product (scripts/daily-deal.js passes addStars; tests leave it out).
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", order = null, usedAt = Date.now(), worth = false, steps = Math.min(topics.length, order ? MAIN_TRIES : topics.length), minSold = MIN_SOLD, maxIls = null, rotate = false, log = console.log } = {}) {
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", order = null, usedAt = Date.now(), worth = false, steps = Math.min(topics.length, order ? MAIN_TRIES : topics.length), minSold = cfgGet("panda", "MIN_SOLD", MIN_SOLD), maxIls = null, rotate = false, log = console.log } = {}) {
   const posted = state.posted ?? [];
   const cap = maxIls ? { maxIls } : {};
   let seenNow = null; // every searched best seller is remembered for the price and trend signals

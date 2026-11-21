@@ -10,7 +10,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 //   reasoning effort: https://developers.openai.com/api/docs/guides/reasoning
 //   data / store:false: https://developers.openai.com/api/docs/guides/your-data
 import { stats } from "./stats.js";
-import { ai } from "./aura-report.js";
+import { ai, config, cfgGet } from "./aura-report.js";
 import { isPartFor, forWhom, namesModel, fitsDevice, needsEnTitle, manySizes, whiteByGrammar, whiteOrKids } from "./format.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
@@ -535,6 +535,8 @@ export const understandQuery = createUnderstander();
 // flower baskets, a window robot titled "vacuum"). On titles alone it picked the same products as with photos at ~$0.004
 // vs ~$0.0075, so photos are sent only when the request names a color or pattern.
 const RELEVANCE_MODEL = "gpt-5.4";
+// AURA's RELEVANCE_MODEL override (["model"]) beats OPENAI_RELEVANCE_MODEL, which beats the constant.
+const relevanceModel = (env) => cfgGet("panda", "RELEVANCE_MODEL", [""])[0] || env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL;
 // Colors and patterns can only be checked on the photo.
 // Final letters: "לבן"/"חום" don't match "לבנה"/"חומה", so those are listed. "לבנות"/"לבנים" alone can mean for
 // girls/boys (the AI asks which); "בצבע לבן" counts through "צבע".
@@ -729,7 +731,8 @@ export function createRelevanceFilter({ fetch = globalThis.fetch, env = process.
     const photo = (p) => (/^https:\/\//i.test(p.product_main_image_url ?? "") ? [{ type: "input_image", image_url: `${p.product_main_image_url}_${size}.jpg`, detail: "low" }] : []);
     const titles = [head, ...lines].join("\n");
     const withPhotos = [{ type: "input_text", text: head }, ...products.flatMap((p, i) => [{ type: "input_text", text: lines[i] }, ...photo(p)])];
-    const model = env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL;
+    await config("panda"); // AURA settings, cached 60 s (fail-open: unreachable -> the defaults)
+    const model = relevanceModel(env);
     // request.steady (non-style searches): temperature 0, so the same product gets the same verdict (VGR 9,832 was exact
     // once and "near" twice in 3 runs, 2026-11-02). Style searches keep the default, as approved.
     const args = { fetch, env, instructions: pick ? RELEVANCE_SYSTEM + styleNote(pick) : RELEVANCE_SYSTEM, name: "relevant_products", schema: pick ? STYLE_SCHEMA : RELEVANCE_SCHEMA, onUsage, ...(request.steady ? { temperature: 0 } : {}) };
@@ -810,7 +813,7 @@ export function createPhotoPicker({ fetch = globalThis.fetch, env = process.env,
       ...photos[i].flatMap((u, j) => [{ type: "input_text", text: `photo ${j + 1}` }, { type: "input_image", image_url: `${u}_350x350.jpg`, detail: "low" }]),
     ])];
     try {
-      const out = await requestJson({ fetch, env, model: env.OPENAI_RELEVANCE_MODEL || RELEVANCE_MODEL, instructions: PHOTO_PICK_SYSTEM, content, name: "color_photos", schema: PHOTO_PICK_SCHEMA, onUsage, temperature: 0 });
+      const out = await requestJson({ fetch, env, model: relevanceModel(env), instructions: PHOTO_PICK_SYSTEM, content, name: "color_photos", schema: PHOTO_PICK_SCHEMA, onUsage, temperature: 0 });
       for (const { listing, photo } of Array.isArray(out?.picks) ? out.picks : []) {
         if (Number.isInteger(listing) && Number.isInteger(photo) && photos[listing]?.[photo - 1]) none[listing] = photos[listing][photo - 1];
       }
@@ -1096,14 +1099,14 @@ const DEAL_WRITE_SCHEMA = {
 // { none: true } when none is the topic's item. A bad optional part is dropped; null (a failed call or a bad name) makes the
 // caller post its best-ranked product under the seller title.
 export function createDealPicker({ fetch = globalThis.fetch, env = process.env, onUsage = () => {} } = {}) {
-  const ask = (instructions, content, name, schema) =>
-    requestJson({ fetch, env, model: env.OPENAI_MODEL || DEFAULT_MODEL, instructions, content, name, schema, onUsage, timeoutMs: DEAL_TIMEOUT_MS, maxTokens: 800, hedgeMs: 0 }); // a deal post may take a while: no duplicate
+  const ask = (instructions, content, name, schema, model = env.OPENAI_MODEL || DEFAULT_MODEL) =>
+    requestJson({ fetch, env, model, instructions, content, name, schema, onUsage, timeoutMs: DEAL_TIMEOUT_MS, maxTokens: 800, hedgeMs: 0 }); // a deal post may take a while: no duplicate
   // opts.reviews(product): that product's best buyer reviews ({ stars, country, text, photos }), fetched only for the pick.
   return async function pickDeal(products, topic = "", opts = {}) {
     if (!products.length || !env.OPENAI_API_KEY) return null;
     try {
       const list = products.map((p, i) => `${i}. ${clean(p.product_title, 160)}`).join("\n");
-      const fit = await ask(DEAL_FIT_SYSTEM, (topic ? `Topic: ${clean(topic, 60)}\n` : "") + `${products.length} products:\n` + list, "deal_fit", DEAL_FIT_SCHEMA);
+      const fit = await ask(DEAL_FIT_SYSTEM, (topic ? `Topic: ${clean(topic, 60)}\n` : "") + `${products.length} products:\n` + list, "deal_fit", DEAL_FIT_SCHEMA, cfgGet("panda", "DEAL_MODEL", [""])[0] || undefined); // AURA's DEAL_MODEL, this pick only
       // A short or long answer still says which listed products fit (it came back one short on 2 of 5 posts, 2026-10-30);
       // a missing answer counts as "no".
       const fits = Array.isArray(fit?.fits) ? fit.fits.slice(0, products.length) : null;

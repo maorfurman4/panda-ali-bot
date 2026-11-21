@@ -4,7 +4,7 @@
 // pick); Whisper (~0.2¢) gives the word times the cuts sit on. The rules the script must follow: reels/voice.md.
 import { readFileSync } from "node:fs";
 import { lookalikeBrand } from "./format.js";
-import { ai } from "./aura-report.js";
+import { ai, cfgGet } from "./aura-report.js";
 
 export const MIN_SOLD = 1000;    // a quality gate only: the reel says the price, not the buyers (owner, 2026-11-16)
 export const MIN_POSITIVE = 95;  // % positive reviews
@@ -69,8 +69,8 @@ export const queriesFor = (day) => QUERIES.map((_, i) => QUERIES[(day + i) % QUE
 // ---------------- the product ----------------
 export function weakness(p) {
   if (!String(p.product_video_url ?? "").startsWith(VIDEO_HOST)) return "no seller video";
-  if (!(Number(p.lastest_volume) >= MIN_SOLD)) return `sold ${p.lastest_volume ?? "?"}`;
-  if (!(parseFloat(p.evaluate_rate) >= MIN_POSITIVE)) return `rating ${p.evaluate_rate ?? "?"}`;
+  if (!(Number(p.lastest_volume) >= cfgGet("reels", "MIN_SOLD", MIN_SOLD))) return `sold ${p.lastest_volume ?? "?"}`;
+  if (!(parseFloat(p.evaluate_rate) >= cfgGet("reels", "MIN_POSITIVE", MIN_POSITIVE))) return `rating ${p.evaluate_rate ?? "?"}`;
   if (lookalikeBrand(p.product_title ?? "")) return "look-alike brand";
   return null;
 }
@@ -108,6 +108,7 @@ export function nextTrack(state, pool, now = Date.now()) {
 // day's two automatic reels does nothing, so a failed start is made up by the next one. The owner's own "Run workflow"
 // is never limited and doesn't count (owner, 2026-11-16: "as many as I want").
 export const REELS_PER_DAY = 2;
+export const reelsPerDay = () => cfgGet("reels", "REELS_PER_DAY", REELS_PER_DAY); // AURA's override, else 2
 const israelDay = (t) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
 export const sentToday = (state, now = Date.now()) => (state.used ?? []).filter((u) => u.auto !== false && israelDay(u.at) === israelDay(now)).length;
 
