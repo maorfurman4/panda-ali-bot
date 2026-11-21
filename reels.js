@@ -49,12 +49,19 @@ export function supabaseApprovals({ fetch = globalThis.fetch, env = process.env 
 }
 
 // After a preview is sent: its waiting row, then the buttons get the row's id. Any failure leaves today's plain buttons.
-// shortcut: if the row is stored but the button edit fails, a press can't claim it (AURA still can); fine for one owner.
+// The row is stored but the button edit fails: the row is closed at once, so AURA can never claim it and only the plain
+// Telegram button can publish (no double publish).
 export async function recordPreview({ api, owner, sent, text = POST_TEXT, title, fileId = null, approvals = supabaseApprovals() }) {
   try {
     const payload = { chat_id: String(owner), message_id: sent.message_id, file_id: videoOf(sent)?.file_id ?? fileId, caption: text };
     const row = await approvals.insert({ bot: "reels", kind: "publish", title: String(title ?? "רילס").slice(0, 80), payload });
-    if (row?.id != null) await api.editMessageReplyMarkup(owner, sent.message_id, choice(row.id));
+    if (row?.id == null) return null;
+    try {
+      await api.editMessageReplyMarkup(owner, sent.message_id, choice(row.id));
+    } catch (e) {
+      await approvals.claim(row.id, "rejected", "none").catch(() => {});
+      throw e;
+    }
     return row;
   } catch (e) {
     console.error(`reels: no AURA approval row (${e.message}); the Telegram buttons work as before`);

@@ -15,10 +15,10 @@ import { fileURLToPath } from "node:url";
 import { Api, InputFile } from "grammy";
 import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js";
 import { previewExtra, recordPreview } from "../reels.js";
-import { station, safeError, whereOf, paused } from "../aura-report.js";
+import { station, safeError, whereOf, paused, cfgGet } from "../aura-report.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
-  captionList, sectionsOf, sentToday, reelsPerDay, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
+  captionList, sectionsOf, sentToday, reelsPerDay, MIN_SOLD, MIN_POSITIVE, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -98,7 +98,7 @@ async function main() {
   await start("pick", env.REEL_PRODUCT ? "טוען את המוצר שנבחר ידנית" : "מחפש מוצר עם סרטון של המוכר");
   const p = await product();
   await done("pick", p ? "נבחר מוצר לרילס" : "לא נמצא היום מוצר שעבר את התנאים, אין רילס", env.REEL_PRODUCT ? undefined : { candidates });
-  if (!p) return note("לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, 1,000+ נמכרו, 95%+ ביקורות חיוביות). אין סרטון היום.");
+  if (!p) return note(`לא מצאתי היום מוצר שעבר את התנאים (סרטון של המוכר באיכות טובה, ${cfgGet("reels", "MIN_SOLD", MIN_SOLD).toLocaleString("en-US")}+ נמכרו, ${cfgGet("reels", "MIN_POSITIVE", MIN_POSITIVE)}%+ ביקורות חיוביות). אין סרטון היום.`);
   const id = String(p.product_id);
   console.log(`product ${id}: ${p.product_title}\n  ₪${p.target_sale_price}, sold ${p.lastest_volume}, ${p.evaluate_rate} positive`);
   const work = join(out, id);

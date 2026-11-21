@@ -252,3 +252,19 @@ test("approvals: Supabase down at the press: Maor's button still publishes; AURA
   await assert.rejects(run.decide({ id: 7 }, "approve", "aura"));
   assert.equal(c.done.length, 1);
 });
+
+test("approvals: the button edit failing after the insert closes the row, so AURA can never publish it too", async () => {
+  const { api: base, of } = fakeApi();
+  let edits = 0; // only the first edit (the row id onto the buttons) fails
+  const api = new Proxy(base, { get: (t, m) => (m === "editMessageReplyMarkup" && !edits++ ? async () => { throw new Error("message is not modified"); } : t[m]) });
+  const sb = fakeSupabase();
+  const c = counter();
+  const run = withApprovals(api, sb.approvals, c.publish);
+  await run(asVideo());
+  assert.deepEqual([sb.rows[0].status, sb.rows[0].decided_by], ["rejected", "none"], "not left waiting");
+  assert.deepEqual(await run.decide({ id: 1 }, "approve", "aura"), { already: true });
+  assert.equal(c.done.length, 0);
+  assert.deepEqual(of("sendVideo")[0].args[2].reply_markup.inline_keyboard[0].map((b) => b.callback_data), ["pub", "skip"]);
+  await run(press("pub"));
+  assert.equal(c.done.length, 1, "only the plain Telegram button publishes");
+});
