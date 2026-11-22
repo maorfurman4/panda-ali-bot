@@ -31,7 +31,7 @@ const spend = (usd, step, input = 0, cached = 0) => {
 };
 const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 // AURA HQ: the office station each call's tokens are counted for (aura-report.js ai()); a name not here is not counted.
-const STATION_OF = { search_intent: "understand", advisor_step: "understand", relevant_products: "judges", color_photos: "variants", short_titles: "card", fit_reasons: "card", deal_fit: "fit", deal_post: "copy" };
+const STATION_OF = { search_intent: "understand", advisor_step: "understand", relevant_products: "judges", color_photos: "variants", short_titles: "card", fit_reasons: "card", deal_fit: "fit", deal_post: "copy", deal_quote: "copy" };
 const CLAUDE_FOR = { "gpt-5.4": "claude-sonnet-5-5", "gpt-5.5": "claude-sonnet-5-5" }; // anything else: Haiku
 const claudeFor = (model) => CLAUDE_FOR[model] ?? "claude-haiku-5-5";
 const CLAUDE_CACHE_READ = { "claude-haiku-5-5": 0.01, "claude-sonnet-5-5": 0.1 }; // USD per 1M cached input tokens
