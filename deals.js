@@ -218,6 +218,13 @@ export function saleBanner(sale, { day, md }) {
   return `🛍️ מבצעי ${sale.label}${days === 1 ? " · מחר!" : days > 1 ? ` · עוד ${days} ימים!` : ""}`;
 }
 
+// The filter's AURA report. Items that passed but are past the TO_AI cut are a reserve (the judge sees only the top 5 by
+// design), not drops: counted as "dropped", AURA's nightly report took them for waste (1,804 of 1,884, 2026-11-21).
+export function filterReport(found, passed, kept) {
+  const dropped = found - passed, reserve = passed - kept;
+  return [`${kept} החזקים לשופט, ${reserve} טובים נוספים בצד, ${dropped} ירדו (כבר פורסמו, כפולים או חלשים)`, { kept, dropped, reserve }];
+}
+
 // Proven, complete, not-yet-posted items, most sold first (feedback is only a floor: 6,600 sold beats 4,900).
 export function candidates(products, posted = [], minSold = cfgGet("panda", "MIN_SOLD", MIN_SOLD)) {
   const seen = new Set(posted.map(String));
@@ -431,15 +438,16 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     });
     const found = inCategory.length + anywhere.length;
     let list = candidates([...inCategory, ...anywhere], posted, minSold);
+    const passed = list.length;
     if (!list.length) {
-      await station("panda", "filter", "done", "אף מוצר לא עבר את הסינון, עוברים לנושא הבא", { kept: 0, dropped: found });
+      await station("panda", "filter", "done", "אף מוצר לא עבר את הסינון, עוברים לנושא הבא", filterReport(found, 0, 0)[1]);
       log(`no good item for "${words}", trying the next topic`);
       continue;
     }
     const seen = state.seen ?? {};
     seenNow = rememberSeen(seenNow ?? seen, list, usedAt);
     list = (worth ? worthRank(list, seen, usedAt) : list).slice(0, TO_AI);
-    await station("panda", "filter", "done", `נשארו ${list.length} החזקים, ${found - list.length} ירדו (כבר פורסמו, כפולים או חלשים)`, { kept: list.length, dropped: found - list.length });
+    await station("panda", "filter", "done", ...filterReport(found, passed, list.length));
     // A failed AI call (null) is tried once more: it timed out once at 30 s, and the post then went out without its text.
     // reviews: the chosen product's buyer reviews (scripts/daily-deal.js passes fetchReviews); a failure is no reviews.
     let at = "fit"; // AURA HQ: the station at work while the picker runs ("copy" once it asks for reviews)
