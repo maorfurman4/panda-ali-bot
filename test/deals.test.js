@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, CLOSINGS, topicOrder, loadTopics, CATS, rememberSeen, dealSignals, signalTag, worthRank, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS } from "../deals.js";
+import { candidates, formatDeal, pickReviews, nextTemplate, TEMPLATES, CLOSINGS, topicOrder, loadTopics, CATS, rememberSeen, dealSignals, signalTag, worthRank, postDeal, postSet, runDeals, activeSale, saleBanner, israelTime, upcomingHoliday, specialFor, TOPICS, SETS, filterReport } from "../deals.js";
 
 const item = (id, extra = {}) => ({
   product_id: id,
@@ -590,4 +590,14 @@ test("postDeal: AURA HQ never keeps 'fit' or 'copy' on working: a picker that th
     globalThis.fetch = before.fetch;
     for (const [name, value] of [["AURA_REPORT", before.off], ["AURA_SUPABASE_URL", before.url], ["AURA_SUPABASE_KEY", before.key]]) value === undefined ? delete process.env[name] : (process.env[name] = value);
   }
+});
+
+test("filterReport: the items cut to the 5 the judge sees are a reserve, not drops (AURA's nightly report read 1,804 'dropped' as waste, 2026-11-21)", () => {
+  const [headline, metrics] = filterReport(42, 12, 5);
+  assert.deepEqual(metrics, { kept: 5, dropped: 30, reserve: 7 });
+  assert.equal(metrics.kept + metrics.dropped + metrics.reserve, 42, "every found item is counted once");
+  assert.match(headline, /5 החזקים/);
+  assert.match(headline, /30 ירדו/);
+  assert.match(headline, /7 טובים נוספים/);
+  assert.deepEqual(filterReport(9, 0, 0)[1], { kept: 0, dropped: 9, reserve: 0 });
 });
