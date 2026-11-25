@@ -438,6 +438,32 @@ export function wordTimeline(says, heard) {
   }));
 }
 
+// How long each sentence is on screen in the spoken take (s); the end card holds 2 s more
+function spokenFor(ends, heard) {
+  const t = ends.map((e) => heard[e].end);
+  return [t[0] - heard[0].start + 0.2, ...t.slice(1, -1).map((x, i) => x - t[i]), heard.at(-1).end - t.at(-2) + 2.0];
+}
+
+// A shot shorter than its spoken sentence grows inside its own section (never over a cut or another shot's seconds),
+// so the take is judged by the words actually spoken, not Gemini's guess of their length: 4 of 5 failed reels
+// (22-25.11) were only that, each costing a new script. Changes shots in place; returns how many grew.
+export function fitShots(ends, heard, shots) {
+  if (ends.some((e) => e === null) || !heard.length) return 0; // timingProblems reports it
+  let grown = 0;
+  spokenFor(ends, heard).forEach((need, i) => {
+    const s = shots[i];
+    if (!s?.sec || s.b - s.a >= need) return;
+    const others = shots.filter((x) => x !== s);
+    const hi = Math.min(s.sec[1], ...others.filter((x) => x.a >= s.b - 0.25).map((x) => x.a));
+    const lo = Math.max(s.sec[0], ...others.filter((x) => x.b <= s.a + 0.25).map((x) => x.b));
+    const r = (x) => Math.round(x * 100) / 100;
+    const b = r(Math.max(s.b, Math.min(hi, s.a + need)));
+    const a = r(Math.min(s.a, Math.max(lo, b - need)));
+    if (b > s.b || a < s.a) { s.a = a; s.b = b; grown++; }
+  });
+  return grown;
+}
+
 // The guide's timing rules (owner-approved 2026-11-15): the hook is spoken within 3 s and no scene runs over 4 s
 // (the end card is exempt). ends: sentenceEnds; heard: Whisper words. Returns the reasons it fails, [] when fine.
 export function timingProblems(ends, heard, says, shots = null) {
@@ -449,8 +475,7 @@ export function timingProblems(ends, heard, says, shots = null) {
   for (let i = 1; i < ends.length - 1; i++) if (t[i] - t[i - 1] > 4.0) problems.push(`"${says[i]}" takes ${(t[i] - t[i - 1]).toFixed(1)} s (max 4)`);
   for (let i = 1; i < ends.length; i++) if (!(ends[i] > ends[i - 1])) problems.push("sentences out of order in the spoken take");
   if (shots && !problems.length) {
-    const spoken = [t[0] - heard[0].start + 0.2, ...t.slice(1, -1).map((x, i) => x - t[i]), heard.at(-1).end - t.at(-2) + 2.0]; // the end card holds 2 s more
-    spoken.forEach((need, i) => {
+    spokenFor(ends, heard).forEach((need, i) => {
       const len = shots[i].b - shots[i].a;
       if (len < need * 0.55) problems.push(`"${says[i]}" is spoken for ${need.toFixed(1)} s but its shot (${shots[i].a}-${shots[i].b}) is only ${len.toFixed(1)} s: pick a longer shot inside one section, or a shorter sentence`);
     });
