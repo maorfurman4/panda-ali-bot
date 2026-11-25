@@ -83,7 +83,7 @@ test("postDeal: skips a topic with nothing good, falls back to text when the pho
   const api = { sendPhoto: async () => { throw new Error("bad photo"); }, sendMessage: async (...a) => sent.push(a) };
   let calls = 0;
   const search = async () => (++calls <= 2 ? [] : [item("x")]); // first topic: empty with and without the category
-  const state = await postDeal({}, { api, chatId: 1, search, shorten: async (ps) => ps, pick: async () => null, log: () => {} });
+  const state = await postDeal({}, { api, chatId: 1, search, shorten: async (ps) => ps, pick: async () => null, download: async () => { throw new Error("offline"); }, log: () => {} });
   assert.equal(state.topic, 1);
   assert.match(sent[0][1], /מנורת לילה/);
   const empty = { topic: 3, posted: [] };
@@ -189,6 +189,26 @@ test("postDeal media: the seller's video first, else a collage of 4 of the produ
   const plain = await run(item("a", { lastest_volume: 90000 }));
   assert.deepEqual(plain.map((s) => s[0]), ["photo"]);
   assert.equal(plain[0][2], "https://ae01.alicdn.com/a.jpg", "too few photos for a collage: the main photo");
+});
+
+test("postDeal media: one failed photo is not a text-only post: the next photo, then the main photo uploaded by the bot (AURA issue 14, 23.11)", async () => {
+  const photos = { string: ["https://ae01.alicdn.com/1.jpg", "https://ae01.alicdn.com/2.jpg", "https://ae01.alicdn.com/3.jpg", "https://ae01.alicdn.com/4.jpg"] };
+  const run = async (failFirst, { downloadFails = false } = {}) => {
+    const sent = [];
+    let n = 0;
+    const api = {
+      sendPhoto: async (_c, media) => { n++; if (n <= failFirst) throw Object.assign(new Error("Bad Request: failed to get HTTP URL content"), { description: "Bad Request: failed to get HTTP URL content" }); sent.push(["photo", typeof media === "string" ? media : media.constructor.name]); },
+      sendMessage: async () => sent.push(["text"]),
+    };
+    await postDeal({}, { api, chatId: 1, search: async () => [item("a", { product_small_image_urls: photos, lastest_volume: 90000 }), item("b"), item("c")], shorten: async (ps) => ps, pick: async () => null,
+      collage: async () => Buffer.from("jpg"), download: async () => { if (downloadFails) throw new Error("offline"); return Buffer.from("jpg"); }, log: () => {} });
+    return { sent, tries: n };
+  };
+  assert.deepEqual((await run(1)).sent, [["photo", "https://ae01.alicdn.com/a.jpg"]], "the collage failed: the main photo by URL");
+  assert.deepEqual((await run(5)).sent, [["photo", "InputFile"]], "collage and all 4 URLs failed: the main photo downloaded and uploaded");
+  const none = await run(99, { downloadFails: true });
+  assert.deepEqual(none.sent, [["text"]], "only when every photo fails: text");
+  assert.equal(none.tries, 5, "collage + main + 3 photos; the failed download never reaches Telegram");
 });
 
 test("upcomingHoliday: by the Hebrew calendar, from 30 days ahead; back to school by the civil date", () => {
