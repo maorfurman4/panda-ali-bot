@@ -331,7 +331,7 @@ export function formatDeal(p, { name, emoji, headline, benefits = [], warning, r
 // The seller's video when there is one (about 1 in 10 top sellers, 2026-10-31; owner: a video shows the real thing), else
 // one collage of 4 of the product's own photos (a single photo keeps the caption and the buy button, an album can't), else
 // the main photo, else text. Every step falls back to the next.
-async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = null }) {
+async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = null, download = downloadImage }) {
   const extra = { caption, parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: BUY_LABEL, url: p.promotion_link }]] } };
   await station("panda", "media", "working", "בוחר מדיה: סרטון של המוכר, קולאז' או תמונה");
   if (/^https:\/\//.test(p.product_video_url ?? "")) {
@@ -347,16 +347,34 @@ async function sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto = nu
   // A buyer's own photo takes the last place (owner, 2026-11-08); if it can't be used, the seller's 4 photos.
   const withBuyer = /^https:\/\//.test(buyerPhoto ?? "") && photos.length >= 3 ? [...photos.slice(0, 3), buyerPhoto] : null;
   const image = (withBuyer && (await collage(withBuyer, { badges: false }).catch(() => null))) || (photos.length === 4 ? await collage(photos, { badges: false }).catch(() => null) : null);
-  try {
-    const sent = await api.sendPhoto(chatId, image ? new InputFile(image, "panda-deal.jpg") : p.product_main_image_url, extra);
-    await station("panda", "media", "done", image ? "נשלח עם קולאז' של 4 תמונות" : "נשלח עם התמונה הראשית של המוצר");
-    return sent;
-  } catch (e) {
-    log(`photo failed (${e.description ?? e.message}), sending text`);
-    await station("panda", "media", "error", "התמונה נכשלה, הפוסט נשלח כטקסט בלבד", { where: whereOf(e) });
-    const { caption: text, ...rest } = extra;
-    return api.sendMessage(chatId, text, { ...rest, link_preview_options: { is_disabled: true } });
+  // One failed photo is no reason for a text-only post (AURA issue 14, 23.11): the collage, then each product photo by
+  // URL, then the main photo downloaded here and uploaded (when Telegram's own fetch of the AliExpress URL is what fails).
+  const tries = [
+    ...(image ? [[() => new InputFile(image, "panda-deal.jpg"), "נשלח עם קולאז' של 4 תמונות"]] : []),
+    ...[...new Set([p.product_main_image_url, ...photos])].filter(Boolean).map((u, i) => [() => u, i ? "נשלח עם תמונה של המוצר" : "נשלח עם התמונה הראשית של המוצר"]),
+    ...(/^https:\/\//.test(p.product_main_image_url ?? "") ? [[async () => new InputFile(await download(p.product_main_image_url), "panda-deal.jpg"), "נשלח עם התמונה הראשית (הורדה ישירה)"]] : []),
+  ];
+  let last;
+  for (const [media, said] of tries) {
+    try {
+      const sent = await api.sendPhoto(chatId, await media(), extra);
+      await station("panda", "media", "done", said);
+      return sent;
+    } catch (e) {
+      last = e;
+      log(`photo failed (${e.description ?? e.message}), trying the next one`);
+    }
   }
+  log("every photo failed, sending text");
+  await station("panda", "media", "error", "התמונה נכשלה, הפוסט נשלח כטקסט בלבד", last && { where: whereOf(last) });
+  const { caption: text, ...rest } = extra;
+  return api.sendMessage(chatId, text, { ...rest, link_preview_options: { is_disabled: true } });
+}
+
+async function downloadImage(url) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  if (!r.ok) throw new Error(`download ${r.status}`);
+  return Buffer.from(await r.arrayBuffer());
 }
 
 // Step 5 (owner, 2026-11-08: show what is really worth it, talk about an unusual discount, trends). Real data only:
@@ -418,7 +436,7 @@ function markUsed(state, done, now = Date.now()) {
 // same object (and posts nothing) when none of the next `steps` topics gives a good item.
 // topics/topicKey: a holiday or series post walks its own list with its own place in state; maxIls: a price cap.
 // stars: real stars and review counts for the chosen product (scripts/daily-deal.js passes addStars; tests leave it out).
-export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, banner = null, topics = TOPICS, topicKey = "topic", order = null, usedAt = Date.now(), worth = false, steps = Math.min(topics.length, order ? MAIN_TRIES : topics.length), minSold = cfgGet("panda", "MIN_SOLD", MIN_SOLD), maxIls = null, rotate = false, log = console.log } = {}) {
+export async function postDeal(state, { api, chatId, search = searchProducts, shorten = shortenLinks, stars = null, reviews = null, pick = defaultPick, collage = makeCollage, download = downloadImage, banner = null, topics = TOPICS, topicKey = "topic", order = null, usedAt = Date.now(), worth = false, steps = Math.min(topics.length, order ? MAIN_TRIES : topics.length), minSold = cfgGet("panda", "MIN_SOLD", MIN_SOLD), maxIls = null, rotate = false, log = console.log } = {}) {
   const posted = state.posted ?? [];
   const cap = maxIls ? { maxIls } : {};
   let seenNow = null; // every searched best seller is remembered for the price and trend signals
@@ -495,7 +513,7 @@ export async function postDeal(state, { api, chatId, search = searchProducts, sh
     const tag = signalTag(p, dealSignals(p, state.seen ?? {}, usedAt), worth);
     if (tag) log(`signal: ${tag}`);
     const caption = formatDeal(p, { ...(choice ?? {}), closing, tag }, banner);
-    if (api) await working("panda", "broadcast", "שולח את הדיל לערוץ", (w) => sendDeal(api, chatId, p, caption, { collage, log, buyerPhoto: choice?.review?.photo }).then(() => w.done("הדיל נשלח לערוץ")));
+    if (api) await working("panda", "broadcast", "שולח את הדיל לערוץ", (w) => sendDeal(api, chatId, p, caption, { collage, download, log, buyerPhoto: choice?.review?.photo }).then(() => w.done("הדיל נשלח לערוץ")));
     else log(`[dry run, nothing sent]\n${caption}`);
     log(`posted "${words}": product ${p.product_id}`);
     const entry = { at: Date.now(), name: choice?.name || shortTitle(p.product_title), price: p.target_sale_price };
