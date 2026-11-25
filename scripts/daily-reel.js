@@ -17,7 +17,7 @@ import { apiCall, searchProducts, generateAffiliateLink } from "../aliexpress.js
 import { previewExtra, recordPreview } from "../reels.js";
 import { station, safeError, whereOf, paused, cfgGet } from "../aura-report.js";
 import {
-  pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, nextTrack, markUsed,
+  pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, fitShots, nextTrack, markUsed,
   captionList, sectionsOf, sentToday, reelsPerDay, MIN_SOLD, MIN_POSITIVE, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
 } from "../reel-style3.js";
 
@@ -137,8 +137,10 @@ async function main() {
     heard = await wordTimes(readFileSync(voice));
     writeFileSync(join(work, "words.json"), JSON.stringify(heard));
     ends = sentenceEnds(says, heard);
-    const sc0 = written.script;
-    const problems = timingProblems(ends, heard, says, [sc0.hook, ...sc0.scenes, sc0.proof, sc0.end]);
+    const sc0 = written.script, shots0 = [sc0.hook, ...sc0.scenes, sc0.proof, sc0.end];
+    const grown = fitShots(ends, heard, shots0);
+    if (grown) console.log(`round ${round}: ${grown} shots grown to fit the spoken take`);
+    const problems = timingProblems(ends, heard, says, shots0);
     console.log(`round ${round}: ${says.join(" ")}\n  heard: ${heard.map((w) => w.word).join(" ")}\n  ends ${JSON.stringify(ends)} ${problems.join("; ") || "timing ok"}`);
     if (!problems.length) await done("timing", `${heard.length} מילים תוזמנו, הקצב תקין`, { words: heard.length, rounds: round });
     else await failed("timing", round === 2 ? "הקריינות לא עמדה בכללי הזמנים פעמיים, אין רילס" : "הקריינות לא עמדה בכללי הזמנים, כותבים תסריט חדש");

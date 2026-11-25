@@ -147,6 +147,26 @@ test("style 3: a shot never crosses the seller video's own cut, never repeats an
   assert.deepEqual(timingProblems([1, 2, 3], heard, says, [shots[0], { a: 0, b: 2.0 }, shots[2]]), []);
 });
 
+test("style 3: a shot shorter than its spoken sentence grows inside its section instead of costing a new script (AURA issues 10, 17: 25.11 '...is spoken for 3.0 s but its shot is only 1.5 s')", async () => {
+  const { fitShots } = await import("../reel-style3.js");
+  const says = ["נשפך לכם שמן?", "זה שפריצר שמן שקוף ונוח לשימוש.", "סוף."];
+  const heard = [{ word: "נשפך", start: 0, end: 0.5 }, { word: "שמן", start: 0.5, end: 2.4 }, { word: "לשימוש", start: 2.4, end: 5.5 }, { word: "סוף", start: 5.5, end: 6 }];
+  const room = [{ a: 1.5, b: 4.2, sec: [0, 5.07] }, { a: 7.5, b: 9, sec: [7.47, 14.13] }, { a: 14.2, b: 19, sec: [14.13, 20.48] }];
+  assert.match(timingProblems([1, 2, 3], heard, says, room).join(" "), /only 1\.5 s/, "fails as before without the fit");
+  assert.equal(fitShots([1, 2, 3], heard, room), 1);
+  assert.deepEqual([room[1].a, room[1].b], [7.5, 10.6], "grown to the 3.1 s spoken, inside section 7.47-14.13");
+  assert.deepEqual(timingProblems([1, 2, 3], heard, says, room), []);
+  // no room: the section ends at 8.5 and the next shot sits right after it -> stays short, the retry still happens
+  const tight = [{ a: 1.5, b: 4, sec: [0, 5.07] }, { a: 7, b: 8.5, sec: [7, 8.5] }, { a: 8.5, b: 13, sec: [8.5, 20] }];
+  fitShots([1, 2, 3], heard, tight);
+  assert.deepEqual([tight[1].a, tight[1].b], [7, 8.5]);
+  assert.match(timingProblems([1, 2, 3], heard, says, tight).join(" "), /only 1\.5 s/);
+  // never runs into a neighbour's seconds in the same section
+  const shared = [{ a: 1.5, b: 4, sec: [0, 5.07] }, { a: 7.5, b: 9, sec: [7.47, 14.13] }, { a: 9.8, b: 14, sec: [7.47, 14.13] }];
+  fitShots([1, 2, 3], heard, shared);
+  assert.ok(shared[1].b <= 9.8 && shared[1].a >= 7.47, JSON.stringify(shared[1]));
+});
+
 test("style 3: two reels a day (Israel date), however many times the morning run is started (owner, 2026-11-16)", async () => {
   const { sentToday, markUsed, REELS_PER_DAY } = await import("../reel-style3.js");
   assert.equal(REELS_PER_DAY, 2);
