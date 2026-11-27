@@ -2,9 +2,24 @@
 // voice-over. scripts/daily-reel.js runs it every morning on GitHub; reels/style3.py renders.
 // Gemini (free tier) watches the video's frames and writes the script; Gemini TTS speaks it (voice "Sadachbia", the owner's
 // pick); Whisper (~0.2¢) gives the word times the cuts sit on. The rules the script must follow: reels/voice.md.
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { lookalikeBrand } from "./format.js";
 import { ai, cfgGet } from "./aura-report.js";
+
+// Runs a Python step with stdout and stderr in the log. On failure the error message is the script's name and its last stderr
+// line (the exception, e.g. "AssertionError: (-15.2, -1.4)") then stderr's last 400 chars, instead of "Command failed: python3 ...".
+export function runPython(args, run = execFileSync) {
+  try {
+    run("python3", args, { stdio: ["inherit", "inherit", "pipe"] });
+  } catch (e) {
+    const err = e.stderr?.toString() ?? "";
+    process.stderr.write(err);
+    const tail = err.trim();
+    if (tail) e.message = `${args[0].split("/").pop()}: ${tail.split("\n").pop()}\n${tail.slice(-400)}`;
+    throw e;
+  }
+}
 
 export const MIN_SOLD = 1000;    // a quality gate only: the reel says the price, not the buyers (owner, 2026-11-16)
 export const MIN_POSITIVE = 95;  // % positive reviews
