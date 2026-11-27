@@ -272,14 +272,7 @@ def mix(spec, v, D, work, out, sfx=None):
         k.run(["-i", raw, "-i", sfx, "-filter_complex", f"[1:a]volume={g_sfx:.2f}dB[s];[0:a][s]amix=inputs=2:normalize=0[a]", "-map", "[a]",
                "-c:a", "pcm_f32le", raw + ".fx.wav"])
         os.replace(raw + ".fx.wav", raw)
-    gain = k.MIX_LUFS - k.ebur(raw)[0]
-    for _ in range(3):  # the limiter takes some loudness off: add it back and limit again
-        k.run(["-i", raw, "-af", f"volume={gain:.2f}dB,alimiter=limit={10 ** ((k.MIX_TP - 1) / 20):.4f}:level=false:attack=3:release=60",
-               "-t", f"{D:.3f}", "-c:a", "pcm_s16le", out])
-        miss = k.MIX_LUFS - k.ebur(out)[0]
-        if abs(miss) < 0.2: break
-        gain += miss
-    lufs, tp, _ = k.ebur(out)
+    lufs, tp = k.master(raw, D, out)
     assert tp <= k.MIX_TP and abs(lufs - k.MIX_LUFS) < 0.5, (lufs, tp)
     return lufs, tp
 

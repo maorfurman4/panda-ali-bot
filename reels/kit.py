@@ -58,6 +58,20 @@ MIX_LUFS, MIX_TP = -15.0, -1.5
 SFX_UNDER = 6.0  # loudest sound effect (400 ms momentary) sits this many LU under the music's integrated level
 
 
+def master(raw, D, out, passes=4):
+    """raw -> out at MIX_LUFS through a limiter, re-rendered until true peak <= MIX_TP and loudness is within 0.2 LU.
+    Returns (LUFS, dBTP); callers assert the result."""
+    gain, ceil = MIX_LUFS - ebur(raw)[0], MIX_TP - 1  # alimiter limits sample peaks: start 1 dB under MIX_TP for inter-sample peaks
+    for _ in range(passes):
+        run(["-i", raw, "-af", f"volume={gain:.2f}dB,alimiter=limit={10 ** (ceil / 20):.4f}:level=false:attack=3:release=60",
+             "-t", f"{D:.3f}", "-c:a", "pcm_s16le", out])
+        lufs, tp, _ = ebur(out)
+        if tp <= MIX_TP and abs(MIX_LUFS - lufs) < 0.2: break
+        if tp > MIX_TP: ceil -= tp - MIX_TP + 0.2  # attack and inter-sample peaks overshot the ceiling: lower it by the excess
+        gain += MIX_LUFS - lufs  # the limiter took some loudness off: add it back
+    return lufs, tp
+
+
 def mix_track(sfx, D, work, out, track, offset, fade=1.2):
     """The track from `offset` s (a beat) as the bed, sound effects tucked SFX_UNDER LU beneath it, no ducking; whole mix to
     MIX_LUFS with true peak <= MIX_TP. Returns (LUFS, dBTP)."""
@@ -68,11 +82,7 @@ def mix_track(sfx, D, work, out, track, offset, fade=1.2):
     raw = os.path.join(work, "mix-raw.wav")
     run(["-i", bed, "-i", sfx, "-filter_complex", f"[1:a]volume={g_sfx:.2f}dB[s];[0:a][s]amix=inputs=2:normalize=0[a]",
          "-map", "[a]", "-c:a", "pcm_f32le", raw])
-    g = MIX_LUFS - ebur(raw)[0]
-    # shortcut: alimiter limits sample peaks, so it sits 1 dB under MIX_TP to leave room for inter-sample peaks; checked below
-    run(["-i", raw, "-af", f"volume={g:.2f}dB,alimiter=limit={10 ** ((MIX_TP - 1) / 20):.4f}:level=false:attack=3:release=60",
-         "-t", f"{D:.3f}", "-c:a", "pcm_s16le", out])
-    lufs, tp, _ = ebur(out)
+    lufs, tp = master(raw, D, out)
     assert tp <= MIX_TP and abs(lufs - MIX_LUFS) < 1, (lufs, tp)
     return lufs, tp
 

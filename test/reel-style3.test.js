@@ -2,8 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   weakness, pickProduct, priceWords, priceSay, checkScript, sentences, sentenceEnds, timingProblems, cleanTail, nextTrack, markUsed,
-  queriesFor, QUERIES, END_SAY, POST_CTA,
+  queriesFor, QUERIES, END_SAY, POST_CTA, runPython,
 } from "../reel-style3.js";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const P = { product_id: 1, product_title: "Mini Spoon Scale Digital Kitchen Scale 0.1-500g", lastest_volume: "12934", evaluate_rate: "98.0%", target_sale_price: "14.09", product_video_url: "https://video.aliexpress-media.com/x.mp4" };
 const good = () => ({
@@ -198,4 +202,33 @@ test("style 3: a product whose seller video is too small or too short is passed 
   const p = await pickProduct(["a", "b"], { search: async (q) => lists[q], accept });
   assert.equal(p.product_id, 3);
   assert.deepEqual(tried, [1, 2, 3]);
+});
+
+test("style 3: a failed Python step's error carries its exception and stderr tail for the alert", () => {
+  const dir = mkdtempSync(join(tmpdir(), "reel-py-"));
+  const script = join(dir, "boom.py");
+  writeFileSync(script, "import sys\nprint('x' * 600, file=sys.stderr)\nassert False, (-15.2, -1.4)\n");
+  const write = process.stderr.write;
+  process.stderr.write = () => true; // keep the expected traceback out of the test output
+  try {
+    assert.throws(() => runPython([script]), (e) => {
+      assert.match(e.message, /^boom\.py: AssertionError: \(-15\.2, -1\.4\)\n/);
+      assert.ok(e.message.length < 500, "only the tail of stderr");
+      return true;
+    });
+  } finally { process.stderr.write = write; }
+});
+
+const hasFfmpeg = (() => { try { execFileSync("ffmpeg", ["-version"]); execFileSync("python3", ["--version"]); return true; } catch { return false; } })();
+test("style 3: the mix master re-limits until true peak is under MIX_TP (run 45941272072 hit -1.4 dBTP)", { skip: !hasFfmpeg && "no ffmpeg/python3" }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "reel-mix-"));
+  const raw = join(dir, "raw.wav");
+  // a quiet tone with short 12 kHz clicks at a 45° phase: their inter-sample peaks overshoot the one-pass limiter (-15.0, -1.2)
+  execFileSync("ffmpeg", ["-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+    "aevalsrc='0.2*sin(2*PI*1000*t)+0.95*sin(2*PI*12000*t+PI/4)*lt(mod(t\\,0.25)\\,0.002)':d=8:s=48000", "-ac", "2", "-c:a", "pcm_f32le", raw]);
+  const [lufs, tp, maxTp, target] = JSON.parse(execFileSync("python3", ["-c",
+    `import json, kit; print(json.dumps([*kit.master(${JSON.stringify(raw)}, 8, ${JSON.stringify(join(dir, "out.wav"))}), kit.MIX_TP, kit.MIX_LUFS]))`],
+    { cwd: new URL("../reels/", import.meta.url).pathname }).toString());
+  assert.ok(tp <= maxTp, `true peak ${tp} > ${maxTp}`);
+  assert.ok(Math.abs(lufs - target) < 0.5, `loudness ${lufs}`);
 });

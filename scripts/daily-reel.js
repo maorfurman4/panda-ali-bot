@@ -18,7 +18,7 @@ import { previewExtra, recordPreview } from "../reels.js";
 import { station, safeError, whereOf, paused, cfgGet } from "../aura-report.js";
 import {
   pickProduct, queriesFor, weakness, writeScript, sentences, speak, wordTimes, sentenceEnds, timingProblems, fitShots, nextTrack, markUsed,
-  captionList, sectionsOf, sentToday, reelsPerDay, MIN_SOLD, MIN_POSITIVE, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS,
+  captionList, sectionsOf, sentToday, reelsPerDay, MIN_SOLD, MIN_POSITIVE, VIDEO_HOST, MIN_VIDEO_S, MIN_PICTURE_H, wordTimeline, lookFor, PRICE_ASKS, runPython,
 } from "../reel-style3.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -166,7 +166,7 @@ async function main() {
   writeFileSync(join(work, "spec.json"), JSON.stringify(spec, null, 1));
   const reel = join(out, `reel-${id}.mp4`);
   await start("render", "עורך את הרילס");
-  execFileSync("python3", [join(ROOT, "reels", "style3.py"), join(work, "spec.json"), reel], { stdio: "inherit" });
+  runPython([join(ROOT, "reels", "style3.py"), join(work, "spec.json"), reel]);
   await done("render", "הרילס מוכן", { shots: spec.shots.length });
 
   const link = await generateAffiliateLink(`https://www.aliexpress.com/item/${id}.html`);
@@ -192,6 +192,6 @@ try {
 } catch (e) {
   console.error(e);
   if (open) await station("reels", open, "error", safeError(e), { where: whereOf(e) }); // URLs and long tokens are scrubbed before they leave
-  await note(`נכשל: ${String(e.message).slice(0, 300)}`).catch(() => {});
+  await note(`נכשל: ${String(e.message).slice(0, 600)}`).catch(() => {});
   process.exit(1);
 }
